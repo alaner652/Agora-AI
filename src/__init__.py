@@ -1,18 +1,11 @@
-from .client import (
-    login,
-    fetch_schedule_form,
-    fetch_schedule,
-    fetch_absence_form,
-    fetch_absence,
-)
+from .client import login, activate_feature, post_data, get_page
 from .parser import parse_schedule, parse_select, ScheduleEntry
 
 __all__ = [
     "login",
-    "fetch_schedule_form",
-    "fetch_schedule",
-    "fetch_absence_form",
-    "fetch_absence",
+    "activate_feature",
+    "post_data",
+    "get_page",
     "parse_schedule",
     "parse_select",
     "ScheduleEntry",

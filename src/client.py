@@ -2,8 +2,6 @@ import httpx
 
 BASE_URL = "https://siw.tpcu.edu.tw"
 
-_COOKIES = {"JSESSIONID": ""}  # template, filled per-call
-
 
 def _client() -> httpx.AsyncClient:
     return httpx.AsyncClient(base_url=BASE_URL, verify=False, follow_redirects=True)
@@ -28,68 +26,36 @@ async def login(uid: str, pwd: str) -> str:
     return jsessionid
 
 
-async def fetch_schedule_form(jsessionid: str) -> str:
-    """取得課表選擇表單 HTML（含可用學期選項）。"""
+async def activate_feature(jsessionid: str, fncid: str, spath: str) -> str:
+    """通用第一階段：激活功能閘門，回傳含選項的表單 HTML。"""
     async with _client() as c:
         resp = await c.post(
             "/tsint/system/sys001_00.jsp",
-            params={"spath": "ag_pro/ag222.jsp?"},
-            data={"fncid": "AG222"},
+            params={"spath": spath},
+            data={"fncid": fncid},
             cookies={"JSESSIONID": jsessionid},
         )
     _check_session(resp.text)
     return resp.text
 
 
-async def fetch_schedule(jsessionid: str, yms: str = "114,2") -> str:
-    """抓取課表的原始 HTML。"""
-    year, semester = yms.split(",")
+async def post_data(jsessionid: str, url: str, data: dict) -> str:
+    """通用第二階段：帶狀態送出 POST，回傳結果 HTML。"""
     async with _client() as c:
         resp = await c.post(
-            "/tsint/ag_pro/ag222.jsp",
-            data={"yms": yms, "spath": "ag_pro/ag222.jsp?",
-                  "arg01": year.strip(), "arg02": semester.strip()},
+            url,
+            data=data,
             cookies={"JSESSIONID": jsessionid},
         )
     _check_session(resp.text)
     return resp.text
 
 
-async def fetch_absence_form(jsessionid: str) -> str:
-    """GET 缺曠查詢表單，回傳 HTML（含可用學期與假別選項）。"""
+async def get_page(jsessionid: str, url: str) -> str:
+    """通用 GET，回傳頁面 HTML。"""
     async with _client() as c:
         resp = await c.get(
-            "/tsint/ak_pro/ak002_01.jsp",
-            cookies={"JSESSIONID": jsessionid},
-        )
-    _check_session(resp.text)
-    return resp.text
-
-
-async def fetch_absence(
-    jsessionid: str,
-    yms: str,
-    leave_type: str,
-    start: str,   # ROC compact, e.g. "1150101"
-    end: str,     # ROC compact, e.g. "1150518"
-) -> str:
-    """POST 缺曠查詢，回傳結果 HTML。"""
-    async with _client() as c:
-        resp = await c.post(
-            "/tsint/ak_pro/ak002_01.jsp",
-            data={
-                "yms":         yms,
-                "leave":       leave_type,
-                "etxt_syear":  start[:3],
-                "etxt_smonth": start[3:5],
-                "etxt_sday":   start[5:7],
-                "etxt_eyear":  end[:3],
-                "etxt_emonth": end[3:5],
-                "etxt_eday":   end[5:7],
-                "spath":       "",
-                "sdate":       start,
-                "edate":       end,
-            },
+            url,
             cookies={"JSESSIONID": jsessionid},
         )
     _check_session(resp.text)
