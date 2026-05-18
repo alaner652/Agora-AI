@@ -7,6 +7,7 @@ load_dotenv()
 
 from client import login
 from actions.fetch_schedule.index import get_options, get_schedule
+from utils.render_schedule.index import render
 
 UID = os.environ.get("TPCU_UID", "")
 PWD = os.environ.get("TPCU_PWD", "")
@@ -41,6 +42,10 @@ async def main():
     for e in entries:
         day = "一二三四五六日"[e["weekday"] - 1]
         print(f"   週{day} {e['period']} {e['time_range']}  {e['course']}  {e['teacher']}  {e['classroom']}")
+
+    print("\n4. 產生課表圖片...")
+    out = render(entries, title=chosen["label"], output="schedule.png")
+    print(f"   已存至 {out}")
 
 
 asyncio.run(main())
