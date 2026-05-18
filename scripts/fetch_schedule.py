@@ -44,7 +44,7 @@ async def main():
         print(f"   週{day} {e['period']} {e['time_range']}  {e['course']}  {e['teacher']}  {e['classroom']}")
 
     print("\n4. 產生課表圖片...")
-    out = render(entries, title=chosen["label"], output="schedule.png")
+    out = render(entries, title=chosen["label"], output="output/schedule.png")
     print(f"   已存至 {out}")
 
 

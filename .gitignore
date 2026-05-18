@@ -9,12 +9,6 @@ __pycache__/
 
 # 產出（保留目錄結構，忽略實際輸出檔）
 output/*
-!output/.gitkeep
 
 # 開發暫存
 schedule_debug.html
-*.png
-schedule.png
-
-# 參考資料（本機文件，不進 repo）
-參考資料/

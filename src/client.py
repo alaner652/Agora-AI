@@ -4,7 +4,12 @@ BASE_URL = "https://siw.tpcu.edu.tw"
 
 
 def _client() -> httpx.AsyncClient:
-    return httpx.AsyncClient(base_url=BASE_URL, verify=False, follow_redirects=True)
+    return httpx.AsyncClient(
+        base_url=BASE_URL,
+        verify=False,
+        follow_redirects=True,
+        timeout=30.0,
+    )
 
 
 async def login(uid: str, pwd: str) -> str:
