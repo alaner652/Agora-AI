@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+參考資料
+test.py
+schedule_debug.html
