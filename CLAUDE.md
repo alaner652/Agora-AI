@@ -23,6 +23,7 @@ TPCU_PWD=你的密碼
 ```bash
 python3 scripts/fetch_schedule.py   # 登入 → 選學期 → 查課表 → 輸出圖片
 python3 scripts/fetch_absence.py    # 登入 → 選學期 → 選日期範圍 → 查缺曠 → 輸出圖片
+python3 scripts/fetch_grades.py     # 登入 → 查歷年成績 → 選學期 → 輸出圖片
 ```
 
 圖片輸出至 `output/` 目錄（2× 像素密度）。
@@ -36,7 +37,7 @@ tpcu-llm/
 │   └── fetch_absence.py        # 缺曠查詢流程
 ├── src/
 │   ├── client.py               # 通用 HTTP 層（login / activate_feature / post_data / get_page）
-│   ├── parser.py               # HTML 解析（課表、缺曠、select 選項）
+│   ├── parser.py               # HTML 解析（課表、缺曠、成績、select 選項）
 │   ├── actions/
 │   │   ├── auth/
 │   │   │   ├── index.py        # action：登入
@@ -44,19 +45,26 @@ tpcu-llm/
 │   │   ├── fetch_schedule/
 │   │   │   ├── index.py        # action：取得學期清單 + 查詢課表
 │   │   │   └── docs.md         # 端點規格（AG222 兩階段流程）
-│   │   └── fetch_absence/
-│   │       ├── index.py        # action：取得選項 + 查詢缺曠
-│   │       └── docs.md         # 端點規格（AK002 直接打 form）
+│   │   ├── fetch_absence/
+│   │   │   ├── index.py        # action：取得選項 + 查詢缺曠
+│   │   │   └── docs.md         # 端點規格（AK002 直接打 form）
+│   │   └── fetch_grades/
+│   │       ├── index.py        # action：查詢歷年成績（AG102 單次 POST）
+│   │       └── docs.md         # 端點規格（arg 全空，Session 識別學生）
 │   └── utils/
 │       ├── render_schedule/
 │       │   ├── index.py        # Pillow 課表圖片渲染
 │       │   └── docs.md
-│       └── render_absence/
-│           ├── index.py        # Pillow 缺曠圖片渲染
+│       ├── render_absence/
+│       │   ├── index.py        # Pillow 缺曠圖片渲染
+│       │   └── docs.md
+│       └── render_grades/
+│           ├── index.py        # Pillow 成績圖片渲染
 │           └── docs.md
 ├── output/                     # 產出圖片（gitignore，保留 .gitkeep）
 │   ├── schedule.png
-│   └── absence.png
+│   ├── absence.png
+│   └── grades.png
 ├── pyproject.toml
 └── requirements.txt
 ```
@@ -77,6 +85,11 @@ post_data(ak002_00.jsp, {fncid: AK002})  # POST → 取得完整表單（學期 
 post_data(ak002_01.jsp, {yms, ...})      # POST → 取得缺曠明細 HTML
 ```
 
+**fetch_grades 流程（單次 POST，arg 全空）：**
+```
+post_data(ag102.jsp, {arg01..06: "", fncid: AG102})  # POST → 回傳所有歷年成績 HTML
+```
+
 新增功能只需新增 `actions/<feature>/` 目錄，`client.py` 不動。
 
 ## 已完成
@@ -87,8 +100,9 @@ post_data(ak002_01.jsp, {yms, ...})      # POST → 取得缺曠明細 HTML
 - [x] 課表渲染成 PNG（Pillow，2× 品質，柔和配色）
 - [x] 缺曠查詢（選學期 + 日期範圍快選：今天 / 近 30 天 / 自訂）
 - [x] 缺曠渲染成 PNG（只顯示有資料的節次，假別色碼 + 圖例）
+- [x] 成績查詢（歷年全部一次回傳，腳本自行解析學期列表）
+- [x] 成績渲染成 PNG（不及格列紅底標示）
 
 ## 待辦 / 下一步
 
-- [ ] 成績查詢（`actions/fetch_grades/`）
-- [ ] LLM 整合（自然語言查詢課表 / 缺曠）
+- [ ] LLM 整合（自然語言查詢課表 / 缺曠 / 成績）

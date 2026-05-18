@@ -1,7 +1,7 @@
 from .client import login, activate_feature, post_data, get_page
 from .parser import (
-    parse_schedule, parse_select, parse_absence,
-    ScheduleEntry, AbsenceEntry,
+    parse_schedule, parse_select, parse_absence, parse_grades,
+    ScheduleEntry, AbsenceEntry, GradeEntry,
 )
 
 __all__ = [
@@ -12,6 +12,8 @@ __all__ = [
     "parse_schedule",
     "parse_select",
     "parse_absence",
+    "parse_grades",
     "ScheduleEntry",
     "AbsenceEntry",
+    "GradeEntry",
 ]
