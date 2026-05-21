@@ -1,6 +1,9 @@
 import re
 
 from client import post_data
+from log import get_logger
+
+_log = get_logger("actions.delete_leave")
 
 DEL_URL = "/tsint/ck_pro/ck001_del.jsp"
 
@@ -42,4 +45,6 @@ async def delete_leave(
         "sdate":   sdate,
         "edate":   edate,
     })
-    return _classify(html)
+    result = _classify(html)
+    _log.info("delete_leave barcode=%s → success=%s", barcode, result["success"])
+    return result

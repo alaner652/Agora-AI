@@ -1,5 +1,8 @@
 from client import post_data
-from parser import parse_leaves
+from log import get_logger
+from parsers.leaves import parse_leaves
+
+_log = get_logger("actions.fetch_leaves")
 
 VIEW_URL = "/tsint/ck_pro/ck001_view.jsp"
 
@@ -24,4 +27,6 @@ async def get_leaves(jsessionid: str, start: str, end: str) -> list[dict]:
         "sms_bdate":  "",
         "sms_edate":  "",
     })
-    return parse_leaves(html)
+    entries = parse_leaves(html)
+    _log.info("get_leaves %s~%s → %d entries", start, end, len(entries))
+    return entries

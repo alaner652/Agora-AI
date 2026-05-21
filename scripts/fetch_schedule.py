@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from log import setup_logging
 from client import login
 from actions.fetch_schedule.index import get_options, get_schedule
 from utils.render_schedule.index import render
@@ -56,4 +57,5 @@ async def main():
     print(f"   JSON → {json_path}")
 
 
+setup_logging()
 asyncio.run(main())

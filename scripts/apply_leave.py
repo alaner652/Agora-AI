@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from log import setup_logging
 from client import login
 from actions.apply_leave.index import LEAVE_TYPES, PUBLIC_LEAVE_REASONS, apply_leave, get_leave_form
 from utils.json_output import save_json
@@ -159,4 +160,5 @@ async def main():
     print(f"   JSON → {json_path}")
 
 
+setup_logging()
 asyncio.run(main())

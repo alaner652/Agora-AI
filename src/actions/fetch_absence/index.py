@@ -1,7 +1,11 @@
 import dataclasses
 
 from client import post_data
-from parser import parse_select, parse_absence
+from log import get_logger
+from parsers.absence import parse_absence
+from parsers.select import parse_select
+
+_log = get_logger("actions.fetch_absence")
 
 FORM_URL   = "/tsint/ak_pro/ak002_00.jsp"
 RESULT_URL = "/tsint/ak_pro/ak002_01.jsp"
@@ -40,4 +44,6 @@ async def get_absence(
         "sdate":       start,
         "edate":       end,
     })
-    return [dataclasses.asdict(e) for e in parse_absence(html)]
+    entries = [dataclasses.asdict(e) for e in parse_absence(html)]
+    _log.info("get_absence yms=%s start=%s end=%s → %d entries", yms, start, end, len(entries))
+    return entries

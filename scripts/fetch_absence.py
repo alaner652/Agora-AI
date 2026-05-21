@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from log import setup_logging
 from client import login
 from actions.fetch_absence.index import get_options, get_absence
 from utils.render_absence.index import render
@@ -91,4 +92,5 @@ async def main():
     print(f"   JSON → {json_path}")
 
 
+setup_logging()
 asyncio.run(main())

@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from log import setup_logging
 from client import login
 from actions.fetch_grades.index import get_grades
 from utils.render_grades.index import render
@@ -63,4 +64,5 @@ async def main():
     print(f"   JSON → {json_path}")
 
 
+setup_logging()
 asyncio.run(main())

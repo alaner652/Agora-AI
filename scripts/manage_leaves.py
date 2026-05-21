@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from log import setup_logging
 from client import login
 from actions.fetch_leaves.index import get_leaves
 from actions.delete_leave.index import delete_leave
@@ -31,7 +32,7 @@ async def main():
 
     print("1. 登入...")
     jsessionid = await login(UID, PWD)
-    print(f"   JSESSIONID: {jsessionid}\n")
+    print("   登入成功\n")
 
     today = _today_roc()
     default_start = _days_ago_roc(30)
@@ -104,4 +105,5 @@ async def main():
     print(f"   結果：{status}　訊息：{result['message']}")
 
 
+setup_logging()
 asyncio.run(main())

@@ -1,7 +1,11 @@
 import dataclasses
 
 from client import activate_feature, post_data
-from parser import parse_schedule, parse_select
+from log import get_logger
+from parsers.schedule import parse_schedule
+from parsers.select import parse_select
+
+_log = get_logger("actions.fetch_schedule")
 
 FNCID = "AG222"
 SPATH = "ag_pro/ag222.jsp?"
@@ -23,4 +27,6 @@ async def get_schedule(jsessionid: str, yms: str) -> list[dict]:
         "arg01": year.strip(),
         "arg02": semester.strip(),
     })
-    return [dataclasses.asdict(e) for e in parse_schedule(html)]
+    entries = [dataclasses.asdict(e) for e in parse_schedule(html)]
+    _log.info("get_schedule yms=%s → %d entries", yms, len(entries))
+    return entries

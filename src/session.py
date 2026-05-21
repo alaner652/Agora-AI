@@ -1,5 +1,7 @@
 import json
+import os
 import pathlib
+import stat
 from datetime import datetime
 
 from client import get_page, login
@@ -27,6 +29,7 @@ def _save(jsessionid: str) -> None:
         ),
         encoding="utf-8",
     )
+    os.chmod(_CACHE_FILE, stat.S_IRUSR | stat.S_IWUSR)
 
 
 async def _validate(jsessionid: str) -> bool:

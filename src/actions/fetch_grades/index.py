@@ -1,7 +1,10 @@
 import dataclasses
 
 from client import post_data
-from parser import parse_grades
+from log import get_logger
+from parsers.grades import parse_grades
+
+_log = get_logger("actions.fetch_grades")
 
 URL = "/tsint/ag_pro/ag102.jsp"
 
@@ -13,4 +16,6 @@ async def get_grades(jsessionid: str) -> list[dict]:
         "arg04": "", "arg05": "", "arg06": "",
         "fncid": "AG102",
     })
-    return [dataclasses.asdict(e) for e in parse_grades(html)]
+    entries = [dataclasses.asdict(e) for e in parse_grades(html)]
+    _log.info("get_grades → %d entries", len(entries))
+    return entries

@@ -2,7 +2,10 @@ import re
 from pathlib import Path
 
 from client import get_page, post_multipart
-from parser import parse_leave_form
+from log import get_logger
+from parsers.leaves import parse_leave_form
+
+_log = get_logger("actions.apply_leave")
 
 FORM_URL   = "/tsint/ck_pro/ck001_02.jsp"
 SUBMIT_URL = "/tsint/ck_pro/ck001_ins.jsp"
@@ -112,4 +115,6 @@ async def apply_leave(
         jsessionid, SUBMIT_URL, payload,
         file_bytes=file_bytes, filename=filename, content_type=content_type,
     )
-    return _classify(html)
+    result = _classify(html)
+    _log.info("apply_leave date=%s leave_id=%s → success=%s", date, leave_id, result["success"])
+    return result
