@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""TPCU 工具選單 — 執行 python3 main.py 進入互動選單。"""
 
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -14,6 +12,7 @@ MENU = [
     ("查詢成績",    "fetch_grades.py"),
     ("申請請假",    "apply_leave.py"),
     ("管理假單",    "manage_leaves.py"),
+    ("AI 助理",    "chatbot.py"),
 ]
 
 
@@ -36,7 +35,7 @@ def run_script(script: str) -> None:
         cwd=str(Path(__file__).parent),
     )
     if result.returncode != 0:
-        print(f"\n[!] 腳本結束（returncode={result.returncode}）")
+        print(f"\n腳本結束（returncode={result.returncode}）")
 
 
 def main() -> None:
@@ -45,11 +44,11 @@ def main() -> None:
         try:
             raw = input("請選擇功能：").strip()
         except (KeyboardInterrupt, EOFError):
-            print("\n再見！")
+            print("\n再見")
             break
 
         if raw == "0":
-            print("再見！")
+            print("再見")
             break
 
         if raw.isdigit() and 1 <= int(raw) <= len(MENU):
