@@ -5,8 +5,9 @@ import pathlib
 import sys
 from datetime import date, timedelta
 
+import httpx
 from dotenv import load_dotenv
-from openai import OpenAI
+from openai import OpenAI, APITimeoutError, APIConnectionError
 
 load_dotenv()
 
@@ -18,10 +19,11 @@ from actions.fetch_absence.index import get_options as _abs_options, get_absence
 from actions.fetch_grades.index import get_grades
 from actions.fetch_leaves.index import get_leaves
 from actions.apply_leave.index import apply_leave as _apply_leave
+from actions.delete_leave.index import delete_leave as _delete_leave
 
 UID      = os.environ.get("TPCU_UID", "")
 API_KEY  = os.environ.get("LLM_API_KEY", "")
-BASE_URL = os.environ.get("LLM_BASE_URL", "https://api.openai.com/v1")
+BASE_URL = os.environ.get("LLM_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/")
 MODEL    = os.environ.get("LLM_MODEL", "gpt-4o-mini")
 
 _AI_GUIDE = (pathlib.Path(__file__).parent.parent / "docs" / "AI_GUIDE.md").read_text(encoding="utf-8")
@@ -126,7 +128,64 @@ TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_leave",
+            "description": "刪除待審假單。需先呼叫 get_leaves 取得 stdkey 與 barcode，且 can_delete 為 true 才可執行。刪除前必須向使用者確認。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "stdkey":  {"type": "string", "description": "假單 stdkey，從 get_leaves 取得"},
+                    "barcode": {"type": "string", "description": "假單編號，從 get_leaves 取得"},
+                    "sdate":   {"type": "string", "description": "假單起始日 YYYMMDD"},
+                    "edate":   {"type": "string", "description": "假單結束日 YYYMMDD"},
+                },
+                "required": ["stdkey", "barcode", "sdate", "edate"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "ask_user",
+            "description": "向使用者呈現問題與選項，取得結構化回覆。用於需要明確確認或多選一的情境，例如確認請假申請、選擇假別。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "question": {"type": "string", "description": "問題內容"},
+                    "options": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "選項列表，最多 4 項",
+                    },
+                },
+                "required": ["question", "options"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "render_image",
+            "description": "將最近一次查詢的課表、缺曠或成績資料渲染成圖片並顯示。須先呼叫對應的 fetch 工具取得資料。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "enum": ["schedule", "absence", "grades"],
+                        "description": "資料類型",
+                    },
+                    "title": {"type": "string", "description": "圖片標題（選填）"},
+                },
+                "required": ["type"],
+            },
+        },
+    },
 ]
+
+_data_cache: dict = {}
 
 
 def _today_roc() -> str:
@@ -139,22 +198,43 @@ def _days_ago_roc(n: int) -> str:
     return f"{d.year - 1911}{d.month:02d}{d.day:02d}"
 
 
+def _show_image(path: str) -> None:
+    abs_path = pathlib.Path(path).resolve()
+    uri = abs_path.as_uri()
+    link_text = abs_path.name
+    print(f"\033]8;;{uri}\a{link_text}\033]8;;\a", flush=True)
+
+
 async def _dispatch(name: str, args: dict, jsessionid: str) -> str:
     try:
         if name == "get_semester_options":
             return json.dumps(await _sched_options(jsessionid), ensure_ascii=False)
+
         elif name == "fetch_schedule":
-            return json.dumps(await get_schedule(jsessionid, args["semester_value"]), ensure_ascii=False)
+            entries = await get_schedule(jsessionid, args["semester_value"])
+            _data_cache["schedule"] = {"entries": entries, "title": args["semester_value"]}
+            return json.dumps(entries, ensure_ascii=False)
+
         elif name == "fetch_absence":
-            return json.dumps(await get_absence(
+            entries = await get_absence(
                 jsessionid, args["semester_value"],
                 start=args.get("start", _days_ago_roc(30)),
                 end=args.get("end", _today_roc()),
-            ), ensure_ascii=False)
+            )
+            _data_cache["absence"] = {
+                "entries": entries,
+                "title": f"{args['semester_value']} 缺曠記錄",
+            }
+            return json.dumps(entries, ensure_ascii=False)
+
         elif name == "fetch_grades":
-            return json.dumps(await get_grades(jsessionid), ensure_ascii=False)
+            entries = await get_grades(jsessionid)
+            _data_cache["grades"] = {"entries": entries, "title": "歷年成績"}
+            return json.dumps(entries, ensure_ascii=False)
+
         elif name == "get_leaves":
             return json.dumps(await get_leaves(jsessionid, args["start"], args["end"]), ensure_ascii=False)
+
         elif name == "apply_leave":
             return json.dumps(await _apply_leave(
                 jsessionid=jsessionid,
@@ -165,24 +245,73 @@ async def _dispatch(name: str, args: dict, jsessionid: str) -> str:
                 reason=args["reason"],
                 image_path=args.get("image_path"),
             ), ensure_ascii=False)
+
+        elif name == "delete_leave":
+            return json.dumps(await _delete_leave(
+                jsessionid=jsessionid,
+                stdkey=args["stdkey"],
+                barcode=args["barcode"],
+                sdate=args["sdate"],
+                edate=args["edate"],
+            ), ensure_ascii=False)
+
+        elif name == "ask_user":
+            question = args["question"]
+            options = args["options"]
+            print(f"\n{question}")
+            for i, opt in enumerate(options, 1):
+                print(f"  [{i}] {opt}")
+            while True:
+                try:
+                    raw = input("請選擇: ").strip()
+                except (EOFError, KeyboardInterrupt):
+                    return json.dumps({"selected": "取消"}, ensure_ascii=False)
+                if raw.isdigit() and 1 <= int(raw) <= len(options):
+                    return json.dumps({"selected": options[int(raw) - 1]}, ensure_ascii=False)
+                print("  無效輸入，請重試")
+
+        elif name == "render_image":
+            type_ = args["type"]
+            cached = _data_cache.get(type_)
+            if not cached:
+                return json.dumps({"error": f"尚未查詢 {type_}，請先執行對應查詢"}, ensure_ascii=False)
+            entries = cached["entries"]
+            title = args.get("title") or cached.get("title", "")
+            if type_ == "schedule":
+                from utils.render_schedule.index import render
+                path = render(entries, title=title, output="output/schedule.png")
+            elif type_ == "absence":
+                from utils.render_absence.index import render
+                path = render(entries, title=title, output="output/absence.png")
+            elif type_ == "grades":
+                from utils.render_grades.index import render
+                path = render(entries, title=title, output="output/grades.png")
+            _show_image(path)
+            return json.dumps({"path": path}, ensure_ascii=False)
+
         else:
             return json.dumps({"error": f"未知工具：{name}"})
+
     except ValueError as e:
         if "Session 過期" in str(e):
             raise
         return json.dumps({"error": str(e)})
+    except httpx.TimeoutException:
+        return json.dumps({"error": "學校系統連線逾時（30 秒），請稍後再試"}, ensure_ascii=False)
     except Exception as e:
         return json.dumps({"error": str(e)})
 
 
 async def chat() -> None:
-    if not UID:
-        raise SystemExit("請先在 .env 設定 TPCU_UID")
-    if not API_KEY:
-        raise SystemExit("請先在 .env 設定 LLM_API_KEY")
+    uid = UID or input("學號：").strip()
+    if not uid:
+        raise SystemExit("學號不可空白")
+    api_key = API_KEY or input("LLM API Key：").strip()
+    if not api_key:
+        raise SystemExit("API Key 不可空白")
 
-    jsessionid = await get_session(UID)
-    llm = OpenAI(api_key=API_KEY, base_url=BASE_URL)
+    jsessionid = await get_session(uid)
+    llm = OpenAI(api_key=api_key, base_url=BASE_URL, timeout=60.0)
     messages: list[dict] = []
 
     print(f"已連線（{MODEL}）")
@@ -203,37 +332,48 @@ async def chat() -> None:
 
         messages.append({"role": "user", "content": user_input})
 
-        while True:
-            response = llm.chat.completions.create(
-                model=MODEL,
-                messages=[{"role": "system", "content": SYSTEM_PROMPT}] + messages,
-                tools=TOOLS,
-                tool_choice="auto",
-            )
-            msg = response.choices[0].message
-            messages.append(msg)
+        try:
+            while True:
+                print("思考中...", end="", flush=True)
 
-            if not msg.tool_calls:
-                print(f"\nAI：{msg.content}\n")
-                break
+                response = llm.chat.completions.create(
+                    model=MODEL,
+                    messages=[{"role": "system", "content": SYSTEM_PROMPT}] + messages,
+                    tools=TOOLS,
+                    tool_choice="auto",
+                )
+                msg = response.choices[0].message
+                messages.append(msg)
 
-            for tc in msg.tool_calls:
-                print(f"  [{tc.function.name}]", flush=True)
-                args = json.loads(tc.function.arguments)
-                try:
-                    result = await _dispatch(tc.function.name, args, jsessionid)
-                except ValueError as e:
-                    if "Session 過期" in str(e):
-                        jsessionid = await refresh(UID)
+                if not msg.tool_calls:
+                    print("\r\033[KAI：", end="", flush=True)
+                    for char in (msg.content or ""):
+                        print(char, end="", flush=True)
+                    print("\n")
+                    break
+
+                print("\r\033[K", end="", flush=True)
+                for tc in msg.tool_calls:
+                    print(f"  [{tc.function.name}]", flush=True)
+                    args = json.loads(tc.function.arguments)
+                    try:
                         result = await _dispatch(tc.function.name, args, jsessionid)
-                    else:
-                        result = json.dumps({"error": str(e)})
+                    except ValueError as e:
+                        if "Session 過期" in str(e):
+                            jsessionid = await refresh(uid)
+                            result = await _dispatch(tc.function.name, args, jsessionid)
+                        else:
+                            result = json.dumps({"error": str(e)})
 
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tc.id,
-                    "content": result,
-                })
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc.id,
+                        "content": result,
+                    })
+
+        except (APITimeoutError, APIConnectionError):
+            messages.pop()
+            print("\r\033[KAI 連線失敗，請重試\n")
 
 
 if __name__ == "__main__":
