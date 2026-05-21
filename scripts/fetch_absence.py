@@ -9,6 +9,7 @@ load_dotenv()
 from client import login
 from actions.fetch_absence.index import get_options, get_absence
 from utils.render_absence.index import render
+from utils.json_output import save_json
 
 UID = os.environ.get("TPCU_UID", "")
 PWD = os.environ.get("TPCU_PWD", "")
@@ -80,6 +81,14 @@ async def main():
     out = render(entries, title=f"{chosen_sem['label']} 缺曠記錄",
                  date_range=f"{start} ～ {end}", output="output/absence.png")
     print(f"   已存至 {out}")
+
+    json_path = save_json("absence.json", {
+        "type": "absence",
+        "semester": chosen_sem["label"],
+        "date_range": {"start": start, "end": end},
+        "entries": entries,
+    })
+    print(f"   JSON → {json_path}")
 
 
 asyncio.run(main())

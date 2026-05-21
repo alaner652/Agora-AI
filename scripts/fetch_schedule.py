@@ -8,6 +8,7 @@ load_dotenv()
 from client import login
 from actions.fetch_schedule.index import get_options, get_schedule
 from utils.render_schedule.index import render
+from utils.json_output import save_json
 
 UID = os.environ.get("TPCU_UID", "")
 PWD = os.environ.get("TPCU_PWD", "")
@@ -46,6 +47,13 @@ async def main():
     print("\n4. 產生課表圖片...")
     out = render(entries, title=chosen["label"], output="output/schedule.png")
     print(f"   已存至 {out}")
+
+    json_path = save_json("schedule.json", {
+        "type": "schedule",
+        "semester": chosen["label"],
+        "entries": entries,
+    })
+    print(f"   JSON → {json_path}")
 
 
 asyncio.run(main())
