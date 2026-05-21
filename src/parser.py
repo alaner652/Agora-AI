@@ -233,6 +233,65 @@ def parse_leave_form(html: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# 假單列表解析
+# ---------------------------------------------------------------------------
+
+_PRT_RE = re.compile(r"prt_data\('(\d+)','([^']+)'\)")
+_DEL_RE = re.compile(r"go_del\('(\d+)','([^']+)','(\d+)','(\d+)'\)")
+
+
+def _clean_td(td) -> str:
+    return td.get_text(separator="").replace("\xa0", "").strip()
+
+
+def parse_leaves(html: str) -> list[dict]:
+    """解析 ck001_view.jsp，回傳假單列表。
+
+    Returns:
+        [{"index", "barcode", "reason", "apply_date", "start_date",
+          "end_date", "teacher_status", "teacher_note",
+          "officer_status", "officer_note", "stdkey", "can_delete"}, ...]
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    table = next(
+        (t for t in soup.find_all("table") if "假單編號" in t.get_text()),
+        None,
+    )
+    if table is None:
+        return []
+
+    entries = []
+    for row in table.find_all("tr")[1:]:  # skip header
+        cols = row.find_all("td")
+        if len(cols) < 12:
+            continue
+        # 從 明細 按鈕 onclick 取 stdkey
+        stdkey = ""
+        m = _PRT_RE.search(cols[6].decode_contents())
+        if m:
+            stdkey = m.group(1)
+
+        can_delete = bool(cols[11].find("input"))
+
+        entries.append({
+            "index":          _clean_td(cols[0]),
+            "barcode":        _clean_td(cols[1]),
+            "reason":         _clean_td(cols[2]),
+            "apply_date":     _clean_td(cols[3]),
+            "start_date":     _clean_td(cols[4]),
+            "end_date":       _clean_td(cols[5]),
+            "teacher_status": _clean_td(cols[7]),
+            "teacher_note":   _clean_td(cols[8]),
+            "officer_status": _clean_td(cols[9]),
+            "officer_note":   _clean_td(cols[10]),
+            "stdkey":         stdkey,
+            "can_delete":     can_delete,
+        })
+
+    return entries
+
+
+# ---------------------------------------------------------------------------
 # 成績解析
 # ---------------------------------------------------------------------------
 
