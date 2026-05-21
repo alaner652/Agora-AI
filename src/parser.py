@@ -148,6 +148,91 @@ def parse_absence(html: str) -> list[AbsenceEntry]:
 
 
 # ---------------------------------------------------------------------------
+# 請假表單解析
+# ---------------------------------------------------------------------------
+
+_LEAVE_SKIP_HEADERS = {"快速登錄", "快速登錄(aa)", "日期", "星期"}
+_BLUE_COLORS = {"99ccff", "6699ff", "0000ff", "ccccff", "9999ff", "3399ff", "0066ff"}
+_DATE_DOT_RE = re.compile(r"(\d{3})\.(\d{2})\.(\d{2})")
+
+
+def _is_blue_cell(td) -> bool:
+    bg = td.get("bgcolor", "").lower().lstrip("#")
+    cls = " ".join(td.get("class", [])).lower()
+    style = td.get("style", "").lower()
+    return bg in _BLUE_COLORS or "blue" in cls or "background" in style and "blue" in style
+
+
+def parse_leave_form(html: str) -> dict:
+    """解析 ck001_02.jsp，回傳節次順序、當日有課節次、日期。
+
+    Returns:
+        {
+          "period_order": ["朝會", "早自習", "1", ..., "E"],
+          "scheduled":    ["1", "2", "3"],   ← 藍色格子（有課節次）
+          "date":         "115/05/21"
+        }
+    """
+    soup = BeautifulSoup(html, "html.parser")
+
+    table = next(
+        (t for t in soup.find_all("table") if "朝會" in t.get_text()),
+        None,
+    )
+    if table is None:
+        return {"period_order": [], "scheduled": [], "date": ""}
+
+    rows = table.find_all("tr")
+
+    # 找含「朝會」的表頭列，提取節次 labels
+    header_row = next((r for r in rows if "朝會" in r.get_text()), None)
+    if header_row is None:
+        return {"period_order": [], "scheduled": [], "date": ""}
+
+    header_cells = header_row.find_all(["td", "th"])
+    period_start_idx = None
+    for i, td in enumerate(header_cells):
+        if "朝會" in td.get_text(strip=True):
+            period_start_idx = i
+            break
+
+    if period_start_idx is None:
+        return {"period_order": [], "scheduled": [], "date": ""}
+
+    period_order = [
+        td.get_text(strip=True).replace("\xa0", "")
+        for td in header_cells[period_start_idx:]
+        if td.get_text(strip=True).replace("\xa0", "")
+    ]
+
+    # 從資料列讀藍色格子與日期
+    scheduled: list[str] = []
+    date_str = ""
+
+    for row in rows:
+        if row is header_row:
+            continue
+        cols = row.find_all("td")
+        if len(cols) < period_start_idx + len(period_order):
+            continue
+        # 日期欄（民國 YYY.MM.DD 格式）
+        for col in cols[:period_start_idx]:
+            m = _DATE_DOT_RE.search(col.get_text())
+            if m:
+                date_str = f"{m.group(1)}/{m.group(2)}/{m.group(3)}"
+                break
+        if not date_str:
+            continue
+
+        for pi, label in enumerate(period_order):
+            if _is_blue_cell(cols[period_start_idx + pi]):
+                scheduled.append(label)
+        break  # 只處理第一個資料列
+
+    return {"period_order": period_order, "scheduled": scheduled, "date": date_str}
+
+
+# ---------------------------------------------------------------------------
 # 成績解析
 # ---------------------------------------------------------------------------
 

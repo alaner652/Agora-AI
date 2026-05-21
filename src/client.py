@@ -56,11 +56,33 @@ async def post_data(jsessionid: str, url: str, data: dict) -> str:
     return resp.text
 
 
-async def get_page(jsessionid: str, url: str) -> str:
+async def get_page(jsessionid: str, url: str, params: dict | None = None) -> str:
     """通用 GET，回傳頁面 HTML。"""
     async with _client() as c:
         resp = await c.get(
             url,
+            params=params,
+            cookies={"JSESSIONID": jsessionid},
+        )
+    _check_session(resp.text)
+    return resp.text
+
+
+async def post_multipart(
+    jsessionid: str,
+    url: str,
+    data: dict,
+    file_bytes: bytes = b"",
+    filename: str = "",
+    content_type: str = "application/octet-stream",
+) -> str:
+    """送出 multipart/form-data POST（含可選檔案上傳）。"""
+    files = {"uploadfile": (filename, file_bytes, content_type)}
+    async with _client() as c:
+        resp = await c.post(
+            url,
+            data=data,
+            files=files,
             cookies={"JSESSIONID": jsessionid},
         )
     _check_session(resp.text)
