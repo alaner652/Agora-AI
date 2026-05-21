@@ -33,8 +33,7 @@ async def main():
     jsessionid = await login(UID, PWD)
     print(f"   JSESSIONID: {jsessionid}\n")
 
-    # 2. 查詢日期範圍
-    today   = _today_roc()
+    today = _today_roc()
     default_start = _days_ago_roc(30)
     print(f"2. 查詢日期範圍（民國 YYYMMDD）")
     raw_start = input(f"   起始日期（Enter = {default_start}）: ").strip()
@@ -43,7 +42,6 @@ async def main():
     end   = raw_end   if raw_end   else today
     print()
 
-    # 3. 查詢假單
     print(f"3. 查詢假單（{start} ～ {end}）...")
     leaves = await get_leaves(jsessionid, start, end)
 
@@ -60,7 +58,7 @@ async def main():
     print(f"   {'#':<3} {'假單編號':<16} {'原因':<12} {'起始日':<8} {'結束日':<8} {'導師':<8} 可刪除")
     print("   " + "─" * 68)
     for lv in leaves:
-        deletable = "✓" if lv["can_delete"] else "✗"
+        deletable = "Y" if lv["can_delete"] else "N"
         print(f"   {lv['index']:<3} {lv['barcode']:<16} {lv['reason']:<12} "
               f"{lv['start_date']:<8} {lv['end_date']:<8} {lv['teacher_status']:<8} {deletable}")
 
@@ -71,7 +69,6 @@ async def main():
     })
     print(f"\n   JSON → {json_path}\n")
 
-    # 4. 詢問是否刪除
     deletable = [lv for lv in leaves if lv["can_delete"]]
     if not deletable:
         print("   （目前所有假單均已核准或無法刪除）")

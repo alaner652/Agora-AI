@@ -29,7 +29,7 @@ async def main():
         raise SystemExit("無法取得學期清單")
 
     for i, s in enumerate(semesters):
-        mark = " ← 預設" if s["selected"] else ""
+        mark = " (預設)" if s["selected"] else ""
         print(f"   [{i + 1}] {s['label']}{mark}")
 
     default_idx = next((i for i, s in enumerate(semesters) if s["selected"]), 0)

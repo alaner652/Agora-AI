@@ -10,5 +10,8 @@ __pycache__/
 # 產出（保留目錄結構，忽略實際輸出檔）
 output/*
 
+# Session 暫存（含 JSESSIONID，不可上傳）
+.cache/
+
 # 開發暫存
 schedule_debug.html
