@@ -11,6 +11,10 @@ _ALERT_RE   = re.compile(r"alert\(['\"](.+?)['\"]\)")
 _SUCCESS_KW = ["完成", "成功", "已送出", "存檔", "申請完成", "請假完成", "准假"]
 _FAILURE_KW = ["失敗", "錯誤", "請選取", "請輸入", "請選擇", "不得", "必須", "重複", "未到", "附件", "格式不正確"]
 
+_MIME = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".pdf": "application/pdf"}
+
+PUBLIC_LEAVE_REASONS: list[str] = ["兵役", "法院傳訴", "國家考試", "系科公假"]
+
 LEAVE_TYPES: list[dict] = [
     {"id": "21", "name": "事假"},
     {"id": "22", "name": "病假"},
@@ -84,20 +88,22 @@ async def apply_leave(
     lea_value = _build_lea_value(date, period_order, target, leave_id)
 
     payload = {
-        "rdo1":       f"{leave_id}#{leave_name}",
-        "std_reason": reason,
-        "ls_date1":   date,
-        "leaveid":    leave_id,
-        "leavename":  leave_name,
-        "lea_value":  lea_value,
-        "ls_chk":     "Y",
-        "todo":       "upload",
+        "rdo1":                   f"{leave_id}#{leave_name}",
+        "std_reason":             reason,
+        f"reson_{leave_id}":      reason,
+        "ls_date1":               date,
+        "leaveid":                leave_id,
+        "leavename":              leave_name,
+        "lea_value":              lea_value,
+        "ls_chk":                 "Y",
+        "todo":                   "upload",
     }
 
     if image_path:
         p = Path(image_path)
+        ext = p.suffix.lower()
+        content_type = _MIME.get(ext, "application/octet-stream")
         file_bytes   = p.read_bytes()
-        content_type = "image/jpeg"
         filename     = p.name
     else:
         file_bytes, content_type, filename = b"", "application/octet-stream", ""

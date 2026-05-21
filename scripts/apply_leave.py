@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from client import login
-from actions.apply_leave.index import LEAVE_TYPES, apply_leave, get_leave_form
+from actions.apply_leave.index import LEAVE_TYPES, PUBLIC_LEAVE_REASONS, apply_leave, get_leave_form
 from utils.json_output import save_json
 
 UID = os.environ.get("TPCU_UID", "")
@@ -89,10 +89,20 @@ async def main():
     print(f"   已選：{chosen_type['name']}\n")
 
     # 5. 請假原因
-    reason = input("5. 請假原因: ").strip()
-    if not reason:
-        raise SystemExit("請假原因不可空白")
-    print()
+    if chosen_type["id"] == "23":
+        print("5. 公假事由（限下列選項）：")
+        for i, r in enumerate(PUBLIC_LEAVE_REASONS, 1):
+            print(f"   [{i}] {r}")
+        raw_r = input("\n請選擇事由: ").strip()
+        if not raw_r.isdigit() or not (1 <= int(raw_r) <= len(PUBLIC_LEAVE_REASONS)):
+            raise SystemExit("無效選擇")
+        reason = PUBLIC_LEAVE_REASONS[int(raw_r) - 1]
+        print(f"   已選：{reason}\n")
+    else:
+        reason = input("5. 請假原因: ").strip()
+        if not reason:
+            raise SystemExit("請假原因不可空白")
+        print()
 
     # 6. 節次選擇
     print("6. 節次清單（★ = 今日有排課）：")
@@ -105,14 +115,17 @@ async def main():
         raise SystemExit("未選擇任何節次")
     print(f"   已選：{', '.join(periods)}\n")
 
-    # 7. 附件（公假必填）
+    # 7. 附件（公假必填，日間部支援 JPEG/PNG/PDF）
     image_path: str | None = None
     if chosen_type["id"] == "23":
-        image_path = input("7. 公假需上傳佐證文件，請輸入 JPEG 路徑: ").strip()
+        image_path = input("7. 公假需上傳佐證文件，請輸入檔案路徑（JPEG / PDF）: ").strip()
         if not image_path:
             raise SystemExit("公假必須提供附件")
         if not os.path.exists(image_path):
             raise SystemExit(f"找不到檔案：{image_path}")
+        ext = os.path.splitext(image_path)[1].lower()
+        if ext not in (".jpg", ".jpeg", ".pdf"):
+            raise SystemExit(f"不支援的格式 {ext}，請使用 JPEG / PDF")
     else:
         print("7. 附件：略過（非公假）\n")
 
