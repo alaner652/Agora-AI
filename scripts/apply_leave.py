@@ -1,6 +1,5 @@
 import asyncio
 import os
-from datetime import date
 
 from dotenv import load_dotenv
 
@@ -10,14 +9,10 @@ from log import setup_logging
 from client import login
 from actions.apply_leave.index import LEAVE_TYPES, PUBLIC_LEAVE_REASONS, apply_leave, get_leave_form
 from utils.json_output import save_json
+from utils.date import today_roc
 
 UID = os.environ.get("TPCU_UID", "")
 PWD = os.environ.get("TPCU_PWD", "")
-
-
-def _today_roc() -> str:
-    d = date.today()
-    return f"{d.year - 1911}{d.month:02d}{d.day:02d}"
 
 
 def _parse_periods(raw: str, period_order: list[str]) -> list[str]:
@@ -59,7 +54,7 @@ async def main():
     jsessionid = await login(UID, PWD)
     print(f"   JSESSIONID: {jsessionid}\n")
 
-    today = _today_roc()
+    today = today_roc()
     raw_date = input(f"2. 請假日期（民國 YYYMMDD，Enter = 今天 {today}）: ").strip()
     leave_date = raw_date if raw_date else today
     print(f"   已選：{leave_date}\n")

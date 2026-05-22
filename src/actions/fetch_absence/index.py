@@ -20,6 +20,13 @@ async def get_options(jsessionid: str) -> dict:
     }
 
 
+def _split_roc_date(s: str) -> tuple[str, str, str]:
+    """拆分民國 YYYMMDD (7碼) 為 (year, month, day)，格式不符時拋出 ValueError。"""
+    if len(s) != 7 or not s.isdigit():
+        raise ValueError(f"日期格式錯誤（應為民國 YYYMMDD 7 碼）：{s!r}")
+    return s[:3], s[3:5], s[5:7]
+
+
 async def get_absence(
     jsessionid: str,
     yms: str,
@@ -29,17 +36,19 @@ async def get_absence(
 ) -> list[dict]:
     """查詢缺曠記錄，回傳缺曠清單。
 
-    start / end 格式：民國年月日緊排，例如 "1150101"。
+    start / end 格式：民國年月日緊排，例如 "1150101"（7 碼）。
     """
+    sy, sm, sd = _split_roc_date(start) if start else ("", "", "")
+    ey, em, ed = _split_roc_date(end)   if end   else ("", "", "")
     html = await post_data(jsessionid, RESULT_URL, {
         "yms":         yms,
         "leave":       leave,
-        "etxt_syear":  start[:3]  if start else "",
-        "etxt_smonth": start[3:5] if start else "",
-        "etxt_sday":   start[5:7] if start else "",
-        "etxt_eyear":  end[:3]    if end   else "",
-        "etxt_emonth": end[3:5]   if end   else "",
-        "etxt_eday":   end[5:7]   if end   else "",
+        "etxt_syear":  sy,
+        "etxt_smonth": sm,
+        "etxt_sday":   sd,
+        "etxt_eyear":  ey,
+        "etxt_emonth": em,
+        "etxt_eday":   ed,
         "spath":       "",
         "sdate":       start,
         "edate":       end,

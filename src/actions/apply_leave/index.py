@@ -1,16 +1,15 @@
-import re
 from pathlib import Path
 
 from client import get_page, post_multipart
 from log import get_logger
 from parsers.leaves import parse_leave_form
+from utils.alert import classify_alert
 
 _log = get_logger("actions.apply_leave")
 
 FORM_URL   = "/tsint/ck_pro/ck001_02.jsp"
 SUBMIT_URL = "/tsint/ck_pro/ck001_ins.jsp"
 
-_ALERT_RE   = re.compile(r"alert\(['\"](.+?)['\"]\)")
 _SUCCESS_KW = ["完成", "成功", "已送出", "存檔", "申請完成", "請假完成", "准假"]
 _FAILURE_KW = ["失敗", "錯誤", "請選取", "請輸入", "請選擇", "不得", "必須", "重複", "未到", "附件", "格式不正確"]
 
@@ -30,16 +29,6 @@ LEAVE_TYPES: list[dict] = [
     {"id": "29", "name": "生理假"},
     {"id": "31", "name": "原住民假"},
 ]
-
-
-def _classify(html: str) -> dict:
-    m = _ALERT_RE.search(html)
-    message = m.group(1) if m else ""
-    if any(kw in message for kw in _SUCCESS_KW):
-        return {"success": True,  "message": message}
-    if any(kw in message for kw in _FAILURE_KW):
-        return {"success": False, "message": message}
-    return {"success": None, "message": message or "（無訊息）"}
 
 
 def _build_lea_value(compact_date: str, period_order: list[str], target_periods: set[str], leave_id: str) -> str:
@@ -115,6 +104,6 @@ async def apply_leave(
         jsessionid, SUBMIT_URL, payload,
         file_bytes=file_bytes, filename=filename, content_type=content_type,
     )
-    result = _classify(html)
+    result = classify_alert(html, _SUCCESS_KW, _FAILURE_KW)
     _log.info("apply_leave date=%s leave_id=%s → success=%s", date, leave_id, result["success"])
     return result

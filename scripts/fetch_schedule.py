@@ -35,14 +35,19 @@ async def main():
 
     default_idx = next((i for i, s in enumerate(semesters) if s["selected"]), 0)
     raw = input("\n請選擇學期（直接 Enter 選預設）: ").strip()
-    chosen = semesters[int(raw) - 1] if raw.isdigit() else semesters[default_idx]
+    if raw.isdigit() and 1 <= int(raw) <= len(semesters):
+        chosen = semesters[int(raw) - 1]
+    elif not raw:
+        chosen = semesters[default_idx]
+    else:
+        raise SystemExit(f"無效選項「{raw}」，請輸入 1～{len(semesters)}")
     print(f"   已選：{chosen['label']}\n")
 
     print("3. 查詢課表...")
     entries = await get_schedule(jsessionid, chosen["value"])
     print(f"   解析到 {len(entries)} 筆課程\n")
     for e in entries:
-        day = "一二三四五六日"[e["weekday"] - 1]
+        day = "一二三四五六日"[e["weekday"] - 1] if 1 <= e["weekday"] <= 7 else "?"
         print(f"   週{day} {e['period']} {e['time_range']}  {e['course']}  {e['teacher']}  {e['classroom']}")
 
     print("\n4. 產生課表圖片...")

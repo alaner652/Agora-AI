@@ -11,13 +11,10 @@ from client import login
 from actions.fetch_absence.index import get_options, get_absence
 from utils.render_absence.index import render
 from utils.json_output import save_json
+from utils.date import to_roc
 
 UID = os.environ.get("TPCU_UID", "")
 PWD = os.environ.get("TPCU_PWD", "")
-
-
-def _to_roc(d: date) -> str:
-    return f"{d.year - 1911}{d.month:02d}{d.day:02d}"
 
 
 def _ask_date(prompt: str, default: str) -> str:
@@ -44,24 +41,29 @@ async def main():
         print(f"   [{i + 1}] {s['label']}{mark}")
     default_sem = next((i for i, s in enumerate(semesters) if s["selected"]), 0)
     raw = input("\n請選擇學期（直接 Enter 選預設）: ").strip()
-    chosen_sem = semesters[int(raw) - 1] if raw.isdigit() else semesters[default_sem]
+    if raw.isdigit() and 1 <= int(raw) <= len(semesters):
+        chosen_sem = semesters[int(raw) - 1]
+    elif not raw:
+        chosen_sem = semesters[default_sem]
+    else:
+        raise SystemExit(f"無效選項「{raw}」，請輸入 1～{len(semesters)}")
     print(f"   已選：{chosen_sem['label']}\n")
 
     print("3. 選擇查詢日期範圍...")
     today = date.today()
-    print(f"   [1] 今天（{_to_roc(today)}）")
-    print(f"   [2] 近 30 天（{_to_roc(today - timedelta(days=30))} ～ {_to_roc(today)}）")
+    print(f"   [1] 今天（{to_roc(today)}）")
+    print(f"   [2] 近 30 天（{to_roc(today - timedelta(days=30))} ～ {to_roc(today)}）")
     print(f"   [3] 自訂")
     raw = input("\n請選擇（直接 Enter 選近 30 天）: ").strip()
 
     if raw == "1":
-        start = end = _to_roc(today)
+        start = end = to_roc(today)
     elif raw == "3":
-        start = _ask_date("起始日期", _to_roc(today - timedelta(days=30)))
-        end   = _ask_date("結束日期", _to_roc(today))
+        start = _ask_date("起始日期", to_roc(today - timedelta(days=30)))
+        end   = _ask_date("結束日期", to_roc(today))
     else:
-        start = _to_roc(today - timedelta(days=30))
-        end   = _to_roc(today)
+        start = to_roc(today - timedelta(days=30))
+        end   = to_roc(today)
     print()
 
     print("4. 查詢缺曠...")

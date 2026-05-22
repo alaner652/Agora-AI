@@ -3,7 +3,6 @@ import json
 import os
 import pathlib
 import sys
-from datetime import date, timedelta
 
 import httpx
 from dotenv import load_dotenv
@@ -21,6 +20,7 @@ from actions.fetch_grades.index import get_grades
 from actions.fetch_leaves.index import get_leaves
 from actions.apply_leave.index import apply_leave as _apply_leave
 from actions.delete_leave.index import delete_leave as _delete_leave
+from utils.date import today_roc, days_ago_roc
 
 UID      = os.environ.get("TPCU_UID", "")
 API_KEY  = os.environ.get("LLM_API_KEY", "")
@@ -240,15 +240,6 @@ def _message_to_dict(msg) -> dict:
     return d
 
 
-def _today_roc() -> str:
-    d = date.today()
-    return f"{d.year - 1911}{d.month:02d}{d.day:02d}"
-
-
-def _days_ago_roc(n: int) -> str:
-    d = date.today() - timedelta(days=n)
-    return f"{d.year - 1911}{d.month:02d}{d.day:02d}"
-
 
 def _show_image(path: str) -> None:
     abs_path = pathlib.Path(path).resolve()
@@ -270,8 +261,8 @@ async def _dispatch(name: str, args: dict, jsessionid: str, data_cache: dict) ->
         elif name == "fetch_absence":
             entries = await get_absence(
                 jsessionid, args["semester_value"],
-                start=args.get("start", _days_ago_roc(30)),
-                end=args.get("end", _today_roc()),
+                start=args.get("start", days_ago_roc(30)),
+                end=args.get("end", today_roc()),
             )
             data_cache["absence"] = {
                 "entries": entries,

@@ -1,26 +1,13 @@
-import re
-
 from client import post_data
 from log import get_logger
+from utils.alert import classify_alert
 
 _log = get_logger("actions.delete_leave")
 
 DEL_URL = "/tsint/ck_pro/ck001_del.jsp"
 
-_ALERT_RE   = re.compile(r"alert\(['\"](.+?)['\"]\)")
 _SUCCESS_KW = ["刪除", "完成", "成功"]
 _FAILURE_KW = ["失敗", "錯誤", "不得", "已核准"]
-
-
-def _classify(html: str) -> dict:
-    m = _ALERT_RE.search(html)
-    message = m.group(1) if m else ""
-    if any(kw in message for kw in _SUCCESS_KW):
-        return {"success": True,  "message": message}
-    if any(kw in message for kw in _FAILURE_KW):
-        return {"success": False, "message": message}
-    # 若無 alert，假單列表消失即視為成功
-    return {"success": None, "message": message or "（請重新查詢確認）"}
 
 
 async def delete_leave(
@@ -45,6 +32,6 @@ async def delete_leave(
         "sdate":   sdate,
         "edate":   edate,
     })
-    result = _classify(html)
+    result = classify_alert(html, _SUCCESS_KW, _FAILURE_KW, "（請重新查詢確認）")
     _log.info("delete_leave barcode=%s → success=%s", barcode, result["success"])
     return result

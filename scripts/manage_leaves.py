@@ -1,6 +1,5 @@
 import asyncio
 import os
-from datetime import date, timedelta
 
 from dotenv import load_dotenv
 
@@ -11,19 +10,10 @@ from client import login
 from actions.fetch_leaves.index import get_leaves
 from actions.delete_leave.index import delete_leave
 from utils.json_output import save_json
+from utils.date import today_roc, days_ago_roc
 
 UID = os.environ.get("TPCU_UID", "")
 PWD = os.environ.get("TPCU_PWD", "")
-
-
-def _today_roc() -> str:
-    d = date.today()
-    return f"{d.year - 1911}{d.month:02d}{d.day:02d}"
-
-
-def _days_ago_roc(n: int) -> str:
-    d = date.today() - timedelta(days=n)
-    return f"{d.year - 1911}{d.month:02d}{d.day:02d}"
 
 
 async def main():
@@ -34,8 +24,8 @@ async def main():
     jsessionid = await login(UID, PWD)
     print("   登入成功\n")
 
-    today = _today_roc()
-    default_start = _days_ago_roc(30)
+    today = today_roc()
+    default_start = days_ago_roc(30)
     print(f"2. 查詢日期範圍（民國 YYYMMDD）")
     raw_start = input(f"   起始日期（Enter = {default_start}）: ").strip()
     raw_end   = input(f"   結束日期（Enter = {today}）: ").strip()

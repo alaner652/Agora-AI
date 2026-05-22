@@ -34,7 +34,12 @@ async def main():
         print(f"   [{i + 1}] {s}")
 
     raw = input("\n請選擇學期（直接 Enter 選最新）: ").strip()
-    chosen = semesters[int(raw) - 1] if raw.isdigit() else semesters[-1]
+    if raw.isdigit() and 1 <= int(raw) <= len(semesters):
+        chosen = semesters[int(raw) - 1]
+    elif not raw:
+        chosen = semesters[-1]
+    else:
+        raise SystemExit(f"無效選項「{raw}」，請輸入 1～{len(semesters)}")
     print(f"   已選：{chosen}\n")
 
     filtered = [e for e in entries if e["semester"] == chosen]
