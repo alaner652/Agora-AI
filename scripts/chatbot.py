@@ -233,10 +233,19 @@ def _message_to_dict(msg) -> dict:
             {
                 "id": tc.id,
                 "type": "function",
-                "function": {"name": tc.function.name, "arguments": tc.function.arguments},
+                "function": {
+                    "name": tc.function.name,
+                    "arguments": tc.function.arguments,
+                    # Preserve Gemini-specific fields (e.g. thought_signature) so the
+                    # next API call doesn't get a 400 for missing thought_signature.
+                    **(getattr(tc.function, "model_extra", None) or {}),
+                },
+                **(getattr(tc, "model_extra", None) or {}),
             }
             for tc in msg.tool_calls
         ]
+    if extra := getattr(msg, "model_extra", None):
+        d.update(extra)
     return d
 
 
