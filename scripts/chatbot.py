@@ -24,8 +24,8 @@ from utils.date import today_roc, days_ago_roc
 
 UID      = os.environ.get("TPCU_UID", "")
 API_KEY  = os.environ.get("LLM_API_KEY", "")
-BASE_URL = os.environ.get("LLM_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/")
-MODEL    = os.environ.get("LLM_MODEL", "gpt-4o-mini")
+BASE_URL = os.environ.get("LLM_BASE_URL", "")
+MODEL    = os.environ.get("LLM_MODEL", "")
 
 def _load_ai_guide() -> str:
     path = pathlib.Path(__file__).parent.parent / "docs" / "AI_GUIDE.md"
@@ -345,10 +345,12 @@ async def _dispatch(name: str, args: dict, jsessionid: str, data_cache: dict) ->
         if "Session 過期" in str(e):
             raise
         return _err(str(e))
-    except (KeyError, TypeError) as e:
+    except (KeyError, TypeError, FileNotFoundError) as e:
         return _err(str(e))
     except httpx.TimeoutException:
         return _err("學校系統連線逾時（30 秒），請稍後再試")
+    except httpx.NetworkError:
+        return _err("學校系統連線失敗，請稍後再試")
 
 
 async def chat() -> None:
