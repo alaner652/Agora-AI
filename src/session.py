@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 import json
 import os
 import pathlib
 import stat
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 
 from client import get_page, login
@@ -40,12 +43,22 @@ async def _validate(jsessionid: str) -> bool:
         return False
 
 
-async def get_session(uid: str) -> str:
-    """取得有效的 JSESSIONID。有暫存且有效直接回傳；否則提示輸入密碼後重新登入。"""
+async def get_session(
+    uid: str,
+    extra_validate: Callable[[str], Awaitable[bool]] | None = None,
+) -> str:
+    """取得有效的 JSESSIONID。有暫存且有效直接回傳；否則提示輸入密碼後重新登入。
+
+    extra_validate: 可選的額外驗證函式，由呼叫端決定「有效」的標準
+    （例如 chatbot 會額外確認課表 gateway 可用）。
+    """
     cached = _load()
     if cached:
         print("驗證 session 中...", end=" ", flush=True)
-        if await _validate(cached):
+        ok = await _validate(cached)
+        if ok and extra_validate:
+            ok = await extra_validate(cached)
+        if ok:
             print("有效")
             return cached
         print("已過期")

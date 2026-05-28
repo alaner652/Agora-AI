@@ -28,6 +28,15 @@ BASE_URL = os.environ.get("LLM_BASE_URL", "")
 MODEL    = os.environ.get("LLM_MODEL", "gpt-4o-mini")
 
 
+async def _session_validator(jsessionid: str) -> bool:
+    """Verify the schedule gateway is accessible, not just the token liveness."""
+    try:
+        await _preflight("get_semester_options", {}, jsessionid, ChatMemory())
+        return True
+    except ValueError:
+        return False
+
+
 def _show_image(path: str) -> None:
     abs_path = pathlib.Path(path).resolve()
     uri = abs_path.as_uri()
@@ -84,15 +93,7 @@ async def chat() -> None:
     if not api_key:
         raise SystemExit("API Key 不可空白")
 
-    jsessionid = await get_session(uid)
-
-    # Pre-flight: ck001_02.jsp only confirms the token is alive; the schedule
-    # gateway (sys001_00.jsp) needs a fresh session to return semester data.
-    # Catch that here so the user isn't interrupted mid-conversation.
-    try:
-        await _preflight("get_semester_options", {}, jsessionid, ChatMemory())
-    except ValueError:
-        jsessionid = await refresh(uid)
+    jsessionid = await get_session(uid, extra_validate=_session_validator)
 
     llm = OpenAI(api_key=api_key, base_url=BASE_URL or None, timeout=60.0)
     memory = ChatMemory()
