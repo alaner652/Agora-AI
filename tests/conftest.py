@@ -7,10 +7,12 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import pytest
 
+from agent.memory import ChatMemory
+
 
 @pytest.fixture
-def data_cache():
-    return {}
+def memory():
+    return ChatMemory()
 
 
 @pytest.fixture
