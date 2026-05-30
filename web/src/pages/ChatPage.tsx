@@ -21,24 +21,48 @@ interface AskUserState {
   tool_call_id: string
 }
 
-const CACHE_KEY = 'tpcu_chat'
+type ChatMode = 'fast' | 'normal' | 'think'
 
-function saveCache(messages: TextMessage[]) {
-  try {
-    const slim = messages.map(({ images: _i, ...rest }) => ({
-      ...rest,
-      toolCalls: rest.toolCalls?.filter(t => t.ok !== null),
-    }))
-    sessionStorage.setItem(CACHE_KEY, JSON.stringify(slim))
-  } catch { /* quota exceeded */ }
+// ── Persistence ───────────────────────────────────────────────────────────────
+
+function slimMessages(messages: TextMessage[]): object[] {
+  return messages.map(({ images: _, ...rest }) => ({
+    ...rest,
+    toolCalls: rest.toolCalls?.filter(t => t.ok !== null),
+  }))
 }
 
-function loadCache(): TextMessage[] {
+async function loadHistoryFromServer(token: string): Promise<TextMessage[]> {
   try {
-    const raw = sessionStorage.getItem(CACHE_KEY)
-    return raw ? (JSON.parse(raw) as TextMessage[]) : []
+    const res = await fetch('/api/history', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) return []
+    const data = await res.json()
+    return (data.messages ?? []) as TextMessage[]
   } catch { return [] }
 }
+
+async function saveHistoryToServer(token: string, messages: TextMessage[]): Promise<void> {
+  try {
+    await fetch('/api/history', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ messages: slimMessages(messages) }),
+    })
+  } catch { /* ignore */ }
+}
+
+async function clearHistoryOnServer(token: string): Promise<void> {
+  try {
+    await fetch('/api/history', {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+  } catch { /* ignore */ }
+}
+
+// ── Image helper ──────────────────────────────────────────────────────────────
 
 async function fetchRenderedImage(imageType: string, token: string): Promise<string | null> {
   try {
@@ -49,6 +73,8 @@ async function fetchRenderedImage(imageType: string, token: string): Promise<str
     return URL.createObjectURL(await res.blob())
   } catch { return null }
 }
+
+// ── SSE streaming ─────────────────────────────────────────────────────────────
 
 async function* streamSse(
   url: string,
@@ -82,7 +108,7 @@ async function* streamSse(
   }
 }
 
-// ─── UI atoms ────────────────────────────────────────────────────────────────
+// ── UI atoms ──────────────────────────────────────────────────────────────────
 
 const TOOL_LABELS: Record<string, string> = {
   get_semester_options: '取得學期清單', get_schedule: '查詢課表',
@@ -182,27 +208,70 @@ const mdComponents = {
   ),
 }
 
+// ─── Mode selector ────────────────────────────────────────────────────────────
+
+const MODE_CONFIG: { key: ChatMode; label: string; icon: string; desc: string }[] = [
+  { key: 'fast',   label: '快速', icon: '⚡', desc: '精簡回應，減少工具呼叫' },
+  { key: 'normal', label: '標準', icon: '💬', desc: '一般對話模式' },
+  { key: 'think',  label: '深度', icon: '🧠', desc: '仔細分析，逐步推理' },
+]
+
+function ModeSelector({ mode, onChange }: { mode: ChatMode; onChange: (m: ChatMode) => void }) {
+  return (
+    <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+      {MODE_CONFIG.map(({ key, label, icon }) => (
+        <button
+          key={key}
+          type="button"
+          title={MODE_CONFIG.find(m => m.key === key)?.desc}
+          onClick={() => onChange(key)}
+          className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+            mode === key
+              ? 'bg-white text-indigo-700 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          {icon} {label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState<TextMessage[]>(() => loadCache())
+  const [messages, setMessages] = useState<TextMessage[]>([])
+  const [historyLoaded, setHistoryLoaded] = useState(false)
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
   const [askUser, setAskUser] = useState<AskUserState | null>(null)
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [editText, setEditText] = useState('')
+  const [mode, setMode] = useState<ChatMode>('normal')
+  const [uploadedFile, setUploadedFile] = useState<{ path: string; name: string } | null>(null)
+  const [uploading, setUploading] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const editRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
 
+  // Load history from server on mount
+  useEffect(() => {
+    const token = getToken()
+    if (!token) { navigate('/login'); return }
+    loadHistoryFromServer(token).then(msgs => {
+      setMessages(msgs)
+      setHistoryLoaded(true)
+    })
+  }, [])
+
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, streaming])
-  useEffect(() => { saveCache(messages) }, [messages])
   useEffect(() => { if (editingIndex !== null) editRef.current?.focus() }, [editingIndex])
 
   function handleSessionExpired() {
     clearToken()
-    sessionStorage.removeItem(CACHE_KEY)
     setMessages(prev => [...prev, { role: 'assistant', content: 'Session 已過期，即將跳轉至登入頁面...' }])
     setTimeout(() => navigate('/login'), 1500)
   }
@@ -227,6 +296,8 @@ export default function ChatPage() {
         return next
       })
     }
+
+    let finalMessages: TextMessage[] = []
 
     try {
       for await (const event of streamSse(url, body, ac.signal)) {
@@ -256,8 +327,8 @@ export default function ChatPage() {
               if (parsed?.type) {
                 const token = getToken()
                 if (token) {
-                  const url = await fetchRenderedImage(parsed.type as string, token)
-                  if (url) { images.push(url); updateLast({ images: [...images] }) }
+                  const imgUrl = await fetchRenderedImage(parsed.type as string, token)
+                  if (imgUrl) { images.push(imgUrl); updateLast({ images: [...images] }) }
                 }
               }
             } catch { /* not JSON */ }
@@ -274,6 +345,9 @@ export default function ChatPage() {
           })
         }
       }
+
+      // Stream done — capture final messages for server save
+      setMessages(prev => { finalMessages = prev; return prev })
     } catch (err: unknown) {
       if ((err as DOMException).name === 'AbortError') {
         if (pendingToolName) {
@@ -290,6 +364,36 @@ export default function ChatPage() {
       updateLast({ content: assistantText || '發生錯誤，請稍後再試。' })
     } finally {
       setStreaming(false)
+      // Save history to server after each completed turn
+      const token = getToken()
+      if (token && finalMessages.length > 0) {
+        saveHistoryToServer(token, finalMessages)
+      }
+    }
+  }
+
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const token = getToken()
+    if (!token) return
+
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setUploadedFile({ path: data.path, name: data.name })
+      }
+    } catch { /* ignore */ } finally {
+      setUploading(false)
+      e.target.value = ''
     }
   }
 
@@ -298,10 +402,18 @@ export default function ChatPage() {
     if (!input.trim() || streaming) return
     const token = getToken()
     if (!token) { navigate('/login'); return }
-    const userMsg = input.trim()
+
+    let userMsg = input.trim()
+    if (uploadedFile) {
+      userMsg += `\n\n（附件路徑：${uploadedFile.path}）`
+    }
     setInput('')
-    setMessages(prev => [...prev, { role: 'user', content: userMsg }])
-    await runStream('/chat', { token, message: userMsg })
+    setUploadedFile(null)
+    setMessages(prev => [...prev, {
+      role: 'user',
+      content: uploadedFile ? `${input.trim()}\n📎 ${uploadedFile.name}` : userMsg,
+    }])
+    await runStream('/chat', { token, message: userMsg, mode })
   }
 
   async function handleAnswer(selected: string) {
@@ -310,6 +422,12 @@ export default function ChatPage() {
     setAskUser(null)
     setMessages(prev => [...prev, { role: 'user', content: `▶ ${selected}` }])
     await runStream('/answer', { token, selected })
+  }
+
+  async function handleClearHistory() {
+    const token = getToken()
+    if (token) await clearHistoryOnServer(token)
+    setMessages([])
   }
 
   function startEdit(index: number) {
@@ -328,7 +446,7 @@ export default function ChatPage() {
     setMessages(prev => [...prev.slice(0, editingIndex), { role: 'user', content: newMsg }])
     setEditingIndex(null)
     setEditText('')
-    await runStream('/chat', { token, message: newMsg })
+    await runStream('/chat', { token, message: newMsg, mode })
   }
 
   const lastIdx = messages.length - 1
@@ -336,7 +454,12 @@ export default function ChatPage() {
   return (
     <div className="flex flex-col h-screen md:h-dvh">
       <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
-        {messages.length === 0 && !streaming && (
+
+        {!historyLoaded && (
+          <div className="text-center text-gray-400 mt-20 text-sm">載入歷史中...</div>
+        )}
+
+        {historyLoaded && messages.length === 0 && !streaming && (
           <div className="text-center text-gray-400 mt-20">
             <p className="text-lg">AI 助理</p>
             <p className="text-sm mt-1">詢問課表、成績、缺曠、請假等問題</p>
@@ -347,7 +470,6 @@ export default function ChatPage() {
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             {m.role === 'user' ? (
               editingIndex === i ? (
-                /* ── Edit mode ── */
                 <div className="max-w-[80%] md:max-w-[70%] flex flex-col gap-2">
                   <textarea
                     ref={editRef}
@@ -372,7 +494,6 @@ export default function ChatPage() {
                   </div>
                 </div>
               ) : (
-                /* ── Normal user message ── */
                 <div className="group relative max-w-[80%] md:max-w-[70%]">
                   {!streaming && (
                     <button
@@ -392,16 +513,13 @@ export default function ChatPage() {
                 </div>
               )
             ) : (
-              /* ── Assistant message ── */
               <div className="max-w-[90%] md:max-w-[75%]">
                 {i === lastIdx && streaming && m.content === '' && !askUser ? (
-                  /* Live state: thinking dots or live tool panel */
                   (m.toolCalls ?? []).length > 0
                     ? <LiveToolPanel calls={m.toolCalls!} />
                     : <ThinkingDots />
                 ) : (
                   <div className="bg-white border border-gray-200 rounded-2xl px-4 py-2.5 text-sm leading-relaxed text-gray-800">
-                    {/* Show live tool panel above text while still streaming without text */}
                     {streaming && i === lastIdx && m.content === '' && (m.toolCalls ?? []).length > 0 && (
                       <LiveToolPanel calls={m.toolCalls!} />
                     )}
@@ -412,17 +530,14 @@ export default function ChatPage() {
                       </ReactMarkdown>
                     )}
 
-                    {/* Inline images */}
                     {(m.images ?? []).map((uri, j) => (
                       <img key={j} src={uri} alt="圖表" className="max-w-full rounded mt-2" />
                     ))}
 
-                    {/* Aborted indicator */}
                     {m.aborted && (
                       <p className="text-xs text-gray-400 mt-1 italic">（已中斷）</p>
                     )}
 
-                    {/* Completed tool calls disclosure */}
                     {!(streaming && i === lastIdx) && (m.toolCalls ?? []).length > 0 && (
                       <DoneToolPanel calls={m.toolCalls!} />
                     )}
@@ -433,7 +548,6 @@ export default function ChatPage() {
           </div>
         ))}
 
-        {/* ask_user options */}
         {askUser && (
           <div className="flex justify-start">
             <div className="bg-white border border-indigo-200 rounded-2xl px-4 py-3 max-w-sm shadow-sm">
@@ -453,35 +567,89 @@ export default function ChatPage() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Input bar */}
-      <div className="border-t border-gray-200 bg-white px-4 py-3 shrink-0">
-        <form onSubmit={handleSend} className="flex gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            placeholder="輸入訊息..."
-            disabled={streaming || !!askUser || editingIndex !== null}
-            className="flex-1 border border-gray-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50"
-          />
-          {streaming ? (
+      {/* Input area */}
+      <div className="border-t border-gray-200 bg-white px-4 pt-2 pb-3 shrink-0">
+        {/* Uploaded file preview */}
+        {uploadedFile && (
+          <div className="flex items-center gap-2 mb-2 px-1">
+            <span className="text-xs text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg px-2.5 py-1 flex items-center gap-1.5">
+              📎 {uploadedFile.name}
+              <button
+                onClick={() => setUploadedFile(null)}
+                className="text-indigo-400 hover:text-indigo-600 ml-1 leading-none"
+              >✕</button>
+            </span>
+          </div>
+        )}
+
+        {/* Mode selector + input */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <ModeSelector mode={mode} onChange={setMode} />
+            {messages.length > 0 && !streaming && (
+              <button
+                onClick={handleClearHistory}
+                className="text-xs text-gray-400 hover:text-gray-600"
+              >
+                清除歷史
+              </button>
+            )}
+          </div>
+
+          <form onSubmit={handleSend} className="flex gap-2">
+            {/* File upload button */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept="image/*,.pdf"
+              onChange={handleFileSelect}
+            />
             <button
               type="button"
-              onClick={() => abortRef.current?.abort()}
-              className="bg-red-500 hover:bg-red-600 text-white rounded-xl px-4 py-2 text-sm font-medium transition-colors"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={streaming || uploading}
+              title="上傳附件"
+              className="border border-gray-300 rounded-xl px-3 py-2 text-gray-500 hover:text-gray-700 hover:border-gray-400 disabled:opacity-40 transition-colors"
             >
-              停止
+              {uploading ? (
+                <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-500 rounded-full animate-spin" />
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                </svg>
+              )}
             </button>
-          ) : (
-            <button
-              type="submit"
-              disabled={!input.trim() || !!askUser || editingIndex !== null}
-              className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-xl px-4 py-2 text-sm font-medium transition-colors"
-            >
-              送出
-            </button>
-          )}
-        </form>
+
+            <input
+              type="text"
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              placeholder="輸入訊息..."
+              disabled={streaming || !!askUser || editingIndex !== null}
+              className="flex-1 border border-gray-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50"
+            />
+
+            {streaming ? (
+              <button
+                type="button"
+                onClick={() => abortRef.current?.abort()}
+                className="bg-red-500 hover:bg-red-600 text-white rounded-xl px-4 py-2 text-sm font-medium transition-colors"
+              >
+                停止
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={!input.trim() || !!askUser || editingIndex !== null}
+                className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-xl px-4 py-2 text-sm font-medium transition-colors"
+              >
+                送出
+              </button>
+            )}
+          </form>
+        </div>
       </div>
     </div>
   )

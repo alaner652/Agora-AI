@@ -2,18 +2,28 @@
 
 from __future__ import annotations
 
+import json
+import os
 import pathlib
+import tempfile
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile, File
 from fastapi.responses import FileResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import BaseModel
+
+from openai import OpenAI
 
 from actions.fetch_schedule.index import get_options as _sched_opts, get_schedule as _sched
 from actions.fetch_absence.index import get_options as _abs_opts, get_absence as _absence
 from actions.fetch_grades.index import get_grades as _grades
 from actions.fetch_leaves.index import get_leaves as _leaves
+from actions.apply_leave.index import apply_leave as _apply_leave, get_leave_form as _get_leave_form, LEAVE_TYPES
+from actions.delete_leave.index import delete_leave as _delete_leave
+from storage import save_history, load_history, clear_history, get_llm_config, set_llm_config, delete_llm_config
 
+from .models import LLMConfigRequest, LLMConfigResponse
 from .state import AgentRegistry
 
 _IMAGE_DIR = pathlib.Path(__file__).parent.parent.parent / "output"
@@ -43,6 +53,17 @@ def _resolve_session(
     if jsessionid is None:
         raise HTTPException(status_code=401, detail={"error": "Token 無效或已過期，請重新呼叫 /login", "error_code": "AUTH_002"})
     return jsessionid
+
+
+def _resolve_uid(
+    creds: HTTPAuthorizationCredentials = Depends(_bearer),
+    request: Request = None,
+) -> str:
+    reg = _get_registry(request)
+    uid = reg.get_uid(creds.credentials)
+    if uid is None:
+        raise HTTPException(status_code=401, detail={"error": "Token 無效或已過期", "error_code": "AUTH_002"})
+    return uid
 
 
 def _handle_exc(e: Exception) -> HTTPException:
@@ -139,6 +160,81 @@ async def leaves(
 
 
 # ---------------------------------------------------------------------------
+# Leave form & application
+# ---------------------------------------------------------------------------
+
+@router.get("/leave-form")
+async def leave_form(date: str = "", jsessionid: str = Depends(_resolve_session)):
+    try:
+        result = await _get_leave_form(jsessionid, date or None)
+        result["leave_types"] = LEAVE_TYPES
+        return result
+    except Exception as e:
+        raise _handle_exc(e)
+
+
+@router.post("/apply-leave")
+async def apply_leave_endpoint(
+    date:         str                = Form(...),
+    periods_json: str                = Form(...),
+    leave_id:     str                = Form(...),
+    leave_name:   str                = Form(...),
+    reason:       str                = Form(...),
+    attachment:   UploadFile | None  = File(None),
+    jsessionid:   str                = Depends(_resolve_session),
+):
+    periods = json.loads(periods_json)
+    image_path: str | None = None
+    if attachment and attachment.filename:
+        suffix = pathlib.Path(attachment.filename).suffix.lower()
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+        tmp.write(await attachment.read())
+        tmp.close()
+        image_path = tmp.name
+    try:
+        result = await _apply_leave(
+            jsessionid=jsessionid,
+            date=date,
+            periods=periods,
+            leave_id=leave_id,
+            leave_name=leave_name,
+            reason=reason,
+            image_path=image_path,
+        )
+        return result
+    except Exception as e:
+        raise _handle_exc(e)
+    finally:
+        if image_path:
+            os.unlink(image_path)
+
+
+class DeleteLeaveBody(BaseModel):
+    stdkey: str
+    barcode: str
+    start_date: str
+    end_date: str
+
+
+@router.post("/delete-leave")
+async def delete_leave_endpoint(
+    body: DeleteLeaveBody,
+    jsessionid: str = Depends(_resolve_session),
+):
+    try:
+        result = await _delete_leave(
+            jsessionid=jsessionid,
+            stdkey=body.stdkey,
+            barcode=body.barcode,
+            sdate=body.start_date,
+            edate=body.end_date,
+        )
+        return result
+    except Exception as e:
+        raise _handle_exc(e)
+
+
+# ---------------------------------------------------------------------------
 # AI-rendered images
 # ---------------------------------------------------------------------------
 
@@ -153,3 +249,98 @@ async def rendered_image(
     if not path.exists():
         raise HTTPException(status_code=404, detail={"error": "圖片不存在，請先透過 AI 助理產生", "error_code": "NOT_FOUND"})
     return FileResponse(path, media_type="image/png")
+
+
+# ---------------------------------------------------------------------------
+# Chat history
+# ---------------------------------------------------------------------------
+
+class SaveHistoryBody(BaseModel):
+    messages: list[dict]
+
+
+@router.get("/history")
+async def get_history(uid: str = Depends(_resolve_uid)):
+    return {"messages": load_history(uid)}
+
+
+@router.post("/history")
+async def post_history(body: SaveHistoryBody, uid: str = Depends(_resolve_uid)):
+    save_history(uid, body.messages)
+    return {"ok": True}
+
+
+@router.delete("/history")
+async def delete_history(uid: str = Depends(_resolve_uid)):
+    clear_history(uid)
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# File upload (for leave attachments)
+# ---------------------------------------------------------------------------
+
+_UPLOAD_DIR = pathlib.Path(__file__).parent.parent.parent / "uploads"
+_MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
+
+
+# ---------------------------------------------------------------------------
+# LLM settings
+# ---------------------------------------------------------------------------
+
+@router.get("/settings/llm", response_model=LLMConfigResponse)
+async def get_llm_settings(uid: str = Depends(_resolve_uid)):
+    cfg = get_llm_config(uid)
+    if cfg is None:
+        return LLMConfigResponse(has_custom_config=False)
+    return LLMConfigResponse(has_custom_config=True, base_url=cfg.base_url, model=cfg.model)
+
+
+@router.put("/settings/llm", response_model=LLMConfigResponse)
+async def put_llm_settings(body: LLMConfigRequest, uid: str = Depends(_resolve_uid)):
+    set_llm_config(uid, base_url=body.base_url, api_key=body.api_key, model=body.model)
+    return LLMConfigResponse(has_custom_config=True, base_url=body.base_url, model=body.model)
+
+
+@router.delete("/settings/llm")
+async def delete_llm_settings(uid: str = Depends(_resolve_uid)):
+    delete_llm_config(uid)
+    return {"ok": True}
+
+
+@router.post("/settings/llm/test")
+async def test_llm_settings(body: LLMConfigRequest, uid: str = Depends(_resolve_uid)):
+    try:
+        client = OpenAI(api_key=body.api_key or "EMPTY", base_url=body.base_url)
+        resp = client.chat.completions.create(
+            model=body.model,
+            messages=[{"role": "user", "content": "hi"}],
+            max_tokens=5,
+        )
+        reply = resp.choices[0].message.content or ""
+        return {"ok": True, "reply": reply}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+# ---------------------------------------------------------------------------
+# File upload (for leave attachments)
+# ---------------------------------------------------------------------------
+
+@router.post("/upload")
+async def upload_file(
+    file: UploadFile = File(...),
+    uid: str = Depends(_resolve_uid),
+):
+    content = await file.read()
+    if len(content) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=400, detail={"error": "檔案過大（上限 10 MB）"})
+
+    dest_dir = _UPLOAD_DIR / uid
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    safe_name = pathlib.Path(file.filename or "upload").name
+    dest = dest_dir / safe_name
+    dest.write_bytes(content)
+
+    return {"path": str(dest), "name": safe_name}

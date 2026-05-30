@@ -6,6 +6,7 @@ import GradesPage from './pages/GradesPage'
 import AbsencePage from './pages/AbsencePage'
 import LeavesPage from './pages/LeavesPage'
 import ChatPage from './pages/ChatPage'
+import SettingsPage from './pages/SettingsPage'
 import { getToken } from './api/auth'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -32,6 +33,7 @@ export default function App() {
           <Route path="absence" element={<AbsencePage />} />
           <Route path="leaves" element={<LeavesPage />} />
           <Route path="chat" element={<ChatPage />} />
+          <Route path="settings" element={<SettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

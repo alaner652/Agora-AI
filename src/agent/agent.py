@@ -144,8 +144,9 @@ class ChatAgent:
         """Replace the current session token (e.g. after /login)."""
         self._session = jsessionid
 
-    async def step(self, user_message: str) -> AsyncIterator[AgentEvent]:
+    async def step(self, user_message: str, mode: str = 'normal') -> AsyncIterator[AgentEvent]:
         """Process one user turn; yield events until done."""
+        self._mode = mode
         self._recent_tool_names: list[str] = []   # reset per user turn
         if self._logger:
             self._logger.on_user_message(user_message)
@@ -174,24 +175,58 @@ class ChatAgent:
     # ------------------------------------------------------------------
 
     async def _run_loop(self) -> AsyncIterator[AgentEvent]:
+        mode = getattr(self, '_mode', 'normal')
+        max_llm_calls = 3 if mode == 'fast' else 20
+        llm_call_count = 0
+        use_reasoning = mode == 'think'
+
+        system_content = SYSTEM_PROMPT
+        if mode == 'fast':
+            system_content += "\n\n【快速模式】請精簡回應，優先直接回答，非必要不呼叫多個工具。"
+        elif mode == 'think':
+            system_content += "\n\n【深度思考模式】請仔細分析問題，必要時逐步推理後再回應。"
+
         while True:
+            if llm_call_count >= max_llm_calls:
+                yield TextDeltaEvent(text="\n\n（快速模式：已達最大請求次數）")
+                yield DoneEvent()
+                return
+            llm_call_count += 1
+
             messages = (
-                [{"role": "system", "content": SYSTEM_PROMPT}]
+                [{"role": "system", "content": system_content}]
                 + self._memory.get_context()
             )
 
+            create_kwargs: dict = dict(
+                model=self._model,
+                messages=messages,
+                tools=TOOLS,
+                tool_choice="auto",
+            )
+            if use_reasoning:
+                create_kwargs["reasoning_effort"] = "high"
+
             try:
-                response = self._llm.chat.completions.create(
-                    model=self._model,
-                    messages=messages,
-                    tools=TOOLS,
-                    tool_choice="auto",
-                )
+                response = self._llm.chat.completions.create(**create_kwargs)
             except (APITimeoutError, APIConnectionError):
                 # Remove the last user message so the caller can retry
                 if self._memory.history and self._memory.history[-1].get("role") == "user":
                     self._memory.history.pop()
                 raise
+            except Exception as exc:
+                if use_reasoning:
+                    _log.warning("reasoning_effort not supported (%s), retrying without", exc)
+                    use_reasoning = False
+                    create_kwargs.pop("reasoning_effort", None)
+                    try:
+                        response = self._llm.chat.completions.create(**create_kwargs)
+                    except (APITimeoutError, APIConnectionError):
+                        if self._memory.history and self._memory.history[-1].get("role") == "user":
+                            self._memory.history.pop()
+                        raise
+                else:
+                    raise
 
             msg = response.choices[0].message
             self._memory.add(_message_to_dict(msg))

@@ -29,14 +29,18 @@ class AgentRegistry:
         self._store: dict[str, _UserState] = {}  # token → state
         self._meta_lock = asyncio.Lock()
 
-    async def register(self, token: str, uid: str, jsessionid: str) -> None:
-        """Create a new agent for the user (called on successful /login)."""
-        from session import refresh_api
+    async def register(
+        self,
+        token: str,
+        uid: str,
+        jsessionid: str,
+        llm: OpenAI | None = None,
+        model: str | None = None,
+    ) -> None:
+        """Create a new agent for the user (called on successful /login).
 
-        async def _refresh(uid: str) -> str:
-            # API agents never have the password — callers must re-login.
-            raise ValueError("Session 過期")
-
+        Pass llm/model to override the registry default (per-user config).
+        """
         async with self._meta_lock:
             log_dir = _LOG_DIR_BASE / uid
             logger = ConversationLogger(log_dir)
@@ -44,8 +48,8 @@ class AgentRegistry:
             memory.remember("uid", uid)
             agent = ChatAgent(
                 jsessionid=jsessionid,
-                llm=self._llm,
-                model=self._model,
+                llm=llm if llm is not None else self._llm,
+                model=model if model is not None else self._model,
                 memory=memory,
                 logger=logger,
                 refresh_fn=None,  # no password stored — client must re-login
@@ -65,6 +69,10 @@ class AgentRegistry:
     def get_jsessionid(self, token: str) -> str | None:
         state = self._store.get(token)
         return state.agent._session if state else None
+
+    def get_uid(self, token: str) -> str | None:
+        state = self._store.get(token)
+        return state.uid if state else None
 
     def update_session(self, token: str, jsessionid: str) -> None:
         state = self._store.get(token)

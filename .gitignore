@@ -20,3 +20,6 @@ schedule_debug.html
 # 對話記錄（含使用者輸入，不上傳；保留目錄結構）
 logs/**/*.json
 logs/**/*.jsonl
+
+# 資料庫（runtime 產生，含使用者資料）
+data/*.db

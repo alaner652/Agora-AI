@@ -1,20 +1,7 @@
 import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getGrades, type GradeEntry } from '../api/data'
-import { useNavigate } from 'react-router-dom'
-import { clearToken } from '../api/auth'
-
-function useSessionGuard() {
-  const navigate = useNavigate()
-  return (err: unknown) => {
-    const code = (err as { response?: { data?: { detail?: { error_code?: string } } } })
-      ?.response?.data?.detail?.error_code
-    if (code === 'AUTH_002' || code === 'NET_002') {
-      clearToken()
-      navigate('/login')
-    }
-  }
-}
+import { useSessionGuard } from '../utils/hooks'
 
 function semesterSummary(rows: GradeEntry[]) {
   const totalCredits = rows.reduce((s, e) => s + (parseFloat(e.credits) || 0), 0)
@@ -54,13 +41,13 @@ export default function GradesPage() {
           <div key={sem} className="mb-8">
             <h3 className="text-sm font-medium text-gray-500 mb-2">{sem}</h3>
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm table-fixed">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
                     <th className="text-left px-4 py-2.5 font-medium text-gray-600">課程</th>
-                    <th className="text-center px-4 py-2.5 font-medium text-gray-600 w-16">性質</th>
-                    <th className="text-right px-4 py-2.5 font-medium text-gray-600 w-14">學分</th>
-                    <th className="text-right px-4 py-2.5 font-medium text-gray-600 w-14">成績</th>
+                    <th className="text-center px-4 py-2.5 font-medium text-gray-600 w-20">性質</th>
+                    <th className="text-right px-4 py-2.5 font-medium text-gray-600 w-16">學分</th>
+                    <th className="text-right px-4 py-2.5 font-medium text-gray-600 w-20">成績</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -71,7 +58,7 @@ export default function GradesPage() {
                         key={i}
                         className={`border-b border-gray-100 last:border-0 ${failing ? 'bg-red-50' : ''}`}
                       >
-                        <td className={`px-4 py-2.5 ${failing ? 'text-red-700' : 'text-gray-800'}`}>
+                        <td className={`px-4 py-2.5 truncate ${failing ? 'text-red-700' : 'text-gray-800'}`}>
                           {e.course}
                         </td>
                         <td className="px-4 py-2.5 text-center text-gray-500 text-xs">{e.type}</td>

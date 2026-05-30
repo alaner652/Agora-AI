@@ -32,3 +32,8 @@ export function lastMonthRange(): [Date, Date] {
   const last = new Date(now.getFullYear(), now.getMonth(), 0)
   return [first, last]
 }
+
+export function todayRange(): [Date, Date] {
+  const now = new Date()
+  return [now, now]
+}

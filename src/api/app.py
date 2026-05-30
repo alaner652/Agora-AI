@@ -6,11 +6,14 @@ import json
 import os
 import secrets
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from openai import OpenAI
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -28,8 +31,11 @@ from session import refresh_api as _fresh_login
 from .models import AnswerRequest, ChatRequest, LoginRequest, LoginResponse
 from .routes import router as data_router
 from .state import AgentRegistry
+from storage import init_db, init_user_settings_db, get_llm_config
 
 load_dotenv()
+
+_WEB_DIST = Path(__file__).parent.parent.parent / "web" / "dist"
 
 _LLM_API_KEY  = os.getenv("LLM_API_KEY", "")
 _LLM_BASE_URL = os.getenv("LLM_BASE_URL")
@@ -41,6 +47,8 @@ _registry: AgentRegistry | None = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _registry
+    init_db()
+    init_user_settings_db()
     llm = OpenAI(api_key=_LLM_API_KEY, base_url=_LLM_BASE_URL)
     _registry = AgentRegistry(llm=llm, model=_LLM_MODEL)
     app.state.registry = _registry
@@ -51,6 +59,15 @@ limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(title="TPCU API", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(_request: Request, exc: RequestValidationError):
+    errors = []
+    for err in exc.errors():
+        sanitized = {k: ("<binary>" if isinstance(v, bytes) else v) for k, v in err.items()}
+        errors.append(sanitized)
+    return JSONResponse(status_code=422, content={"detail": errors})
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -59,6 +76,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(data_router, prefix="/api")
+
+if (_WEB_DIST / "assets").exists():
+    app.mount("/assets", StaticFiles(directory=_WEB_DIST / "assets"), name="static_assets")
 
 
 # ---------------------------------------------------------------------------
@@ -116,8 +136,16 @@ async def login(request: Request, body: LoginRequest):
     except Exception as e:
         raise HTTPException(status_code=401, detail={"error": f"登入失敗：{e}", "error_code": "AUTH_001"})
 
+    user_cfg = get_llm_config(body.uid)
+    if user_cfg:
+        llm = OpenAI(api_key=user_cfg.api_key or "EMPTY", base_url=user_cfg.base_url)
+        model = user_cfg.model
+    else:
+        llm = None   # AgentRegistry will use its default
+        model = None
+
     token = secrets.token_urlsafe(32)
-    await _get_registry().register(token, body.uid, jsessionid)
+    await _get_registry().register(token, body.uid, jsessionid, llm=llm, model=model)
     return LoginResponse(token=token)
 
 
@@ -131,7 +159,7 @@ async def chat(request: Request, body: ChatRequest):
 
     async def generate():
         async with lock:
-            async for chunk in _stream_events(agent.step(body.message)):
+            async for chunk in _stream_events(agent.step(body.message, mode=body.mode)):
                 yield chunk
 
     return StreamingResponse(generate(), media_type="text/event-stream")
@@ -151,3 +179,11 @@ async def answer(request: Request, body: AnswerRequest):
                 yield chunk
 
     return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+@app.get("/{full_path:path}")
+async def spa_fallback(full_path: str):
+    index = _WEB_DIST / "index.html"
+    if not index.exists():
+        raise HTTPException(status_code=404, detail="Not found")
+    return FileResponse(index)

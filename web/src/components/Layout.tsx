@@ -8,6 +8,7 @@ const navItems = [
   { to: '/absence', label: '缺曠' },
   { to: '/leaves', label: '假單' },
   { to: '/chat', label: 'AI 助理' },
+  { to: '/settings', label: '設定' },
 ]
 
 export default function Layout() {

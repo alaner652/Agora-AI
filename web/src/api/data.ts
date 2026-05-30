@@ -95,3 +95,96 @@ export async function getLeaves(start: string, end: string): Promise<LeaveItem[]
   })
   return res.data.leaves ?? []
 }
+
+export interface LeaveType {
+  id: string
+  name: string
+}
+
+export interface LeaveFormData {
+  period_order: string[]
+  scheduled: string[]
+  date: string
+  leave_types: LeaveType[]
+}
+
+export interface ApplyLeaveRequest {
+  date: string       // ROC compact YYYMMDD
+  periods: string[]
+  leave_id: string
+  leave_name: string
+  reason: string
+}
+
+export interface ApplyLeaveResult {
+  success: boolean | null
+  message: string
+}
+
+export async function getLeaveForm(date: string): Promise<LeaveFormData> {
+  const res = await http.get<LeaveFormData>('/api/leave-form', { params: { date } })
+  return res.data
+}
+
+export async function applyLeave(req: ApplyLeaveRequest, file?: File): Promise<ApplyLeaveResult> {
+  const fd = new FormData()
+  fd.append('date', req.date)
+  fd.append('periods_json', JSON.stringify(req.periods))
+  fd.append('leave_id', req.leave_id)
+  fd.append('leave_name', req.leave_name)
+  fd.append('reason', req.reason)
+  if (file) fd.append('attachment', file)
+  const res = await http.post<ApplyLeaveResult>('/api/apply-leave', fd)
+  return res.data
+}
+
+export interface DeleteLeaveRequest {
+  stdkey: string
+  barcode: string
+  start_date: string
+  end_date: string
+}
+
+export async function deleteLeave(req: DeleteLeaveRequest): Promise<ApplyLeaveResult> {
+  const res = await http.post<ApplyLeaveResult>('/api/delete-leave', req)
+  return res.data
+}
+
+// ── LLM Settings ─────────────────────────────────────────────────────────────
+
+export interface LLMConfigResponse {
+  has_custom_config: boolean
+  base_url: string
+  model: string
+}
+
+export interface LLMConfigRequest {
+  base_url: string
+  api_key: string
+  model: string
+}
+
+export async function getLLMConfig(): Promise<LLMConfigResponse> {
+  const res = await http.get<LLMConfigResponse>('/api/settings/llm')
+  return res.data
+}
+
+export async function setLLMConfig(req: LLMConfigRequest): Promise<LLMConfigResponse> {
+  const res = await http.put<LLMConfigResponse>('/api/settings/llm', req)
+  return res.data
+}
+
+export async function deleteLLMConfig(): Promise<void> {
+  await http.delete('/api/settings/llm')
+}
+
+export interface LLMTestResult {
+  ok: boolean
+  reply?: string
+  error?: string
+}
+
+export async function testLLMConfig(req: LLMConfigRequest): Promise<LLMTestResult> {
+  const res = await http.post<LLMTestResult>('/api/settings/llm/test', req)
+  return res.data
+}
