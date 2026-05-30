@@ -119,22 +119,28 @@ class ConversationLogger:
         used_confirm = any(tc.name == "ask_user" for tc in calls)
         has_unconfirmed = any(tc.unconfirmed for tc in calls)
 
+        _PATH_PATTERNS = ("/Users/", "/home/", "/root/", "output/", ".json")
+        path_query = any(p in turn.user for p in _PATH_PATTERNS)
+        hallucination_risk = path_query and len(calls) == 0
+
         score = 1.0
-        if not all_ok:        score -= 0.4
-        if error_codes:       score -= 0.2
-        if has_unconfirmed:   score -= 0.2
-        if used_confirm:      score += 0.1
+        if not all_ok:           score -= 0.4
+        if error_codes:          score -= 0.2
+        if has_unconfirmed:      score -= 0.2
+        if used_confirm:         score += 0.1
+        if hallucination_risk:   score -= 0.3
         score = max(0.0, min(1.0, round(score, 2)))
 
         return {
             "score": score,
             "source": "rule",
             "signals": {
-                "all_tools_ok":  all_ok,
-                "used_ask_user": used_confirm,
-                "unconfirmed":   has_unconfirmed,
-                "tool_count":    len(calls),
-                "error_codes":   error_codes,
+                "all_tools_ok":      all_ok,
+                "used_ask_user":     used_confirm,
+                "unconfirmed":       has_unconfirmed,
+                "tool_count":        len(calls),
+                "error_codes":       error_codes,
+                "hallucination_risk": hallucination_risk,
             },
         }
 

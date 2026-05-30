@@ -315,7 +315,7 @@ async def dispatch(name: str, args: dict, jsessionid: str, memory: ChatMemory) -
                 path = render(entries, title=title, output=str(_OUTPUT_DIR / "grades.png"))
             else:
                 return _err(f"未知的渲染類型：{type_}", ErrorCode.TOOL_UNKNOWN)
-            return json.dumps({"path": path}, ensure_ascii=False)
+            return json.dumps({"success": True, "type": type_}, ensure_ascii=False)
 
         else:
             return _err(f"未知工具：{name}", ErrorCode.TOOL_UNKNOWN)

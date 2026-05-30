@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getAbsenceOptions, getAbsence, type AbsenceEntry, type AbsenceOptions } from '../api/data'
 import { useNavigate } from 'react-router-dom'
 import { clearToken } from '../api/auth'
+import { toCEInput, inputValToRoc, thisMonthRange, lastMonthRange } from '../utils/date'
 
 function useSessionGuard() {
   const navigate = useNavigate()
@@ -38,9 +39,14 @@ export default function AbsencePage() {
   useEffect(() => { if (optsErr) onErr(optsErr) }, [optsErr])
   useEffect(() => { if (absErr) onErr(absErr) }, [absErr])
 
+  function applyRange(range: [Date, Date]) {
+    setStart(toCEInput(range[0]))
+    setEnd(toCEInput(range[1]))
+  }
+
   function handleSearch() {
     if (!semester) return
-    setQuery({ semester, start, end, type: leaveType })
+    setQuery({ semester, start: inputValToRoc(start), end: inputValToRoc(end), type: leaveType })
   }
 
   return (
@@ -76,25 +82,37 @@ export default function AbsencePage() {
         </div>
 
         <div>
-          <label className="block text-xs text-gray-500 mb-1">開始日期（民國）</label>
-          <input
-            type="text"
-            placeholder="1150901"
-            value={start}
-            onChange={(e) => setStart(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-        </div>
-
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">結束日期（民國）</label>
-          <input
-            type="text"
-            placeholder="1160131"
-            value={end}
-            onChange={(e) => setEnd(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
+          <div className="flex items-center gap-1.5 mb-1">
+            <label className="text-xs text-gray-500">日期範圍</label>
+            <button
+              onClick={() => applyRange(thisMonthRange())}
+              className="text-xs text-indigo-600 hover:underline"
+            >
+              本月
+            </button>
+            <span className="text-gray-300 text-xs">|</span>
+            <button
+              onClick={() => applyRange(lastMonthRange())}
+              className="text-xs text-indigo-600 hover:underline"
+            >
+              上月
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={start}
+              onChange={(e) => setStart(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <span className="text-gray-400 text-sm">—</span>
+            <input
+              type="date"
+              value={end}
+              onChange={(e) => setEnd(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
         </div>
 
         <button

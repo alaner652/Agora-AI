@@ -43,11 +43,14 @@ export default function SchedulePage() {
 
   useEffect(() => { if (optsErr) onSessionErr(optsErr) }, [optsErr])
   useEffect(() => { if (schedErr) onSessionErr(schedErr) }, [schedErr])
+  useEffect(() => {
+    if (opts && opts.length > 0 && !semester) setSemester(opts[0].value)
+  }, [opts])
 
-  // Build grid[weekday][periodNum] = cell; unknown periods go to extras
   const grid: Record<number, Record<number, CellData>> = {}
   for (let d = 1; d <= 7; d++) grid[d] = {}
   const extras: ScheduleEntry[] = []
+  const periodTimes: Record<number, string> = {}
 
   let maxPeriod = 0
   for (const e of entries ?? []) {
@@ -56,10 +59,10 @@ export default function SchedulePage() {
     if (!grid[e.weekday]) grid[e.weekday] = {}
     grid[e.weekday][p] = { course: e.course, teacher: e.teacher, classroom: e.classroom, time_range: e.time_range }
     if (p > maxPeriod) maxPeriod = p
+    if (!periodTimes[p] && e.time_range) periodTimes[p] = e.time_range
   }
   const totalPeriods = Math.max(maxPeriod, 9)
 
-  // Which days have at least one class
   const activeDays = [1, 2, 3, 4, 5, 6, 7].filter(d =>
     Object.keys(grid[d] ?? {}).length > 0
   )
@@ -92,7 +95,7 @@ export default function SchedulePage() {
             <table className="border-collapse text-xs">
               <thead>
                 <tr>
-                  <th className="w-12 border border-gray-200 bg-gray-50 p-2 text-gray-500">節次</th>
+                  <th className="w-16 border border-gray-200 bg-gray-50 p-2 text-gray-500">節次</th>
                   {displayDays.map((d) => (
                     <th
                       key={d}
@@ -106,8 +109,11 @@ export default function SchedulePage() {
               <tbody>
                 {Array.from({ length: totalPeriods }, (_, i) => i + 1).map((p) => (
                   <tr key={p}>
-                    <td className="border border-gray-200 bg-gray-50 text-center text-gray-500 p-1.5 font-mono">
-                      {p}
+                    <td className="border border-gray-200 bg-gray-50 text-center p-1.5 w-16">
+                      <div className="font-mono text-gray-500 text-xs">{p}</div>
+                      {periodTimes[p] && (
+                        <div className="text-gray-400 text-[10px] leading-tight mt-0.5 tabular-nums">{periodTimes[p]}</div>
+                      )}
                     </td>
                     {displayDays.map((d) => {
                       const cell = grid[d]?.[p]
@@ -134,7 +140,6 @@ export default function SchedulePage() {
         )
       )}
 
-      {/* Fallback: entries whose period couldn't be mapped to a number */}
       {extras.length > 0 && (
         <div className="mt-4">
           <p className="text-xs text-gray-400 mb-2">其他節次</p>

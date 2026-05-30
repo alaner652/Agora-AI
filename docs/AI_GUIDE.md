@@ -12,17 +12,21 @@
 
 ---
 
-## 腳本清單
+## 工具清單
 
-| 腳本 | 用途 | JSON 輸出 |
-|------|------|-----------|
-| `scripts/fetch_schedule.py` | 查課表（選學期）| `output/schedule.json` |
-| `scripts/fetch_absence.py` | 查缺曠（選學期 + 日期範圍）| `output/absence.json` |
-| `scripts/fetch_grades.py` | 查歷年成績（選學期）| `output/grades.json` |
-| `scripts/apply_leave.py` | 送出請假申請 | `output/leave_result.json` |
-| `scripts/manage_leaves.py` | 查看 / 刪除假單 | `output/leaves.json` |
+| 工具 | 用途 |
+|------|------|
+| `get_semester_options` | 取得可查詢的學期清單 |
+| `fetch_schedule` | 查課表（需指定學期代碼）|
+| `fetch_absence` | 查缺曠（需指定學期代碼與日期範圍）|
+| `fetch_grades` | 查歷年成績 |
+| `get_leave_form` | 取得指定日期的請假表單選項 |
+| `apply_leave` | 送出請假申請 |
+| `get_leaves` | 查看假單 |
+| `delete_leave` | 刪除待審假單 |
+| `render_image` | 將最近查詢結果渲染為圖片 |
 
-環境變數：`.env` 需有 `TPCU_UID` 和 `TPCU_PWD`。
+所有資料均透過上述工具即時取得，**不存在可讀取的本地快取檔案**。
 
 ---
 
@@ -194,15 +198,14 @@
 | 「成績怎樣」「有沒有不及格」 | 執行 `fetch_grades.py` |
 | 「幫我請假」「請 X 節 XX 假」 | 執行 `apply_leave.py` |
 | 「看一下假單」「有沒有在審核」 | 執行 `manage_leaves.py` |
-| 「哪天課最多」「週幾最輕鬆」 | 讀 `schedule.json` 分析 |
-| 「缺曠最多的節次」 | 讀 `absence.json` 統計 |
-| 「哪學期最慘」 | 讀 `grades.json` 跨學期比較（需先抓全部） |
+| 「哪天課最多」「週幾最輕鬆」 | 呼叫 `fetch_schedule` 取得最新資料再分析 |
+| 「缺曠最多的節次」 | 呼叫 `fetch_absence` 取得最新資料再統計 |
+| 「哪學期最慘」 | 呼叫 `fetch_grades` 取得後跨學期比較 |
 
 ---
 
 ## 執行注意事項
 
-1. **腳本是互動式的**：直接執行需要 stdin 輸入。AI 代執行時用 echo pipe 或 expect。
-2. **快取可能過時**：`output/*.json` 是上次執行的結果，若要最新資料需重新跑腳本。
-3. **Session 有效期**：JSESSIONID 約 30 分鐘失效，腳本每次都會重新登入。
-4. **請假不可逆**：送出後若要撤回需在 `manage_leaves.py` 刪除，且只有「待審」狀態才能刪。
+1. **Session 有效期**：JSESSIONID 約 30 分鐘失效，若工具回傳認證錯誤請告知使用者重新登入。
+2. **請假不可逆**：送出後若要撤回需呼叫 `delete_leave`，且只有「待審」狀態才能刪。
+3. **本地檔案**：你沒有讀取本地檔案系統的能力，無法執行 cat、ls 等指令；若使用者要求，請直接說明並改以工具重新查詢。

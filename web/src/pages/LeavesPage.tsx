@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getLeaves, type LeaveItem } from '../api/data'
 import { useNavigate } from 'react-router-dom'
 import { clearToken } from '../api/auth'
+import { toCEInput, inputValToRoc, thisMonthRange, lastMonthRange } from '../utils/date'
 
 function useSessionGuard() {
   const navigate = useNavigate()
@@ -19,8 +20,9 @@ function useSessionGuard() {
 function StatusBadge({ label }: { label: string }) {
   let cls = 'text-gray-600 bg-gray-100'
   if (label === '已核准' || label === '核准') cls = 'text-green-700 bg-green-50'
-  else if (label === '待審核' || label === '送出') cls = 'text-yellow-700 bg-yellow-50'
+  else if (label === '待審核' || label === '送出' || label === '待核准') cls = 'text-yellow-700 bg-yellow-50'
   else if (label === '退件' || label === '不核准') cls = 'text-red-700 bg-red-50'
+  else if (label === '作廢' || label === '已刪除') cls = 'text-gray-400 bg-gray-50 line-through'
   return (
     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>
       {label || '—'}
@@ -42,41 +44,65 @@ export default function LeavesPage() {
 
   useEffect(() => { if (error) onErr(error) }, [error])
 
+  function applyRange(range: [Date, Date]) {
+    setStart(toCEInput(range[0]))
+    setEnd(toCEInput(range[1]))
+  }
+
+  function handleQuery() {
+    if (!start || !end) return
+    setQuery({ start: inputValToRoc(start), end: inputValToRoc(end) })
+  }
+
   return (
     <div className="p-6">
       <h2 className="text-xl font-semibold text-gray-900 mb-6">假單</h2>
 
       <div className="flex flex-wrap items-end gap-3 mb-6">
         <div>
-          <label className="block text-xs text-gray-500 mb-1">開始日期（民國）</label>
-          <input
-            type="text"
-            placeholder="1150901"
-            value={start}
-            onChange={(e) => setStart(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-        </div>
-
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">結束日期（民國）</label>
-          <input
-            type="text"
-            placeholder="1160131"
-            value={end}
-            onChange={(e) => setEnd(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
+          <div className="flex items-center gap-1.5 mb-1">
+            <label className="text-xs text-gray-500">日期範圍</label>
+            <button
+              onClick={() => applyRange(thisMonthRange())}
+              className="text-xs text-indigo-600 hover:underline"
+            >
+              本月
+            </button>
+            <span className="text-gray-300 text-xs">|</span>
+            <button
+              onClick={() => applyRange(lastMonthRange())}
+              className="text-xs text-indigo-600 hover:underline"
+            >
+              上月
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={start}
+              onChange={(e) => setStart(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <span className="text-gray-400 text-sm">—</span>
+            <input
+              type="date"
+              value={end}
+              onChange={(e) => setEnd(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
         </div>
 
         <button
-          onClick={() => setQuery({ start, end })}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-4 py-1.5 text-sm font-medium transition-colors"
+          onClick={handleQuery}
+          disabled={!start || !end}
+          className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg px-4 py-1.5 text-sm font-medium transition-colors"
         >
           查詢
         </button>
       </div>
 
+      {!query && <p className="text-gray-400 text-sm">請選擇日期範圍後查詢</p>}
       {isLoading && <p className="text-gray-400 text-sm">載入中...</p>}
 
       {!isLoading && leaves && (
