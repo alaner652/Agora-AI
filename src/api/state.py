@@ -62,6 +62,10 @@ class AgentRegistry:
             state.last_active = time.monotonic()
             return state.agent, state.lock
 
+    def get_jsessionid(self, token: str) -> str | None:
+        state = self._store.get(token)
+        return state.agent._session if state else None
+
     def update_session(self, token: str, jsessionid: str) -> None:
         state = self._store.get(token)
         if state:

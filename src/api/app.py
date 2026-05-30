@@ -25,6 +25,7 @@ from agent import (
 from session import get_session_api
 
 from .models import AnswerRequest, ChatRequest, LoginRequest, LoginResponse
+from .routes import router as data_router
 from .state import AgentRegistry
 
 load_dotenv()
@@ -41,6 +42,7 @@ async def lifespan(app: FastAPI):
     global _registry
     llm = OpenAI(api_key=_LLM_API_KEY, base_url=_LLM_BASE_URL)
     _registry = AgentRegistry(llm=llm, model=_LLM_MODEL)
+    app.state.registry = _registry
     yield
 
 
@@ -48,6 +50,7 @@ limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(title="TPCU API", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.include_router(data_router, prefix="/api")
 
 
 # ---------------------------------------------------------------------------
