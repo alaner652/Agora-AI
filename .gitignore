@@ -15,6 +15,7 @@ output/*
 
 # 開發暫存
 schedule_debug.html
+.DS_Store
 
 # 對話記錄（含使用者輸入，不上傳）
 logs/
