@@ -103,12 +103,11 @@ const TOOL_LABELS: Record<string, string> = {
 
 function ThinkingDots() {
   return (
-    <div className="flex items-center gap-1.5 px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-2xl w-fit">
-      <span className="text-xs text-zinc-500 mr-0.5">思考中</span>
+    <div className="flex items-center gap-1 py-1">
       {[0, 150, 300].map(d => (
         <span
           key={d}
-          className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-bounce"
+          className="w-1.5 h-1.5 rounded-full bg-stone-500 animate-bounce"
           style={{ animationDelay: `${d}ms` }}
         />
       ))}
@@ -118,17 +117,17 @@ function ThinkingDots() {
 
 function LiveToolPanel({ calls }: { calls: ToolRecord[] }) {
   return (
-    <div className="bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 space-y-2 w-fit min-w-48">
+    <div className="space-y-1.5 py-0.5">
       {calls.map((tc, i) => (
-        <div key={i} className="flex items-center gap-2 text-xs">
+        <div key={i} className="flex items-center gap-2 text-xs text-stone-500">
           {tc.ok === null ? (
-            <Spinner className="w-3 h-3 shrink-0" />
+            <Spinner className="w-3 h-3 shrink-0 text-stone-500" />
           ) : tc.ok ? (
-            <span className="text-emerald-400 shrink-0">✓</span>
+            <span className="text-emerald-500 shrink-0">✓</span>
           ) : (
             <span className="text-red-400 shrink-0">✗</span>
           )}
-          <span className={tc.ok === null ? 'text-zinc-400' : tc.ok ? 'text-zinc-500' : 'text-red-400'}>
+          <span className={!tc.ok && tc.ok !== null ? 'text-red-400' : ''}>
             {TOOL_LABELS[tc.name] ?? tc.name}
           </span>
         </div>
@@ -141,10 +140,10 @@ function DoneToolPanel({ calls }: { calls: ToolRecord[] }) {
   const [open, setOpen] = useState(false)
   if (calls.length === 0) return null
   return (
-    <div className="mt-2.5 text-xs">
+    <div className="mt-2 text-xs">
       <button
         onClick={() => setOpen(v => !v)}
-        className="text-zinc-600 hover:text-zinc-400 flex items-center gap-1.5 transition-colors"
+        className="text-stone-600 hover:text-stone-400 flex items-center gap-1.5 transition-colors"
       >
         <svg
           className={`w-3 h-3 transition-transform ${open ? 'rotate-90' : ''}`}
@@ -155,10 +154,10 @@ function DoneToolPanel({ calls }: { calls: ToolRecord[] }) {
         已使用 {calls.length} 個工具
       </button>
       {open && (
-        <div className="mt-1.5 space-y-1 pl-1">
+        <div className="mt-1 space-y-1 pl-4">
           {calls.map((tc, i) => (
-            <div key={i} className="flex items-center gap-2 text-zinc-500">
-              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${tc.ok ? 'bg-emerald-500' : 'bg-red-500'}`} />
+            <div key={i} className="flex items-center gap-2 text-stone-500">
+              <span className={`w-1 h-1 rounded-full shrink-0 ${tc.ok ? 'bg-emerald-500' : 'bg-red-500'}`} />
               {TOOL_LABELS[tc.name] ?? tc.name}
               {!tc.ok && <span className="text-red-400 ml-auto">失敗</span>}
             </div>
@@ -424,12 +423,12 @@ export default function ChatPage() {
     <div className="flex flex-col h-screen md:h-dvh">
 
       {/* ── Top bar ── */}
-      <div className="shrink-0 border-b border-zinc-800 px-4 sm:px-6 py-3 flex items-center justify-between">
-        <h1 className="text-sm font-medium text-zinc-300">AI 助理</h1>
+      <div className="shrink-0 border-b border-stone-700 bg-stone-900 px-4 sm:px-6 py-3 flex items-center justify-between">
+        <h1 className="text-sm font-semibold text-zinc-100">AI 助理</h1>
         {messages.length > 0 && !streaming && (
           <button
             onClick={handleClearHistory}
-            className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+            className="text-xs text-stone-500 hover:text-stone-300 transition-colors"
           >
             清除對話
           </button>
@@ -446,13 +445,13 @@ export default function ChatPage() {
 
         {isEmpty && (
           <div className="flex flex-col items-center justify-center h-full px-6 pb-16">
-            <p className="text-sm text-zinc-500 mb-5 text-center">詢問課表、成績、缺曠、請假等問題</p>
+            <p className="text-sm text-stone-500 mb-5 text-center">詢問課表、成績、缺曠、請假等問題</p>
             <div className="grid grid-cols-2 gap-2 w-full max-w-xs">
               {SUGGESTIONS.map(s => (
                 <button
                   key={s}
                   onClick={() => sendSuggestion(s)}
-                  className="text-left text-xs text-zinc-400 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg px-3 py-2 transition-colors leading-snug"
+                  className="text-left text-xs text-stone-400 bg-stone-800 hover:bg-stone-700 border border-stone-700 rounded-lg px-3 py-2 transition-colors leading-snug"
                 >
                   {s}
                 </button>
@@ -464,17 +463,7 @@ export default function ChatPage() {
         {!isEmpty && (
           <div className="py-6 px-4 md:px-6 space-y-5 max-w-3xl mx-auto">
             {messages.map((m, i) => (
-              <div key={i} className={`flex gap-3 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                {/* Assistant avatar */}
-                {m.role === 'assistant' && (
-                  <div className="w-7 h-7 rounded-lg bg-orange-500/15 border border-orange-500/20 flex items-center justify-center shrink-0 mt-0.5">
-                    <svg className="w-3.5 h-3.5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-                    </svg>
-                  </div>
-                )}
-
+              <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 {/* Message content */}
                 <div className={`${m.role === 'user' ? 'max-w-[75%]' : 'flex-1 min-w-0'}`}>
                   {m.role === 'user' ? (
@@ -561,16 +550,15 @@ export default function ChatPage() {
             ))}
 
             {askUser && (
-              <div className="flex gap-3 justify-start">
-                <div className="w-7 h-7 shrink-0" />
-                <div className="bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 max-w-sm">
-                  <p className="text-sm text-zinc-200 mb-3 font-medium">{askUser.question}</p>
+              <div className="flex justify-start">
+                <div className="bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 max-w-sm">
+                  <p className="text-sm text-zinc-200 mb-3">{askUser.question}</p>
                   <div className="space-y-1.5">
                     {askUser.options.map(opt => (
                       <button
                         key={opt}
                         onClick={() => handleAnswer(opt)}
-                        className="w-full text-left text-sm bg-zinc-700 hover:bg-zinc-600 border border-zinc-600 text-zinc-200 rounded-lg px-3 py-2 transition-colors"
+                        className="w-full text-left text-sm bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 rounded-lg px-3 py-2 transition-colors"
                       >
                         {opt}
                       </button>
@@ -586,7 +574,7 @@ export default function ChatPage() {
       </div>
 
       {/* ── Input bar ── */}
-      <div className="shrink-0 border-t border-zinc-800 bg-zinc-900">
+      <div className="shrink-0 border-t border-stone-700 bg-stone-900">
         <div className="max-w-3xl mx-auto px-4 py-3">
           {/* Uploaded file chip */}
           {uploadedFile && (
