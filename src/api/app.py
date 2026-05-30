@@ -23,7 +23,7 @@ from agent import (
     ToolCallEvent,
     ToolResultEvent,
 )
-from session import get_session_api
+from session import refresh_api as _fresh_login
 
 from .models import AnswerRequest, ChatRequest, LoginRequest, LoginResponse
 from .routes import router as data_router
@@ -112,7 +112,7 @@ async def health():
 @limiter.limit("10/minute")
 async def login(request: Request, body: LoginRequest):
     try:
-        jsessionid = await get_session_api(body.uid, body.pwd)
+        jsessionid = await _fresh_login(body.uid, body.pwd)
     except Exception as e:
         raise HTTPException(status_code=401, detail={"error": f"登入失敗：{e}", "error_code": "AUTH_001"})
 

@@ -44,19 +44,20 @@ export default function SchedulePage() {
   useEffect(() => { if (optsErr) onSessionErr(optsErr) }, [optsErr])
   useEffect(() => { if (schedErr) onSessionErr(schedErr) }, [schedErr])
 
-  // Build grid[weekday][periodNum] = cell
+  // Build grid[weekday][periodNum] = cell; unknown periods go to extras
   const grid: Record<number, Record<number, CellData>> = {}
   for (let d = 1; d <= 7; d++) grid[d] = {}
+  const extras: ScheduleEntry[] = []
 
-  const maxPeriod = { current: 0 }
+  let maxPeriod = 0
   for (const e of entries ?? []) {
     const p = PERIOD_NUM[e.period]
-    if (!p) continue
+    if (!p) { extras.push(e); continue }
     if (!grid[e.weekday]) grid[e.weekday] = {}
     grid[e.weekday][p] = { course: e.course, teacher: e.teacher, classroom: e.classroom, time_range: e.time_range }
-    if (p > maxPeriod.current) maxPeriod.current = p
+    if (p > maxPeriod) maxPeriod = p
   }
-  const totalPeriods = Math.max(maxPeriod.current, 9)
+  const totalPeriods = Math.max(maxPeriod, 9)
 
   // Which days have at least one class
   const activeDays = [1, 2, 3, 4, 5, 6, 7].filter(d =>
@@ -131,6 +132,23 @@ export default function SchedulePage() {
             </table>
           </div>
         )
+      )}
+
+      {/* Fallback: entries whose period couldn't be mapped to a number */}
+      {extras.length > 0 && (
+        <div className="mt-4">
+          <p className="text-xs text-gray-400 mb-2">其他節次</p>
+          <div className="space-y-1">
+            {extras.map((e, i) => (
+              <div key={i} className="text-xs bg-indigo-50 rounded px-3 py-1.5 flex gap-3">
+                <span className="text-gray-500">週{DAY_LABELS[e.weekday]} {e.period}</span>
+                <span className="font-medium text-indigo-800">{e.course}</span>
+                {e.teacher && <span className="text-gray-500">{e.teacher}</span>}
+                {e.classroom && <span className="text-gray-400">{e.classroom}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   )

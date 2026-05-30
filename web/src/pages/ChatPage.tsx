@@ -62,7 +62,11 @@ export default function ChatPage() {
 
   function handleSessionExpired() {
     clearToken()
-    navigate('/login')
+    setMessages((prev) => [
+      ...prev,
+      { role: 'assistant', content: 'Session 已過期，即將跳轉至登入頁面...' },
+    ])
+    setTimeout(() => navigate('/login'), 1500)
   }
 
   async function runStream(url: string, body: object) {
@@ -89,12 +93,14 @@ export default function ChatPage() {
             options: (event.options as string[]) ?? [],
             tool_call_id: String(event.tool_call_id ?? ''),
           })
-        } else if (event.type === 'tool_result') {
-          const data = String(event.data ?? '')
-          if (data.includes('NET_002')) {
-            handleSessionExpired()
-            return
-          }
+        } else if (event.type === 'tool_result' && !event.ok) {
+          try {
+            const parsed = JSON.parse(String(event.data ?? ''))
+            if (parsed?.error_code === 'NET_002') {
+              handleSessionExpired()
+              return
+            }
+          } catch { /* data is not JSON, ignore */ }
         }
       }
     } catch (err: unknown) {
