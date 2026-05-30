@@ -171,7 +171,8 @@ async def test_timeout_error(memory, jsessionid):
 async def test_value_error_non_session(memory, jsessionid):
     with patch("agent.tools._sched_options", new=AsyncMock(side_effect=ValueError("其他錯誤"))):
         result = json.loads(await dispatch("get_semester_options", {}, jsessionid, memory))
-    assert result == {"error": "其他錯誤"}
+    assert result["error"] == "其他錯誤"
+    assert result["success"] is False
 
 
 async def test_value_error_session_expired_propagates(memory, jsessionid):
@@ -383,7 +384,10 @@ async def test_delete_leave_result_passthrough(memory, jsessionid):
                 jsessionid, memory,
             )
         )
-    assert result == del_result
+    # success=False results get error_code injected
+    assert result["success"] is False
+    assert result["message"] == "已審核，無法刪除"
+    assert "error_code" in result
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -628,19 +632,32 @@ def test_load_ai_guide_returns_file_content():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def test_err_returns_valid_json_with_error_key():
-    assert json.loads(_err("something went wrong")) == {"error": "something went wrong"}
+    result = json.loads(_err("something went wrong"))
+    assert result["error"] == "something went wrong"
+    assert result["success"] is False
+    assert "error_code" in result
 
 
 def test_err_handles_chinese_text():
     result = json.loads(_err("連線失敗"))
     assert result["error"] == "連線失敗"
+    assert result["success"] is False
 
 
 def test_err_handles_empty_string():
     result = json.loads(_err(""))
-    assert result == {"error": ""}
+    assert result["error"] == ""
+    assert result["success"] is False
+    assert "error_code" in result
 
 
 def test_err_output_is_valid_json():
     import json as _json
     _json.loads(_err("test"))  # should not raise
+
+
+def test_err_with_explicit_error_code():
+    from agent.errors import ErrorCode
+    result = json.loads(_err("逾時", ErrorCode.NETWORK_TIMEOUT))
+    assert result["error_code"] == "NET_001"
+    assert result["success"] is False

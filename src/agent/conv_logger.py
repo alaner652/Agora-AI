@@ -17,6 +17,7 @@ class ToolCallLog:
     latency_ms: float
     ok: bool
     error_code: str | None = None
+    unconfirmed: bool = False
 
 
 @dataclass
@@ -25,6 +26,7 @@ class TurnLog:
     user: str
     tool_calls: list[ToolCallLog] = field(default_factory=list)
     assistant: str = ""
+    confidence: dict | None = None
 
 
 @dataclass
@@ -68,13 +70,15 @@ class ConversationLogger:
         args: dict,
         result_json: str,
         latency_ms: float,
+        unconfirmed: bool = False,
     ) -> None:
         if self._current_turn is None:
             return
         try:
             result = json.loads(result_json)
             if isinstance(result, dict):
-                ok = "error" not in result
+                # Error if: has "error" key (legacy _err format) OR success is explicitly False
+                ok = not ("error" in result or result.get("success") is False)
                 error_code = result.get("error_code")
             else:
                 ok, error_code = True, None
@@ -90,6 +94,7 @@ class ConversationLogger:
                 latency_ms=round(latency_ms, 1),
                 ok=ok,
                 error_code=error_code,
+                unconfirmed=unconfirmed,
             )
         )
 
@@ -97,9 +102,40 @@ class ConversationLogger:
         if self._current_turn is None:
             return
         self._current_turn.assistant = text
+        self._current_turn.confidence = self._compute_confidence(self._current_turn)
         self._session.turns.append(self._current_turn)
         self._current_turn = None
         self._flush()
+
+    # ------------------------------------------------------------------
+    # Confidence scoring
+    # ------------------------------------------------------------------
+
+    def _compute_confidence(self, turn: TurnLog) -> dict:
+        calls = turn.tool_calls
+        all_ok = all(tc.ok for tc in calls) if calls else True
+        error_codes = [tc.error_code for tc in calls if tc.error_code]
+        used_confirm = any(tc.name == "ask_user" for tc in calls)
+        has_unconfirmed = any(tc.unconfirmed for tc in calls)
+
+        score = 1.0
+        if not all_ok:        score -= 0.4
+        if error_codes:       score -= 0.2
+        if has_unconfirmed:   score -= 0.2
+        if used_confirm:      score += 0.1
+        score = max(0.0, min(1.0, round(score, 2)))
+
+        return {
+            "score": score,
+            "source": "rule",
+            "signals": {
+                "all_tools_ok":  all_ok,
+                "used_ask_user": used_confirm,
+                "unconfirmed":   has_unconfirmed,
+                "tool_count":    len(calls),
+                "error_codes":   error_codes,
+            },
+        }
 
     def close(self) -> None:
         self._session.ended_at = datetime.now().isoformat(timespec="milliseconds")

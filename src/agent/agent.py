@@ -16,6 +16,7 @@ from session import refresh
 from .conv_logger import ConversationLogger
 from .memory import ChatMemory
 from .reflection import reflect
+from .tool_meta import get_meta
 from .tools import TOOLS, AskUserError, dispatch
 
 _log = get_logger(__name__)
@@ -35,6 +36,7 @@ class ToolResultEvent:
     name: str
     ok: bool
     data: str
+    unconfirmed: bool = False
 
 
 @dataclass
@@ -123,13 +125,21 @@ class ChatAgent:
         # When AskUserEvent is yielded, we park the pending tool call here
         # until answer_ask_user() is called.
         self._pending_ask: dict | None = None
+        # Tracks tool names called within the current user turn (for unconfirmed detection).
+        # Reset in step(); carried over into answer_ask_user() so ask_user is visible.
+        self._recent_tool_names: list[str] = []
 
     # ------------------------------------------------------------------
     # Public interface
     # ------------------------------------------------------------------
 
+    def update_session(self, jsessionid: str) -> None:
+        """Replace the current session token (e.g. after /login)."""
+        self._session = jsessionid
+
     async def step(self, user_message: str) -> AsyncIterator[AgentEvent]:
         """Process one user turn; yield events until done."""
+        self._recent_tool_names: list[str] = []   # reset per user turn
         if self._logger:
             self._logger.on_user_message(user_message)
         self._memory.add({"role": "user", "content": user_message})
@@ -208,12 +218,24 @@ class ChatAgent:
                         self._logger.on_tool_call(tc.function.name, {}, result, 0.0)
                     continue
 
+                meta = get_meta(tc.function.name)
+                unconfirmed = (
+                    meta.danger_level >= 1
+                    and "ask_user" not in self._recent_tool_names
+                )
+                if unconfirmed:
+                    _log.warning(
+                        "tool %s (danger_level=%d) executed without prior ask_user",
+                        tc.function.name, meta.danger_level,
+                    )
+
                 yield ToolCallEvent(name=tc.function.name, args=args)
 
                 t0 = time.monotonic()
                 try:
                     raw = await self._execute(tc.function.name, args)
                 except AskUserError as e:
+                    self._recent_tool_names.append(tc.function.name)  # "ask_user" was called
                     ask_event = AskUserEvent(
                         question=e.question,
                         options=e.options,
@@ -225,15 +247,20 @@ class ChatAgent:
                 latency_ms = (time.monotonic() - t0) * 1000
 
                 result = reflect(tc.function.name, raw)
-                ok = "error" not in json.loads(result) if result.startswith("{") else True
-                yield ToolResultEvent(name=tc.function.name, ok=ok, data=result)
+                try:
+                    parsed = json.loads(result)
+                    ok = not ("error" in parsed or parsed.get("success") is False) if isinstance(parsed, dict) else True
+                except (json.JSONDecodeError, AttributeError):
+                    ok = True
+                self._recent_tool_names.append(tc.function.name)
+                yield ToolResultEvent(name=tc.function.name, ok=ok, data=result, unconfirmed=unconfirmed)
                 self._memory.add({
                     "role": "tool",
                     "tool_call_id": tc.id,
                     "content": result,
                 })
                 if self._logger:
-                    self._logger.on_tool_call(tc.function.name, args, result, latency_ms)
+                    self._logger.on_tool_call(tc.function.name, args, result, latency_ms, unconfirmed=unconfirmed)
 
             if ask_event is not None:
                 yield ask_event

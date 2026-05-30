@@ -17,6 +17,7 @@ from agent import (
     ChatMemory,
     TextDeltaEvent,
     ToolCallEvent,
+    ToolResultEvent,
     AskUserEvent,
     DoneEvent,
 )
@@ -66,6 +67,9 @@ async def _drain(agent: ChatAgent, gen):
     async for event in gen:
         if isinstance(event, ToolCallEvent):
             print(f"  [{event.name}]", flush=True)
+        elif isinstance(event, ToolResultEvent):
+            if event.unconfirmed:
+                print(f"  ⚠ {event.name} 未取得明確確認即執行", flush=True)
         elif isinstance(event, TextDeltaEvent):
             print(event.text, end="", flush=True)
         elif isinstance(event, AskUserEvent):
@@ -86,6 +90,62 @@ async def _drain(agent: ChatAgent, gen):
                 except (json.JSONDecodeError, KeyError):
                     pass
             print("\n")
+
+
+_CACHE_FILE = pathlib.Path(".cache/session.json")
+
+_SLASH_HELP = """\
+  /login    — 強制重新登入
+  /logout   — 清除 session 與使用者偏好
+  /whoami   — 顯示目前登入狀態
+  /status   — 顯示系統狀態
+  /help     — 顯示此說明"""
+
+
+async def _handle_slash(cmd: str, agent: ChatAgent, uid: str, model: str) -> None:
+    parts = cmd.strip().split()
+    name = parts[0].lower()
+
+    if name == "/login":
+        print("重新登入中...", flush=True)
+        try:
+            new_session = await refresh(uid)
+            agent.update_session(new_session)
+            print("登入成功\n")
+        except Exception as e:
+            print(f"登入失敗：{e}\n")
+
+    elif name == "/logout":
+        if _CACHE_FILE.exists():
+            _CACHE_FILE.unlink()
+        agent._memory.prefs.clear()
+        print("已登出，session 與使用者偏好已清除\n")
+
+    elif name == "/whoami":
+        uid_stored = agent._memory.recall("uid", "")
+        if uid_stored:
+            masked = uid_stored[:-3] + "***" if len(uid_stored) > 3 else "***"
+        else:
+            masked = "（未設定）"
+        session_ok = _CACHE_FILE.exists()
+        print(f"學號：{masked}")
+        print(f"Session：{'有效（快取）' if session_ok else '無快取'}\n")
+
+    elif name == "/status":
+        uid_stored = agent._memory.recall("uid", "（未設定）")
+        masked = uid_stored[:-3] + "***" if len(uid_stored) > 3 else "***"
+        turns = len(agent._memory.history) // 2
+        session_ok = _CACHE_FILE.exists()
+        print(f"模型：{model}")
+        print(f"學號：{masked}")
+        print(f"Session：{'有效（快取）' if session_ok else '無快取'}")
+        print(f"對話輪次：{turns}\n")
+
+    elif name in ("/help", "/?"):
+        print(_SLASH_HELP + "\n")
+
+    else:
+        print(f"未知指令：{name}，輸入 /help 查看可用指令\n")
 
 
 async def chat() -> None:
@@ -125,6 +185,10 @@ async def chat() -> None:
                 print("再見")
                 break
             if not user_input:
+                continue
+
+            if user_input.startswith("/"):
+                await _handle_slash(user_input, agent, uid, MODEL)
                 continue
 
             print("思考中...", end="", flush=True)

@@ -16,6 +16,7 @@ from actions.apply_leave.index import apply_leave as _apply_leave, get_leave_for
 from actions.delete_leave.index import delete_leave as _delete_leave
 from utils.date import today_roc, days_ago_roc
 
+from .errors import ErrorCode
 from .memory import ChatMemory
 
 _log = get_logger(__name__)
@@ -32,8 +33,21 @@ class AskUserError(Exception):
         self.options = options
 
 
-def _err(msg: str) -> str:
-    return json.dumps({"error": msg}, ensure_ascii=False)
+def _err(msg: str, code: ErrorCode = ErrorCode.UNKNOWN) -> str:
+    return json.dumps(
+        {"error": msg, "error_code": str(code), "success": False},
+        ensure_ascii=False,
+    )
+
+
+def _classify_action_error(msg: str) -> str:
+    if "重複" in msg:
+        return ErrorCode.LEAVE_CONFLICT
+    if "附件" in msg:
+        return ErrorCode.MISSING_ATTACHMENT
+    if "已核准" in msg:
+        return ErrorCode.LEAVE_APPROVED
+    return ErrorCode.UNKNOWN
 
 
 TOOLS: list[dict] = [
@@ -255,30 +269,30 @@ async def dispatch(name: str, args: dict, jsessionid: str, memory: ChatMemory) -
             )
 
         elif name == "apply_leave":
-            return json.dumps(
-                await _apply_leave(
-                    jsessionid=jsessionid,
-                    date=args["date"],
-                    periods=args["periods"],
-                    leave_id=args["leave_id"],
-                    leave_name=args["leave_name"],
-                    reason=args["reason"],
-                    image_path=args.get("image_path"),
-                ),
-                ensure_ascii=False,
+            result = await _apply_leave(
+                jsessionid=jsessionid,
+                date=args["date"],
+                periods=args["periods"],
+                leave_id=args["leave_id"],
+                leave_name=args["leave_name"],
+                reason=args["reason"],
+                image_path=args.get("image_path"),
             )
+            if result.get("success") is False:
+                result["error_code"] = _classify_action_error(result.get("message", ""))
+            return json.dumps(result, ensure_ascii=False)
 
         elif name == "delete_leave":
-            return json.dumps(
-                await _delete_leave(
-                    jsessionid=jsessionid,
-                    stdkey=args["stdkey"],
-                    barcode=args["barcode"],
-                    sdate=args["sdate"],
-                    edate=args["edate"],
-                ),
-                ensure_ascii=False,
+            result = await _delete_leave(
+                jsessionid=jsessionid,
+                stdkey=args["stdkey"],
+                barcode=args["barcode"],
+                sdate=args["sdate"],
+                edate=args["edate"],
             )
+            if result.get("success") is False:
+                result["error_code"] = _classify_action_error(result.get("message", ""))
+            return json.dumps(result, ensure_ascii=False)
 
         elif name == "ask_user":
             raise AskUserError(question=args["question"], options=args["options"])
@@ -287,7 +301,7 @@ async def dispatch(name: str, args: dict, jsessionid: str, memory: ChatMemory) -
             type_ = args["type"]
             cached = memory.cache.get(type_)
             if not cached:
-                return _err(f"尚未查詢 {type_}，請先執行對應查詢")
+                return _err(f"尚未查詢 {type_}，請先執行對應查詢", ErrorCode.DATA_NOT_FOUND)
             entries = cached["entries"]
             title = args.get("title") or cached.get("title", "")
             if type_ == "schedule":
@@ -300,19 +314,21 @@ async def dispatch(name: str, args: dict, jsessionid: str, memory: ChatMemory) -
                 from utils.render_grades.index import render
                 path = render(entries, title=title, output=str(_OUTPUT_DIR / "grades.png"))
             else:
-                return _err(f"未知的渲染類型：{type_}")
+                return _err(f"未知的渲染類型：{type_}", ErrorCode.TOOL_UNKNOWN)
             return json.dumps({"path": path}, ensure_ascii=False)
 
         else:
-            return _err(f"未知工具：{name}")
+            return _err(f"未知工具：{name}", ErrorCode.TOOL_UNKNOWN)
 
     except ValueError as e:
         if "Session 過期" in str(e):
             raise
         return _err(str(e))
-    except (KeyError, TypeError, FileNotFoundError) as e:
-        return _err(str(e))
+    except (KeyError, TypeError) as e:
+        return _err(str(e), ErrorCode.TOOL_ARGS)
+    except FileNotFoundError as e:
+        return _err(str(e), ErrorCode.MISSING_ATTACHMENT)
     except httpx.TimeoutException:
-        return _err("學校系統連線逾時（30 秒），請稍後再試")
+        return _err("學校系統連線逾時（30 秒），請稍後再試", ErrorCode.NETWORK_TIMEOUT)
     except httpx.NetworkError:
-        return _err("學校系統連線失敗，請稍後再試")
+        return _err("學校系統連線失敗，請稍後再試", ErrorCode.NETWORK_ERROR)
