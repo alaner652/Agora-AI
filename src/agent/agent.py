@@ -16,6 +16,7 @@ from session import refresh
 from .conv_logger import ConversationLogger
 from .memory import ChatMemory
 from .reflection import reflect
+from .errors import ErrorCode
 from .tool_meta import get_meta
 from .tools import TOOLS, AskUserError, dispatch
 
@@ -228,6 +229,21 @@ class ChatAgent:
                         "tool %s (danger_level=%d) executed without prior ask_user",
                         tc.function.name, meta.danger_level,
                     )
+                    import json as _json
+                    result = _json.dumps({
+                        "error": "必須先呼叫 ask_user 向使用者確認，才能執行此操作",
+                        "error_code": str(ErrorCode.CONFIRMATION_REQUIRED),
+                        "success": False,
+                    }, ensure_ascii=False)
+                    yield ToolResultEvent(name=tc.function.name, ok=False, data=result, unconfirmed=True)
+                    self._memory.add({
+                        "role": "tool",
+                        "tool_call_id": tc.id,
+                        "content": result,
+                    })
+                    if self._logger:
+                        self._logger.on_tool_call(tc.function.name, args, result, 0.0, unconfirmed=True)
+                    continue
 
                 yield ToolCallEvent(name=tc.function.name, args=args)
 

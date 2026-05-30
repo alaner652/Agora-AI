@@ -6,13 +6,17 @@ from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).parent / "scripts"
 
+_VENV_PYTHON = Path(__file__).parent / ".venv" / "bin" / "python"
+_PYTHON = str(_VENV_PYTHON) if _VENV_PYTHON.exists() else sys.executable
+
 MENU = [
-    ("查詢課表",    "fetch_schedule.py"),
-    ("查詢缺曠",    "fetch_absence.py"),
-    ("查詢成績",    "fetch_grades.py"),
-    ("申請請假",    "apply_leave.py"),
-    ("管理假單",    "manage_leaves.py"),
-    ("AI 助理",    "chatbot.py"),
+    ("查詢課表",       "fetch_schedule.py"),
+    ("查詢缺曠",       "fetch_absence.py"),
+    ("查詢成績",       "fetch_grades.py"),
+    ("申請請假",       "apply_leave.py"),
+    ("管理假單",       "manage_leaves.py"),
+    ("AI 助理",       "chatbot.py"),
+    ("啟動 API 伺服器", "serve.py"),
 ]
 
 
@@ -31,7 +35,7 @@ def print_menu() -> None:
 def run_script(script: str) -> None:
     path = SCRIPTS_DIR / script
     result = subprocess.run(
-        [sys.executable, str(path)],
+        [_PYTHON, str(path)],
         cwd=str(Path(__file__).parent),
     )
     if result.returncode != 0:

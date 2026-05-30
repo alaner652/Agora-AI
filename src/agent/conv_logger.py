@@ -50,11 +50,12 @@ class ConversationLogger:
     Call close() when the session ends to stamp ended_at.
     """
 
-    def __init__(self, log_dir: pathlib.Path) -> None:
+    def __init__(self, log_dir: pathlib.Path, keep: int = 30) -> None:
         log_dir.mkdir(parents=True, exist_ok=True)
         self._dir = log_dir
         self._session = self._new_session()
         self._current_turn: TurnLog | None = None
+        self._rotate(keep)
 
     # ------------------------------------------------------------------
     # Hooks
@@ -154,6 +155,11 @@ class ConversationLogger:
             session_id=f"{date_str}-session-{idx:02d}",
             started_at=now.isoformat(timespec="milliseconds"),
         )
+
+    def _rotate(self, keep: int) -> None:
+        files = sorted(self._dir.glob("*.json"))
+        for old in files[:-keep] if len(files) > keep else []:
+            old.unlink(missing_ok=True)
 
     def _flush(self) -> None:
         path = self._dir / f"{self._session.session_id}.json"

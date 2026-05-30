@@ -10,6 +10,7 @@ from datetime import datetime
 from client import get_page, login
 
 _CACHE_FILE = pathlib.Path(".cache/session.json")
+_API_CACHE_DIR = pathlib.Path(".cache/sessions")
 _VALIDATE_URL = "/tsint/ck_pro/ck001_02.jsp"
 
 
@@ -77,4 +78,55 @@ async def refresh(uid: str) -> str:
     pwd = input(f"請輸入 {uid} 的密碼: ")
     jsessionid = await login(uid, pwd)
     _save(jsessionid)
+    return jsessionid
+
+
+# ---------------------------------------------------------------------------
+# API-friendly versions (no print / input)
+# ---------------------------------------------------------------------------
+
+def _api_cache_file(uid: str) -> pathlib.Path:
+    return _API_CACHE_DIR / f"{uid}.json"
+
+
+def _api_load(uid: str) -> str | None:
+    f = _api_cache_file(uid)
+    if not f.exists():
+        return None
+    try:
+        return json.loads(f.read_text(encoding="utf-8")).get("jsessionid")
+    except Exception:
+        return None
+
+
+def _api_save(uid: str, jsessionid: str) -> None:
+    _API_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    f = _api_cache_file(uid)
+    f.write_text(
+        json.dumps(
+            {"jsessionid": jsessionid, "saved_at": datetime.now().isoformat(timespec="seconds")},
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    os.chmod(f, stat.S_IRUSR | stat.S_IWUSR)
+
+
+async def get_session_api(uid: str, pwd: str) -> str:
+    """取得有效 JSESSIONID（API 用途，無 print/input）。
+    有效快取直接回傳；否則用傳入的 pwd 登入。
+    """
+    cached = _api_load(uid)
+    if cached and await _validate(cached):
+        return cached
+    jsessionid = await login(uid, pwd)
+    _api_save(uid, jsessionid)
+    return jsessionid
+
+
+async def refresh_api(uid: str, pwd: str) -> str:
+    """Session 中途失效時呼叫（API 用途，無 print/input）。"""
+    jsessionid = await login(uid, pwd)
+    _api_save(uid, jsessionid)
     return jsessionid
