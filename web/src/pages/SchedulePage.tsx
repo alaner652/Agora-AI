@@ -3,7 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { getSemesterOptions, getSchedule, type SemesterOption, type ScheduleEntry } from '../api/data'
 import { useNavigate } from 'react-router-dom'
 import { clearToken } from '../api/auth'
-import { Spinner } from '../components/ui'
+import { Select, Spinner } from '../components/ui'
+import { PageShell } from '../components/PageShell'
 
 const DAY_LABELS = ['', '一', '二', '三', '四', '五', '六', '日']
 
@@ -26,8 +27,6 @@ function useSessionGuard() {
 }
 
 type CellData = { course: string; teacher: string; classroom: string; time_range: string }
-
-const selectCls = 'bg-zinc-800 border border-zinc-700 text-zinc-100 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500'
 
 export default function SchedulePage() {
   const [semester, setSemester] = useState('')
@@ -71,64 +70,69 @@ export default function SchedulePage() {
   )
   const displayDays = activeDays.length > 0 ? activeDays : [1, 2, 3, 4, 5]
 
-  return (
-    <div className="p-6">
-      <div className="flex items-center gap-4 mb-6">
-        <h2 className="text-xl font-semibold text-zinc-100">課表</h2>
-        <select value={semester} onChange={e => setSemester(e.target.value)} className={selectCls}>
-          <option value="">選擇學期</option>
-          {(opts ?? []).map((o: SemesterOption) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
-      </div>
+  const semesterSelect = (
+    <Select value={semester} onChange={e => setSemester(e.target.value)}>
+      <option value="">選擇學期</option>
+      {(opts ?? []).map((o: SemesterOption) => (
+        <option key={o.value} value={o.value}>{o.label}</option>
+      ))}
+    </Select>
+  )
 
+  return (
+    <PageShell title="課表" action={semesterSelect}>
       {!semester && <p className="text-zinc-500 text-sm">請先選擇學期</p>}
-      {semester && isLoading && <div className="flex items-center gap-2 text-zinc-500 text-sm"><Spinner className="w-4 h-4" />載入中...</div>}
+      {semester && isLoading && (
+        <div className="flex items-center gap-2 text-zinc-500 text-sm">
+          <Spinner className="w-4 h-4" />載入中...
+        </div>
+      )}
 
       {semester && !isLoading && entries && (
         entries.length === 0 ? (
           <p className="text-zinc-500 text-sm">此學期無課表資料</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="border-collapse text-xs">
-              <thead>
-                <tr>
-                  <th className="w-16 border border-zinc-800 bg-zinc-800 p-2 text-zinc-500">節次</th>
-                  {displayDays.map(d => (
-                    <th key={d} className="border border-zinc-800 bg-zinc-800 p-2 text-zinc-300 font-medium w-28">
-                      週{DAY_LABELS[d]}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {Array.from({ length: totalPeriods }, (_, i) => i + 1).map(p => (
-                  <tr key={p}>
-                    <td className="border border-zinc-800 bg-zinc-900 text-center p-1.5 w-16">
-                      <div className="font-mono text-zinc-500 text-xs">{p}</div>
-                      {periodTimes[p] && (
-                        <div className="text-zinc-600 text-[10px] leading-tight mt-0.5 tabular-nums">{periodTimes[p]}</div>
-                      )}
-                    </td>
-                    {displayDays.map(d => {
-                      const cell = grid[d]?.[p]
-                      return (
-                        <td key={d} className={`border border-zinc-800 p-1.5 align-top ${cell ? 'bg-orange-500/10' : 'bg-zinc-900'}`}>
-                          {cell && (
-                            <div>
-                              <div className="font-medium text-orange-300 leading-tight">{cell.course}</div>
-                              {cell.teacher && <div className="text-zinc-500 mt-0.5">{cell.teacher}</div>}
-                              {cell.classroom && <div className="text-zinc-600">{cell.classroom}</div>}
-                            </div>
-                          )}
-                        </td>
-                      )
-                    })}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="border-collapse text-xs w-full">
+                <thead>
+                  <tr>
+                    <th className="border border-zinc-800 bg-zinc-800/60 p-2 text-zinc-500 w-14">節次</th>
+                    {displayDays.map(d => (
+                      <th key={d} className="border border-zinc-800 bg-zinc-800/60 p-2 text-zinc-300 font-medium w-28">
+                        週{DAY_LABELS[d]}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {Array.from({ length: totalPeriods }, (_, i) => i + 1).map(p => (
+                    <tr key={p}>
+                      <td className="border border-zinc-800 text-center p-1.5 w-14">
+                        <div className="font-mono text-zinc-500 text-xs">{p}</div>
+                        {periodTimes[p] && (
+                          <div className="text-zinc-600 text-[10px] leading-tight mt-0.5 tabular-nums">{periodTimes[p]}</div>
+                        )}
+                      </td>
+                      {displayDays.map(d => {
+                        const cell = grid[d]?.[p]
+                        return (
+                          <td key={d} className={`border border-zinc-800 p-1.5 align-top ${cell ? 'bg-orange-500/8' : ''}`}>
+                            {cell && (
+                              <div>
+                                <div className="font-medium text-orange-300 leading-tight">{cell.course}</div>
+                                {cell.teacher && <div className="text-zinc-500 mt-0.5">{cell.teacher}</div>}
+                                {cell.classroom && <div className="text-zinc-600">{cell.classroom}</div>}
+                              </div>
+                            )}
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )
       )}
@@ -138,7 +142,7 @@ export default function SchedulePage() {
           <p className="text-xs text-zinc-600 mb-2">其他節次</p>
           <div className="space-y-1">
             {extras.map((e, i) => (
-              <div key={i} className="text-xs bg-orange-500/10 border border-orange-500/20 rounded px-3 py-1.5 flex gap-3">
+              <div key={i} className="text-xs bg-orange-500/8 border border-orange-500/20 rounded-lg px-3 py-1.5 flex gap-3">
                 <span className="text-zinc-500">週{DAY_LABELS[e.weekday]} {e.period}</span>
                 <span className="font-medium text-orange-300">{e.course}</span>
                 {e.teacher && <span className="text-zinc-500">{e.teacher}</span>}
@@ -148,6 +152,6 @@ export default function SchedulePage() {
           </div>
         </div>
       )}
-    </div>
+    </PageShell>
   )
 }

@@ -7,7 +7,8 @@ import {
 import { toCEInput, inputValToRoc, thisMonthRange } from '../utils/date'
 import { DateRangePicker } from '../components/DateRangePicker'
 import { useSessionGuard } from '../utils/hooks'
-import { Button, StatusBadge, Spinner } from '../components/ui'
+import { Button, Input, Select, StatusBadge, Spinner } from '../components/ui'
+import { PageShell } from '../components/PageShell'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -27,9 +28,8 @@ function toCEInputFromDate(d: Date): string {
   return d.toISOString().slice(0, 10)
 }
 
-const selectCls = 'bg-zinc-800 border border-zinc-700 text-zinc-100 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50'
-const inputCls  = 'bg-zinc-800 border border-zinc-700 text-zinc-100 placeholder:text-zinc-600 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 w-full'
-const quickDateCls = 'text-xs text-orange-400 hover:text-orange-300 hover:underline'
+const dateCls = 'bg-zinc-800 border border-zinc-700 text-zinc-100 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 w-full sm:w-auto'
+const quickDateCls = 'text-xs text-orange-400 hover:text-orange-300 hover:underline transition-colors'
 
 // ── Leave Notice ──────────────────────────────────────────────────────────────
 
@@ -78,7 +78,7 @@ const NOTICE_ITEMS = [
 
 function LeaveNotice({ onAck }: { onAck: () => void }) {
   return (
-    <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-5 mb-6">
+    <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 mb-6">
       <div className="mb-5">
         <h3 className="text-base font-semibold text-zinc-100 mb-1">學生請假注意事項</h3>
         <p className="text-xs text-zinc-500">請閱讀以下事項後，再進行請假申請。</p>
@@ -196,7 +196,7 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
       try {
         const result = await applyLeave(
           { date: rocDay, periods: [...periods], leave_id: leaveId, reason },
-          i === 0 ? file ?? undefined : undefined, // attachment only on first day
+          i === 0 ? file ?? undefined : undefined,
         )
         if (!result.success) {
           setSubmitMsg(`第 ${i + 1} 天（${day}）申請失敗：${result.message || '未知錯誤'}`)
@@ -218,17 +218,17 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
 
   if (done) {
     return (
-      <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-5 mb-6 text-center">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 mb-6 text-center">
         <p className="text-emerald-400 font-medium">✓ {workdays.length > 1 ? `${workdays.length} 天` : ''}假單申請成功！</p>
       </div>
     )
   }
 
   return (
-    <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-5 mb-6">
+    <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 mb-6">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-zinc-100">申請假單</h3>
-        <button onClick={onClose} className="text-zinc-600 hover:text-zinc-300 text-lg leading-none">✕</button>
+        <button onClick={onClose} className="text-zinc-600 hover:text-zinc-300 text-lg leading-none transition-colors">✕</button>
       </div>
 
       {/* Date range */}
@@ -244,13 +244,13 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
           <input type="date" value={formStart}
             onChange={e => { setFormStart(e.target.value); setPeriods(new Set()) }}
-            className={inputCls + ' sm:w-auto'}
+            className={dateCls}
           />
           <span className="hidden sm:block text-zinc-600 text-sm">—</span>
           <input type="date" value={formEnd}
             min={formStart}
             onChange={e => setFormEnd(e.target.value)}
-            className={inputCls + ' sm:w-auto'}
+            className={dateCls}
           />
         </div>
         {workdays.length > 0 && (
@@ -269,27 +269,27 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
         <div>
           <label className="block text-xs text-zinc-500 mb-1">假別</label>
           {!rocStartDate ? (
-            <select disabled className={selectCls + ' w-full'}>
+            <Select disabled className="w-full">
               <option>請先選擇日期</option>
-            </select>
+            </Select>
           ) : formLoading ? (
             <div className="flex items-center gap-2 h-9">
               <Spinner className="w-4 h-4" />
               <span className="text-xs text-zinc-500">載入中...</span>
             </div>
           ) : (
-            <select value={leaveId} onChange={e => setLeaveId(e.target.value)} className={selectCls + ' w-full'}>
+            <Select value={leaveId} onChange={e => setLeaveId(e.target.value)} className="w-full">
               {(formData?.leave_types ?? []).map(t => (
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
-            </select>
+            </Select>
           )}
         </div>
 
         <div>
           <label className="block text-xs text-zinc-500 mb-1">原因</label>
-          <input type="text" value={reason} onChange={e => setReason(e.target.value)}
-            placeholder="請假原因" className={inputCls} />
+          <Input type="text" value={reason} onChange={e => setReason(e.target.value)}
+            placeholder="請假原因" />
         </div>
       </div>
 
@@ -343,11 +343,11 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
         {file ? (
           <div className="flex items-center gap-2">
             <span className="text-sm text-zinc-300 truncate max-w-xs">{file.name}</span>
-            <button type="button" onClick={() => setFile(null)} className="text-xs text-red-400 hover:text-red-300 shrink-0">移除</button>
+            <button type="button" onClick={() => setFile(null)} className="text-xs text-red-400 hover:text-red-300 shrink-0 transition-colors">移除</button>
           </div>
         ) : (
           <input type="file" accept=".jpg,.jpeg,.pdf" onChange={handleFileChange}
-            className="text-sm text-zinc-400 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border file:border-zinc-700 file:text-xs file:text-zinc-300 file:bg-zinc-800 hover:file:bg-zinc-700" />
+            className="text-sm text-zinc-400 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border file:border-zinc-700 file:text-xs file:text-zinc-300 file:bg-zinc-800 hover:file:bg-zinc-700 transition-colors" />
         )}
         {fileError && <p className="mt-1 text-xs text-red-400">{fileError}</p>}
       </div>
@@ -356,7 +356,7 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
 
       {/* Progress */}
       {progress && (
-        <div className="bg-zinc-800 rounded-lg px-4 py-3 mb-3">
+        <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 mb-3">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs text-zinc-400">送出中 {progress.current} / {progress.total}</span>
             <Spinner className="w-4 h-4" />
@@ -446,12 +446,12 @@ function DeleteButton({ leave, onDeleted }: { leave: LeaveItem; onDeleted: () =>
         <button
           onClick={() => mutation.mutate()}
           disabled={mutation.isPending}
-          className="text-xs text-red-400 hover:text-red-300 font-medium disabled:opacity-50"
+          className="text-xs text-red-400 hover:text-red-300 font-medium disabled:opacity-50 transition-colors"
         >
           {mutation.isPending ? '刪除中...' : '確認'}
         </button>
         <span className="text-zinc-700 text-xs">|</span>
-        <button onClick={() => setConfirm(false)} className="text-xs text-zinc-500 hover:text-zinc-300">取消</button>
+        <button onClick={() => setConfirm(false)} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">取消</button>
       </div>
     )
   }
@@ -511,17 +511,12 @@ export default function LeavesPage() {
     queryClient.invalidateQueries({ queryKey: ['leaves'] })
   }
 
-  return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold text-zinc-100">假單</h2>
-        {view === null ? (
-          <Button onClick={handleApplyClick} size="sm">申請假單</Button>
-        ) : (
-          <Button variant="ghost" onClick={() => setView(null)} size="sm">收起</Button>
-        )}
-      </div>
+  const applyBtn = view === null
+    ? <Button onClick={handleApplyClick} size="sm">申請假單</Button>
+    : <Button variant="ghost" onClick={() => setView(null)} size="sm">收起</Button>
 
+  return (
+    <PageShell title="假單" action={applyBtn}>
       {view === 'notice' && <LeaveNotice onAck={handleNoticeAck} />}
       {view === 'form' && (
         <LeaveForm
@@ -549,7 +544,7 @@ export default function LeavesPage() {
       )}
 
       {!isLoading && leaves && (
-        <div className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
           {leaves.length === 0 ? (
             <p className="text-zinc-500 text-sm text-center py-8">此區間無假單</p>
           ) : (
@@ -558,7 +553,7 @@ export default function LeavesPage() {
               <div className="hidden md:block">
                 <table className="w-full text-sm table-fixed">
                   <thead>
-                    <tr className="bg-zinc-800 border-b border-zinc-700">
+                    <tr className="bg-zinc-800/60 border-b border-zinc-800">
                       <th className="text-left px-4 py-2.5 font-medium text-zinc-400">事由 / 假單號</th>
                       <th className="text-left px-4 py-2.5 font-medium text-zinc-400 w-36">請假日期</th>
                       <th className="text-left px-4 py-2.5 font-medium text-zinc-400 w-24">申請日</th>
@@ -569,7 +564,7 @@ export default function LeavesPage() {
                   </thead>
                   <tbody>
                     {leaves.map((l, i) => (
-                      <tr key={i} className="border-b border-zinc-800 last:border-0 align-top hover:bg-zinc-800/30">
+                      <tr key={i} className="border-b border-zinc-800 last:border-0 align-top hover:bg-zinc-800/30 transition-colors">
                         <td className="px-4 py-2.5">
                           <div className="font-medium text-zinc-200 truncate">{l.reason || '（無事由）'}</div>
                           <div className="text-xs text-zinc-600 mt-0.5 tabular-nums">#{l.barcode || l.index}</div>
@@ -627,6 +622,6 @@ export default function LeavesPage() {
           )}
         </div>
       )}
-    </div>
+    </PageShell>
   )
 }

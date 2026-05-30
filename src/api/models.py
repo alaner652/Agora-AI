@@ -1,7 +1,5 @@
 """Pydantic request/response models for the TPCU API."""
 
-from typing import Literal
-
 from pydantic import BaseModel, Field
 
 
@@ -17,7 +15,7 @@ class LoginResponse(BaseModel):
 class ChatRequest(BaseModel):
     token: str = Field(..., min_length=1)
     message: str = Field(..., min_length=1)
-    mode: Literal['fast', 'normal', 'think'] = 'normal'
+    attachment_path: str | None = None
 
 
 class AnswerRequest(BaseModel):
@@ -29,6 +27,11 @@ class LLMConfigRequest(BaseModel):
     base_url: str = Field(..., min_length=1)
     api_key: str = Field(default="")
     model: str = Field(..., min_length=1)
+
+
+class LLMModelsRequest(BaseModel):
+    base_url: str = Field(..., min_length=1)
+    api_key: str = Field(default="")
 
 
 class LLMConfigResponse(BaseModel):

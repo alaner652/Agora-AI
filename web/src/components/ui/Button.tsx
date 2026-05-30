@@ -9,9 +9,9 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantCls: Record<NonNullable<ButtonProps['variant']>, string> = {
-  primary:   'bg-orange-500 hover:bg-orange-600 disabled:bg-orange-500/40 text-white',
-  secondary: 'border border-zinc-700 text-zinc-300 hover:bg-zinc-800 disabled:opacity-40',
-  ghost:     'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 disabled:opacity-40',
+  primary:   'bg-orange-400 hover:bg-orange-500 text-white disabled:opacity-40',
+  secondary: 'bg-stone-800 border border-stone-700 text-stone-300 hover:bg-stone-700 disabled:opacity-40',
+  ghost:     'text-stone-400 hover:text-stone-100 hover:bg-stone-800 disabled:opacity-40',
   danger:    'text-red-400 hover:text-red-300 hover:bg-red-500/10 disabled:opacity-40',
 }
 

@@ -186,3 +186,14 @@ export async function testLLMConfig(req: LLMConfigRequest): Promise<LLMTestResul
   const res = await http.post<LLMTestResult>('/api/settings/llm/test', req)
   return res.data
 }
+
+export interface LLMModelsResult {
+  ok: boolean
+  models: string[]
+  error?: string
+}
+
+export async function listLLMModels(base_url: string, api_key: string): Promise<LLMModelsResult> {
+  const res = await http.post<LLMModelsResult>('/api/settings/llm/models', { base_url, api_key })
+  return res.data
+}

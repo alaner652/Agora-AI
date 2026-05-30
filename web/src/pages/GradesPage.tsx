@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getGrades, type GradeEntry } from '../api/data'
 import { useSessionGuard } from '../utils/hooks'
 import { Spinner } from '../components/ui'
+import { PageShell } from '../components/PageShell'
 
 function semesterSummary(rows: GradeEntry[]) {
   const totalCredits = rows.reduce((s, e) => s + (parseFloat(e.credits) || 0), 0)
@@ -30,21 +31,23 @@ export default function GradesPage() {
   }
 
   return (
-    <div className="p-6">
-      <h2 className="text-xl font-semibold text-zinc-100 mb-6">成績</h2>
-
-      {isLoading && <div className="flex items-center gap-2 text-zinc-500 text-sm"><Spinner className="w-4 h-4" />載入中...</div>}
+    <PageShell title="成績">
+      {isLoading && (
+        <div className="flex items-center gap-2 text-zinc-500 text-sm">
+          <Spinner className="w-4 h-4" />載入中...
+        </div>
+      )}
       {error && <p className="text-red-400 text-sm">載入失敗</p>}
 
       {Object.entries(grouped).map(([sem, rows]) => {
         const { totalCredits, passedCredits, avg } = semesterSummary(rows)
         return (
           <div key={sem} className="mb-8">
-            <h3 className="text-sm font-medium text-zinc-500 mb-2">{sem}</h3>
-            <div className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden">
+            <h3 className="text-xs font-medium text-zinc-500 mb-2 uppercase tracking-wider">{sem}</h3>
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
               <table className="w-full text-sm table-fixed">
                 <thead>
-                  <tr className="bg-zinc-800 border-b border-zinc-700">
+                  <tr className="bg-zinc-800/60 border-b border-zinc-800">
                     <th className="text-left px-4 py-2.5 font-medium text-zinc-400">課程</th>
                     <th className="text-center px-4 py-2.5 font-medium text-zinc-400 w-20">性質</th>
                     <th className="text-right px-4 py-2.5 font-medium text-zinc-400 w-16">學分</th>
@@ -69,7 +72,7 @@ export default function GradesPage() {
                   })}
                 </tbody>
                 <tfoot>
-                  <tr className="border-t border-zinc-800 bg-zinc-800/50">
+                  <tr className="border-t border-zinc-800 bg-zinc-800/40">
                     <td colSpan={4} className="px-4 py-2 text-xs text-zinc-500">
                       修習 {totalCredits} 學分
                       {passedCredits < totalCredits && (
@@ -86,6 +89,6 @@ export default function GradesPage() {
           </div>
         )
       })}
-    </div>
+    </PageShell>
   )
 }

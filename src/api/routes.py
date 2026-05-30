@@ -23,7 +23,7 @@ from actions.apply_leave.index import apply_leave as _apply_leave, get_leave_for
 from actions.delete_leave.index import delete_leave as _delete_leave
 from storage import save_history, load_history, clear_history, get_llm_config, set_llm_config, delete_llm_config
 
-from .models import LLMConfigRequest, LLMConfigResponse
+from .models import LLMConfigRequest, LLMConfigResponse, LLMModelsRequest
 from .state import AgentRegistry
 
 _IMAGE_DIR = pathlib.Path(__file__).parent.parent.parent / "output"
@@ -319,6 +319,17 @@ async def test_llm_settings(body: LLMConfigRequest, uid: str = Depends(_resolve_
         return {"ok": True, "reply": reply}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+@router.post("/settings/llm/models")
+async def list_llm_models(body: LLMModelsRequest, uid: str = Depends(_resolve_uid)):
+    try:
+        client = OpenAI(api_key=body.api_key or "EMPTY", base_url=body.base_url)
+        result = client.models.list()
+        ids = sorted(m.id for m in result.data)
+        return {"ok": True, "models": ids}
+    except Exception as e:
+        return {"ok": False, "models": [], "error": str(e)}
 
 
 # ---------------------------------------------------------------------------

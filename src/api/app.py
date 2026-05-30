@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import base64
 import json
+import mimetypes
 import os
 import secrets
 from contextlib import asynccontextmanager
@@ -39,7 +41,7 @@ _WEB_DIST = Path(__file__).parent.parent.parent / "web" / "dist"
 
 _LLM_API_KEY  = os.getenv("LLM_API_KEY", "")
 _LLM_BASE_URL = os.getenv("LLM_BASE_URL")
-_LLM_MODEL    = os.getenv("LLM_MODEL", "gpt-4o-mini")
+_LLM_MODEL    = os.getenv("LLM_MODEL", "")
 
 _registry: AgentRegistry | None = None
 
@@ -149,6 +151,27 @@ async def login(request: Request, body: LoginRequest):
     return LoginResponse(token=token)
 
 
+_UPLOAD_ROOT = Path(__file__).parent.parent.parent / "uploads"
+
+
+def _load_attachment(path_str: str | None) -> tuple[str | None, str]:
+    """Return (base64_data, mime_type) or (None, '') if not usable."""
+    if not path_str:
+        return None, ''
+    p = Path(path_str).resolve()
+    try:
+        _UPLOAD_ROOT.resolve()
+        p.relative_to(_UPLOAD_ROOT.resolve())
+    except ValueError:
+        return None, ''
+    if not p.exists() or not p.is_file():
+        return None, ''
+    mime = mimetypes.guess_type(str(p))[0] or 'application/octet-stream'
+    if not mime.startswith('image/'):
+        return None, ''
+    return base64.b64encode(p.read_bytes()).decode(), mime
+
+
 @app.post("/chat")
 @limiter.limit("5/minute")
 async def chat(request: Request, body: ChatRequest):
@@ -157,9 +180,13 @@ async def chat(request: Request, body: ChatRequest):
     if lock.locked():
         raise HTTPException(status_code=429, detail="上一個請求仍在處理中")
 
+    image_b64, image_mime = _load_attachment(body.attachment_path)
+
     async def generate():
         async with lock:
-            async for chunk in _stream_events(agent.step(body.message, mode=body.mode)):
+            async for chunk in _stream_events(
+                agent.step(body.message, image_b64=image_b64, image_mime=image_mime)
+            ):
                 yield chunk
 
     return StreamingResponse(generate(), media_type="text/event-stream")
