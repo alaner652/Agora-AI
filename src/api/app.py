@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from openai import OpenAI
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -50,6 +51,13 @@ limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(title="TPCU API", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.include_router(data_router, prefix="/api")
 
 
@@ -80,14 +88,14 @@ async def _stream_events(gen):
 
 def _get_registry() -> AgentRegistry:
     if _registry is None:
-        raise HTTPException(status_code=503, detail="服務未就緒")
+        raise HTTPException(status_code=503, detail={"error": "服務未就緒", "error_code": "SVC_001"})
     return _registry
 
 
 async def _get_agent_or_401(token: str):
     result = await _get_registry().get(token)
     if result is None:
-        raise HTTPException(status_code=401, detail="Token 無效或已過期，請重新呼叫 /login")
+        raise HTTPException(status_code=401, detail={"error": "Token 無效或已過期，請重新呼叫 /login", "error_code": "AUTH_002"})
     return result
 
 
@@ -106,7 +114,7 @@ async def login(request: Request, body: LoginRequest):
     try:
         jsessionid = await get_session_api(body.uid, body.pwd)
     except Exception as e:
-        raise HTTPException(status_code=401, detail=f"登入失敗：{e}")
+        raise HTTPException(status_code=401, detail={"error": f"登入失敗：{e}", "error_code": "AUTH_001"})
 
     token = secrets.token_urlsafe(32)
     await _get_registry().register(token, body.uid, jsessionid)

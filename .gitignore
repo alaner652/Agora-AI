@@ -17,5 +17,6 @@ output/*
 schedule_debug.html
 .DS_Store
 
-# 對話記錄（含使用者輸入，不上傳）
-logs/
+# 對話記錄（含使用者輸入，不上傳；保留目錄結構）
+logs/**/*.json
+logs/**/*.jsonl

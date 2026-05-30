@@ -24,7 +24,7 @@ _bearer = HTTPBearer()
 def _get_registry(request: Request) -> AgentRegistry:
     reg = request.app.state.registry
     if reg is None:
-        raise HTTPException(status_code=503, detail="服務未就緒")
+        raise HTTPException(status_code=503, detail={"error": "服務未就緒", "error_code": "SVC_001"})
     return reg
 
 
@@ -35,7 +35,7 @@ def _resolve_session(
     reg = _get_registry(request)
     jsessionid = reg.get_jsessionid(creds.credentials)
     if jsessionid is None:
-        raise HTTPException(status_code=401, detail="Token 無效或已過期，請重新呼叫 /login")
+        raise HTTPException(status_code=401, detail={"error": "Token 無效或已過期，請重新呼叫 /login", "error_code": "AUTH_002"})
     return jsessionid
 
 
