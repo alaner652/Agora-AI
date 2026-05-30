@@ -1,12 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { getAbsenceOptions, getAbsence, type AbsenceEntry } from '../api/data'
+import { getAbsenceOptions, getAbsence, type AbsenceEntry, type AbsenceOptions } from '../api/data'
 import { useNavigate } from 'react-router-dom'
 import { clearToken } from '../api/auth'
-
-interface AbsenceOpts {
-  semesters: { value: string; label: string }[]
-}
 
 function useSessionGuard() {
   const navigate = useNavigate()
@@ -24,17 +20,18 @@ export default function AbsencePage() {
   const [semester, setSemester] = useState('')
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
-  const [query, setQuery] = useState<{ semester: string; start: string; end: string } | null>(null)
+  const [leaveType, setLeaveType] = useState('00')
+  const [query, setQuery] = useState<{ semester: string; start: string; end: string; type: string } | null>(null)
   const onErr = useSessionGuard()
 
-  const { data: opts, error: optsErr } = useQuery<AbsenceOpts>({
+  const { data: opts, error: optsErr } = useQuery<AbsenceOptions>({
     queryKey: ['absence-options'],
     queryFn: getAbsenceOptions,
   })
 
   const { data: entries, isLoading, error: absErr } = useQuery<AbsenceEntry[]>({
     queryKey: ['absence', query],
-    queryFn: () => getAbsence(query!.semester, query!.start, query!.end),
+    queryFn: () => getAbsence(query!.semester, query!.start, query!.end, query!.type),
     enabled: !!query,
   })
 
@@ -43,7 +40,7 @@ export default function AbsencePage() {
 
   function handleSearch() {
     if (!semester) return
-    setQuery({ semester, start, end })
+    setQuery({ semester, start, end, type: leaveType })
   }
 
   return (
@@ -66,7 +63,20 @@ export default function AbsencePage() {
         </div>
 
         <div>
-          <label className="block text-xs text-gray-500 mb-1">開始日期</label>
+          <label className="block text-xs text-gray-500 mb-1">假別</label>
+          <select
+            value={leaveType}
+            onChange={(e) => setLeaveType(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            {(opts?.leave_types ?? [{ value: '00', label: '全部' }]).map((t) => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">開始日期（民國）</label>
           <input
             type="text"
             placeholder="1150901"
@@ -77,7 +87,7 @@ export default function AbsencePage() {
         </div>
 
         <div>
-          <label className="block text-xs text-gray-500 mb-1">結束日期</label>
+          <label className="block text-xs text-gray-500 mb-1">結束日期（民國）</label>
           <input
             type="text"
             placeholder="1160131"
@@ -101,26 +111,30 @@ export default function AbsencePage() {
       {!isLoading && entries && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           {entries.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-8">此區間無缺曠記錄</p>
+            <p className="text-gray-400 text-sm text-center py-8">此區間無記錄</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
                   <th className="text-left px-4 py-2.5 font-medium text-gray-600">日期</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-600">星期</th>
                   <th className="text-left px-4 py-2.5 font-medium text-gray-600">節次</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-gray-600">課程</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-gray-600">原因</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-gray-600">狀態</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-600">假別</th>
                 </tr>
               </thead>
               <tbody>
                 {entries.map((e, i) => (
                   <tr key={i} className="border-b border-gray-100 last:border-0">
-                    <td className="px-4 py-2.5 text-gray-800">{e.date}</td>
+                    <td className="px-4 py-2.5 text-gray-800 tabular-nums">{e.date}</td>
+                    <td className="px-4 py-2.5 text-gray-600">週{e.weekday}</td>
                     <td className="px-4 py-2.5 text-gray-600">{e.period}</td>
-                    <td className="px-4 py-2.5 text-gray-800">{e.course}</td>
-                    <td className="px-4 py-2.5 text-gray-600">{e.reason}</td>
-                    <td className="px-4 py-2.5 text-gray-500">{e.status}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                        e.type === '缺曠' ? 'bg-red-50 text-red-700' : 'bg-yellow-50 text-yellow-700'
+                      }`}>
+                        {e.type}
+                      </span>
+                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -5,7 +5,12 @@ import { useNavigate } from 'react-router-dom'
 import { clearToken } from '../api/auth'
 
 const DAY_LABELS = ['', '一', '二', '三', '四', '五', '六', '日']
-const MAX_PERIOD = 14
+
+const PERIOD_NUM: Record<string, number> = {
+  '第一節': 1, '第二節': 2, '第三節': 3, '第四節': 4, '第五節': 5,
+  '第六節': 6, '第七節': 7, '第八節': 8, '第九節': 9, '第十節': 10,
+  '第十一節': 11, '第十二節': 12, '第十三節': 13, '第十四節': 14,
+}
 
 function useSessionGuard() {
   const navigate = useNavigate()
@@ -18,6 +23,8 @@ function useSessionGuard() {
     }
   }
 }
+
+type CellData = { course: string; teacher: string; classroom: string; time_range: string }
 
 export default function SchedulePage() {
   const [semester, setSemester] = useState('')
@@ -37,12 +44,25 @@ export default function SchedulePage() {
   useEffect(() => { if (optsErr) onSessionErr(optsErr) }, [optsErr])
   useEffect(() => { if (schedErr) onSessionErr(schedErr) }, [schedErr])
 
-  const grid: Record<number, Record<number, { course: string; teacher: string; room: string }>> = {}
+  // Build grid[weekday][periodNum] = cell
+  const grid: Record<number, Record<number, CellData>> = {}
   for (let d = 1; d <= 7; d++) grid[d] = {}
+
+  const maxPeriod = { current: 0 }
   for (const e of entries ?? []) {
-    if (!grid[e.day]) grid[e.day] = {}
-    grid[e.day][e.period] = { course: e.course, teacher: e.teacher, room: e.room }
+    const p = PERIOD_NUM[e.period]
+    if (!p) continue
+    if (!grid[e.weekday]) grid[e.weekday] = {}
+    grid[e.weekday][p] = { course: e.course, teacher: e.teacher, classroom: e.classroom, time_range: e.time_range }
+    if (p > maxPeriod.current) maxPeriod.current = p
   }
+  const totalPeriods = Math.max(maxPeriod.current, 9)
+
+  // Which days have at least one class
+  const activeDays = [1, 2, 3, 4, 5, 6, 7].filter(d =>
+    Object.keys(grid[d] ?? {}).length > 0
+  )
+  const displayDays = activeDays.length > 0 ? activeDays : [1, 2, 3, 4, 5]
 
   return (
     <div className="p-6">
@@ -55,9 +75,7 @@ export default function SchedulePage() {
         >
           <option value="">選擇學期</option>
           {(opts ?? []).map((o: SemesterOption) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
+            <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
       </div>
@@ -66,49 +84,53 @@ export default function SchedulePage() {
       {semester && isLoading && <p className="text-gray-400 text-sm">載入中...</p>}
 
       {semester && !isLoading && entries && (
-        <div className="overflow-x-auto">
-          <table className="border-collapse text-xs w-full">
-            <thead>
-              <tr>
-                <th className="w-10 border border-gray-200 bg-gray-50 p-2 text-gray-500">節</th>
-                {[1, 2, 3, 4, 5, 6, 7].map((d) => (
-                  <th
-                    key={d}
-                    className="border border-gray-200 bg-gray-50 p-2 text-gray-700 font-medium min-w-25"
-                  >
-                    週{DAY_LABELS[d]}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {Array.from({ length: MAX_PERIOD }, (_, i) => i + 1).map((p) => (
-                <tr key={p}>
-                  <td className="border border-gray-200 bg-gray-50 text-center text-gray-500 p-1">
-                    {p}
-                  </td>
-                  {[1, 2, 3, 4, 5, 6, 7].map((d) => {
-                    const cell = grid[d]?.[p]
-                    return (
-                      <td
-                        key={d}
-                        className={`border border-gray-200 p-1.5 align-top ${cell ? 'bg-indigo-50' : ''}`}
-                      >
-                        {cell && (
-                          <div>
-                            <div className="font-medium text-indigo-800 leading-tight">{cell.course}</div>
-                            <div className="text-gray-500 mt-0.5">{cell.teacher}</div>
-                            <div className="text-gray-400">{cell.room}</div>
-                          </div>
-                        )}
-                      </td>
-                    )
-                  })}
+        entries.length === 0 ? (
+          <p className="text-gray-400 text-sm">此學期無課表資料</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="border-collapse text-xs">
+              <thead>
+                <tr>
+                  <th className="w-12 border border-gray-200 bg-gray-50 p-2 text-gray-500">節次</th>
+                  {displayDays.map((d) => (
+                    <th
+                      key={d}
+                      className="border border-gray-200 bg-gray-50 p-2 text-gray-700 font-medium w-28"
+                    >
+                      週{DAY_LABELS[d]}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {Array.from({ length: totalPeriods }, (_, i) => i + 1).map((p) => (
+                  <tr key={p}>
+                    <td className="border border-gray-200 bg-gray-50 text-center text-gray-500 p-1.5 font-mono">
+                      {p}
+                    </td>
+                    {displayDays.map((d) => {
+                      const cell = grid[d]?.[p]
+                      return (
+                        <td
+                          key={d}
+                          className={`border border-gray-200 p-1.5 align-top ${cell ? 'bg-indigo-50' : ''}`}
+                        >
+                          {cell && (
+                            <div>
+                              <div className="font-medium text-indigo-800 leading-tight">{cell.course}</div>
+                              {cell.teacher && <div className="text-gray-500 mt-0.5">{cell.teacher}</div>}
+                              {cell.classroom && <div className="text-gray-400">{cell.classroom}</div>}
+                            </div>
+                          )}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
       )}
     </div>
   )

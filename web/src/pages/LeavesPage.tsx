@@ -16,10 +16,16 @@ function useSessionGuard() {
   }
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  核准: 'text-green-700 bg-green-50',
-  待審: 'text-yellow-700 bg-yellow-50',
-  退件: 'text-red-700 bg-red-50',
+function StatusBadge({ label }: { label: string }) {
+  let cls = 'text-gray-600 bg-gray-100'
+  if (label === '已核准' || label === '核准') cls = 'text-green-700 bg-green-50'
+  else if (label === '待審核' || label === '送出') cls = 'text-yellow-700 bg-yellow-50'
+  else if (label === '退件' || label === '不核准') cls = 'text-red-700 bg-red-50'
+  return (
+    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>
+      {label || '—'}
+    </span>
+  )
 }
 
 export default function LeavesPage() {
@@ -42,7 +48,7 @@ export default function LeavesPage() {
 
       <div className="flex flex-wrap items-end gap-3 mb-6">
         <div>
-          <label className="block text-xs text-gray-500 mb-1">開始日期</label>
+          <label className="block text-xs text-gray-500 mb-1">開始日期（民國）</label>
           <input
             type="text"
             placeholder="1150901"
@@ -53,7 +59,7 @@ export default function LeavesPage() {
         </div>
 
         <div>
-          <label className="block text-xs text-gray-500 mb-1">結束日期</label>
+          <label className="block text-xs text-gray-500 mb-1">結束日期（民國）</label>
           <input
             type="text"
             placeholder="1160131"
@@ -74,36 +80,44 @@ export default function LeavesPage() {
       {isLoading && <p className="text-gray-400 text-sm">載入中...</p>}
 
       {!isLoading && leaves && (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="space-y-3">
           {leaves.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-8">此區間無假單</p>
+            <p className="text-gray-400 text-sm">此區間無假單</p>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="text-left px-4 py-2.5 font-medium text-gray-600">日期</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-gray-600">節次</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-gray-600">假別</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-gray-600">原因</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-gray-600">狀態</th>
-                </tr>
-              </thead>
-              <tbody>
-                {leaves.map((l, i) => (
-                  <tr key={i} className="border-b border-gray-100 last:border-0">
-                    <td className="px-4 py-2.5 text-gray-800">{l.date}</td>
-                    <td className="px-4 py-2.5 text-gray-600">{l.periods}</td>
-                    <td className="px-4 py-2.5 text-gray-600">{l.type}</td>
-                    <td className="px-4 py-2.5 text-gray-800">{l.reason}</td>
-                    <td className="px-4 py-2.5">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[l.status] ?? 'text-gray-600 bg-gray-100'}`}>
-                        {l.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            leaves.map((l, i) => (
+              <div key={i} className="bg-white rounded-xl border border-gray-200 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-medium text-gray-900">{l.reason || '（無事由）'}</span>
+                      {l.can_delete && (
+                        <span className="text-xs text-gray-400 border border-gray-200 px-1.5 py-0.5 rounded">可刪除</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-500 space-y-0.5">
+                      <div>假期：{l.start_date} — {l.end_date}</div>
+                      <div>申請日：{l.apply_date}</div>
+                    </div>
+                  </div>
+                  <div className="text-right space-y-1 shrink-0">
+                    <div className="flex items-center gap-1.5 justify-end">
+                      <span className="text-xs text-gray-400">導師</span>
+                      <StatusBadge label={l.teacher_status} />
+                    </div>
+                    <div className="flex items-center gap-1.5 justify-end">
+                      <span className="text-xs text-gray-400">教務</span>
+                      <StatusBadge label={l.officer_status} />
+                    </div>
+                  </div>
+                </div>
+                {(l.teacher_note || l.officer_note) && (
+                  <div className="mt-2 pt-2 border-t border-gray-100 text-xs text-gray-500 space-y-0.5">
+                    {l.teacher_note && <div>導師備註：{l.teacher_note}</div>}
+                    {l.officer_note && <div>教務備註：{l.officer_note}</div>}
+                  </div>
+                )}
+              </div>
+            ))
           )}
         </div>
       )}

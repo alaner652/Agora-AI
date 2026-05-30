@@ -5,46 +5,59 @@ import { http } from './client'
 export interface SemesterOption {
   value: string
   label: string
+  selected: boolean
 }
 
 export interface ScheduleEntry {
-  day: number
-  period: number
+  weekday: number      // 1=週一, 2=週二, ..., 7=週日
+  period: string       // e.g. "第一節"
+  time_range: string   // e.g. "0820-0910"
   course: string
-  room: string
   teacher: string
+  classroom: string
 }
 
 export interface AbsenceEntry {
-  date: string
-  period: string
-  course: string
-  reason: string
-  status: string
+  date: string         // e.g. "115/05/18"
+  weekday: string      // e.g. "一"
+  period: string       // e.g. "第一節"
+  type: string         // e.g. "缺曠", "事假"
+}
+
+export interface AbsenceOptions {
+  semesters: SemesterOption[]
+  leave_types: { value: string; label: string; selected: boolean }[]
 }
 
 export interface GradeEntry {
   semester: string
   course: string
-  credit: number
-  score: number | null
-  grade: string
+  type: string         // "必修" | "選修"
+  credits: string      // e.g. "2"
+  score: string        // e.g. "85" or "" (no score yet)
+  passed: boolean
 }
 
 export interface LeaveItem {
-  id: string
-  date: string
-  periods: string
+  index: string
+  barcode: string
   reason: string
-  status: string
-  type: string
+  apply_date: string
+  start_date: string
+  end_date: string
+  teacher_status: string
+  teacher_note: string
+  officer_status: string
+  officer_note: string
+  stdkey: string
+  can_delete: boolean
 }
 
 // ── API calls ────────────────────────────────────────────────────────────────
 
 export async function getSemesterOptions(): Promise<SemesterOption[]> {
-  const res = await http.get<{ options: SemesterOption[] }>('/api/semester-options')
-  return res.data.options ?? []
+  const res = await http.get<{ semesters: SemesterOption[] }>('/api/semester-options')
+  return res.data.semesters ?? []
 }
 
 export async function getSchedule(semester: string): Promise<ScheduleEntry[]> {
@@ -54,8 +67,8 @@ export async function getSchedule(semester: string): Promise<ScheduleEntry[]> {
   return res.data.entries ?? []
 }
 
-export async function getAbsenceOptions(): Promise<{ semesters: SemesterOption[] }> {
-  const res = await http.get('/api/absence/options')
+export async function getAbsenceOptions(): Promise<AbsenceOptions> {
+  const res = await http.get<AbsenceOptions>('/api/absence/options')
   return res.data
 }
 

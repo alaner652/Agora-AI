@@ -46,14 +46,14 @@ export default function GradesPage() {
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
                   <th className="text-left px-4 py-2.5 font-medium text-gray-600">課程</th>
-                  <th className="text-right px-4 py-2.5 font-medium text-gray-600 w-16">學分</th>
-                  <th className="text-right px-4 py-2.5 font-medium text-gray-600 w-16">成績</th>
-                  <th className="text-right px-4 py-2.5 font-medium text-gray-600 w-16">等第</th>
+                  <th className="text-center px-4 py-2.5 font-medium text-gray-600 w-16">性質</th>
+                  <th className="text-right px-4 py-2.5 font-medium text-gray-600 w-14">學分</th>
+                  <th className="text-right px-4 py-2.5 font-medium text-gray-600 w-14">成績</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((e, i) => {
-                  const failing = e.score !== null && e.score < 60
+                  const failing = !e.passed && e.score !== ''
                   return (
                     <tr
                       key={i}
@@ -62,12 +62,10 @@ export default function GradesPage() {
                       <td className={`px-4 py-2.5 ${failing ? 'text-red-700' : 'text-gray-800'}`}>
                         {e.course}
                       </td>
-                      <td className="px-4 py-2.5 text-right text-gray-600">{e.credit}</td>
+                      <td className="px-4 py-2.5 text-center text-gray-500 text-xs">{e.type}</td>
+                      <td className="px-4 py-2.5 text-right text-gray-600">{e.credits}</td>
                       <td className={`px-4 py-2.5 text-right font-medium ${failing ? 'text-red-600' : 'text-gray-800'}`}>
-                        {e.score ?? '—'}
-                      </td>
-                      <td className={`px-4 py-2.5 text-right ${failing ? 'text-red-500' : 'text-gray-500'}`}>
-                        {e.grade ?? '—'}
+                        {e.score !== '' ? e.score : '—'}
                       </td>
                     </tr>
                   )
