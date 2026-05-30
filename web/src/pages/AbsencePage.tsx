@@ -4,17 +4,20 @@ import { getAbsenceOptions, getAbsence, type AbsenceEntry, type AbsenceOptions }
 import { toCEInput, inputValToRoc, thisMonthRange } from '../utils/date'
 import { DateRangePicker } from '../components/DateRangePicker'
 import { useSessionGuard } from '../utils/hooks'
+import { Button, Spinner } from '../components/ui'
 
 const ALL_PERIODS = ["朝會","自","1","2","3","4","5","6","7","8","9","K","A","B","C","D","E"]
 
 const TYPE_CLS: Record<string, string> = {
-  '缺曠': 'bg-red-100 text-red-700',
-  '病假': 'bg-orange-100 text-orange-700',
-  '事假': 'bg-yellow-100 text-yellow-700',
-  '公假': 'bg-blue-100 text-blue-700',
-  '喪假': 'bg-purple-100 text-purple-700',
+  '缺曠': 'bg-red-500/15 text-red-400',
+  '病假': 'bg-orange-500/15 text-orange-400',
+  '事假': 'bg-amber-500/15 text-amber-400',
+  '公假': 'bg-sky-500/15 text-sky-400',
+  '喪假': 'bg-purple-500/15 text-purple-400',
 }
-function typeCls(t: string) { return TYPE_CLS[t] ?? 'bg-gray-100 text-gray-600' }
+function typeCls(t: string) { return TYPE_CLS[t] ?? 'bg-zinc-700 text-zinc-400' }
+
+const selectCls = 'bg-zinc-800 border border-zinc-700 text-zinc-100 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500'
 
 type PivotRow = { weekday: string; cells: Record<string, string> }
 
@@ -67,32 +70,23 @@ export default function AbsencePage() {
 
   return (
     <div className="p-6">
-      <h2 className="text-xl font-semibold text-gray-900 mb-6">缺曠</h2>
+      <h2 className="text-xl font-semibold text-zinc-100 mb-6">缺曠</h2>
 
-      {/* Filters */}
       <div className="flex flex-wrap items-end gap-3 mb-6">
         <div>
-          <label className="block text-xs text-gray-500 mb-1">學期</label>
-          <select
-            value={semester}
-            onChange={(e) => setSemester(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
+          <label className="block text-xs text-zinc-500 mb-1">學期</label>
+          <select value={semester} onChange={e => setSemester(e.target.value)} className={selectCls}>
             <option value="">選擇學期</option>
-            {(opts?.semesters ?? []).map((o) => (
+            {(opts?.semesters ?? []).map(o => (
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
         </div>
 
         <div>
-          <label className="block text-xs text-gray-500 mb-1">假別</label>
-          <select
-            value={leaveType}
-            onChange={(e) => setLeaveType(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            {(opts?.leave_types ?? [{ value: '00', label: '全部' }]).map((t) => (
+          <label className="block text-xs text-zinc-500 mb-1">假別</label>
+          <select value={leaveType} onChange={e => setLeaveType(e.target.value)} className={selectCls}>
+            {(opts?.leave_types ?? [{ value: '00', label: '全部' }]).map(t => (
               <option key={t.value} value={t.value}>{t.label}</option>
             ))}
           </select>
@@ -108,63 +102,55 @@ export default function AbsencePage() {
           }}
         />
 
-        <button
-          onClick={handleSearch}
-          disabled={!semester}
-          className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg px-4 py-1.5 text-sm font-medium transition-colors"
-        >
-          查詢
-        </button>
+        <Button onClick={handleSearch} disabled={!semester}>查詢</Button>
       </div>
 
-      {isLoading && <p className="text-gray-400 text-sm">載入中...</p>}
+      {isLoading && <div className="flex items-center gap-2 text-zinc-500 text-sm"><Spinner className="w-4 h-4" />載入中...</div>}
 
       {!isLoading && entries && (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden">
           {pivot.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-8">此區間無記錄</p>
+            <p className="text-zinc-500 text-sm text-center py-8">此區間無記錄</p>
           ) : (
-            <>
-              <div className="overflow-x-auto">
-                <table className="text-xs border-collapse w-full whitespace-nowrap">
-                  <thead>
-                    <tr className="bg-gray-50 border-b border-gray-200">
-                      <th className="px-3 py-2 text-left font-medium text-gray-600 sticky left-0 bg-gray-50 z-10 border-r border-gray-200 w-8">項次</th>
-                      <th className="px-3 py-2 text-left font-medium text-gray-600 sticky left-8 bg-gray-50 z-10 border-r border-gray-200 min-w-32">日期</th>
+            <div className="overflow-x-auto">
+              <table className="text-xs border-collapse w-full whitespace-nowrap">
+                <thead>
+                  <tr className="bg-zinc-800 border-b border-zinc-700">
+                    <th className="px-3 py-2 text-left font-medium text-zinc-400 sticky left-0 bg-zinc-800 z-10 border-r border-zinc-700 w-8">項次</th>
+                    <th className="px-3 py-2 text-left font-medium text-zinc-400 sticky left-8 bg-zinc-800 z-10 border-r border-zinc-700 min-w-32">日期</th>
+                    {activePeriods.map(p => (
+                      <th key={p} className="px-2 py-2 text-center font-medium text-zinc-400 min-w-11">{p}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {pivot.map(([date, { weekday, cells }], idx) => (
+                    <tr key={date} className="border-b border-zinc-800 last:border-0 hover:bg-zinc-800/50">
+                      <td className="px-3 py-2 text-zinc-600 tabular-nums text-center sticky left-0 bg-zinc-900 hover:bg-zinc-800/50 border-r border-zinc-800">{idx + 1}</td>
+                      <td className="px-3 py-2 text-zinc-300 tabular-nums sticky left-8 bg-zinc-900 hover:bg-zinc-800/50 border-r border-zinc-800">
+                        {date}<span className="text-zinc-600 ml-1.5">（{weekday}）</span>
+                      </td>
                       {activePeriods.map(p => (
-                        <th key={p} className="px-2 py-2 text-center font-medium text-gray-600 min-w-11">{p}</th>
+                        <td key={p} className="px-1.5 py-2 text-center">
+                          {cells[p] ? (
+                            <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${typeCls(cells[p])}`}>
+                              {cells[p]}
+                            </span>
+                          ) : null}
+                        </td>
                       ))}
                     </tr>
-                  </thead>
-                  <tbody>
-                    {pivot.map(([date, { weekday, cells }], idx) => (
-                      <tr key={date} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
-                        <td className="px-3 py-2 text-gray-400 tabular-nums text-center sticky left-0 bg-white hover:bg-gray-50 border-r border-gray-100">{idx + 1}</td>
-                        <td className="px-3 py-2 text-gray-700 tabular-nums sticky left-8 bg-white hover:bg-gray-50 border-r border-gray-100">
-                          {date}<span className="text-gray-400 ml-1.5">（{weekday}）</span>
-                        </td>
-                        {activePeriods.map(p => (
-                          <td key={p} className="px-1.5 py-2 text-center">
-                            {cells[p] ? (
-                              <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${typeCls(cells[p])}`}>
-                                {cells[p]}
-                              </span>
-                            ) : null}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t border-gray-200 bg-gray-50">
-                      <td colSpan={2 + activePeriods.length} className="px-3 py-2 text-xs text-gray-400">
-                        共 {pivot.length} 天・{entries.length} 節次
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-zinc-800 bg-zinc-800/50">
+                    <td colSpan={2 + activePeriods.length} className="px-3 py-2 text-xs text-zinc-500">
+                      共 {pivot.length} 天・{entries.length} 節次
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           )}
         </div>
       )}

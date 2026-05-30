@@ -5,7 +5,6 @@ interface DateRangePickerProps {
   end: string
   onStartChange: (v: string) => void
   onEndChange: (v: string) => void
-  /** Called with (start, end) when a quick-select button is clicked. Use to auto-trigger queries. */
   onQuickApply?: (start: string, end: string) => void
 }
 
@@ -20,30 +19,22 @@ export function DateRangePicker({
     onQuickApply?.(s, e)
   }
 
+  const inputCls = 'bg-zinc-800 border border-zinc-700 text-zinc-100 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 w-full sm:w-auto'
+
   return (
     <div>
-      <div className="flex items-center gap-1.5 mb-1">
-        <label className="text-xs text-gray-500">日期範圍</label>
-        <button type="button" onClick={() => applyRange(todayRange())} className="text-xs text-indigo-600 hover:underline">今天</button>
-        <span className="text-gray-300 text-xs">|</span>
-        <button type="button" onClick={() => applyRange(thisMonthRange())} className="text-xs text-indigo-600 hover:underline">本月</button>
-        <span className="text-gray-300 text-xs">|</span>
-        <button type="button" onClick={() => applyRange(lastMonthRange())} className="text-xs text-indigo-600 hover:underline">上個月</button>
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <label className="text-xs text-zinc-500">日期範圍</label>
+        <button type="button" onClick={() => applyRange(todayRange())} className="text-xs text-orange-400 hover:text-orange-300 hover:underline">今天</button>
+        <span className="text-zinc-700 text-xs">|</span>
+        <button type="button" onClick={() => applyRange(thisMonthRange())} className="text-xs text-orange-400 hover:text-orange-300 hover:underline">本月</button>
+        <span className="text-zinc-700 text-xs">|</span>
+        <button type="button" onClick={() => applyRange(lastMonthRange())} className="text-xs text-orange-400 hover:text-orange-300 hover:underline">上個月</button>
       </div>
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-        <input
-          type="date"
-          value={start}
-          onChange={(e) => onStartChange(e.target.value)}
-          className="w-full sm:w-auto border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        />
-        <span className="hidden sm:block text-gray-400 text-sm">—</span>
-        <input
-          type="date"
-          value={end}
-          onChange={(e) => onEndChange(e.target.value)}
-          className="w-full sm:w-auto border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        />
+        <input type="date" value={start} onChange={e => onStartChange(e.target.value)} className={inputCls} />
+        <span className="hidden sm:block text-zinc-600 text-sm">—</span>
+        <input type="date" value={end} onChange={e => onEndChange(e.target.value)} className={inputCls} />
       </div>
     </div>
   )

@@ -178,7 +178,6 @@ async def apply_leave_endpoint(
     date:         str                = Form(...),
     periods_json: str                = Form(...),
     leave_id:     str                = Form(...),
-    leave_name:   str                = Form(...),
     reason:       str                = Form(...),
     attachment:   UploadFile | None  = File(None),
     jsessionid:   str                = Depends(_resolve_session),
@@ -197,7 +196,6 @@ async def apply_leave_endpoint(
             date=date,
             periods=periods,
             leave_id=leave_id,
-            leave_name=leave_name,
             reason=reason,
             image_path=image_path,
         )

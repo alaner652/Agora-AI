@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getGrades, type GradeEntry } from '../api/data'
 import { useSessionGuard } from '../utils/hooks'
+import { Spinner } from '../components/ui'
 
 function semesterSummary(rows: GradeEntry[]) {
   const totalCredits = rows.reduce((s, e) => s + (parseFloat(e.credits) || 0), 0)
@@ -30,40 +31,37 @@ export default function GradesPage() {
 
   return (
     <div className="p-6">
-      <h2 className="text-xl font-semibold text-gray-900 mb-6">成績</h2>
+      <h2 className="text-xl font-semibold text-zinc-100 mb-6">成績</h2>
 
-      {isLoading && <p className="text-gray-400 text-sm">載入中...</p>}
-      {error && <p className="text-red-500 text-sm">載入失敗</p>}
+      {isLoading && <div className="flex items-center gap-2 text-zinc-500 text-sm"><Spinner className="w-4 h-4" />載入中...</div>}
+      {error && <p className="text-red-400 text-sm">載入失敗</p>}
 
       {Object.entries(grouped).map(([sem, rows]) => {
         const { totalCredits, passedCredits, avg } = semesterSummary(rows)
         return (
           <div key={sem} className="mb-8">
-            <h3 className="text-sm font-medium text-gray-500 mb-2">{sem}</h3>
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <h3 className="text-sm font-medium text-zinc-500 mb-2">{sem}</h3>
+            <div className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden">
               <table className="w-full text-sm table-fixed">
                 <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="text-left px-4 py-2.5 font-medium text-gray-600">課程</th>
-                    <th className="text-center px-4 py-2.5 font-medium text-gray-600 w-20">性質</th>
-                    <th className="text-right px-4 py-2.5 font-medium text-gray-600 w-16">學分</th>
-                    <th className="text-right px-4 py-2.5 font-medium text-gray-600 w-20">成績</th>
+                  <tr className="bg-zinc-800 border-b border-zinc-700">
+                    <th className="text-left px-4 py-2.5 font-medium text-zinc-400">課程</th>
+                    <th className="text-center px-4 py-2.5 font-medium text-zinc-400 w-20">性質</th>
+                    <th className="text-right px-4 py-2.5 font-medium text-zinc-400 w-16">學分</th>
+                    <th className="text-right px-4 py-2.5 font-medium text-zinc-400 w-20">成績</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((e, i) => {
                     const failing = !e.passed && e.score !== ''
                     return (
-                      <tr
-                        key={i}
-                        className={`border-b border-gray-100 last:border-0 ${failing ? 'bg-red-50' : ''}`}
-                      >
-                        <td className={`px-4 py-2.5 truncate ${failing ? 'text-red-700' : 'text-gray-800'}`}>
+                      <tr key={i} className={`border-b border-zinc-800 last:border-0 ${failing ? 'bg-red-500/5' : ''}`}>
+                        <td className={`px-4 py-2.5 truncate ${failing ? 'text-red-400' : 'text-zinc-200'}`}>
                           {e.course}
                         </td>
-                        <td className="px-4 py-2.5 text-center text-gray-500 text-xs">{e.type}</td>
-                        <td className="px-4 py-2.5 text-right text-gray-600">{e.credits}</td>
-                        <td className={`px-4 py-2.5 text-right font-medium ${failing ? 'text-red-600' : 'text-gray-800'}`}>
+                        <td className="px-4 py-2.5 text-center text-zinc-500 text-xs">{e.type}</td>
+                        <td className="px-4 py-2.5 text-right text-zinc-400">{e.credits}</td>
+                        <td className={`px-4 py-2.5 text-right font-medium ${failing ? 'text-red-400' : 'text-zinc-200'}`}>
                           {e.score !== '' ? e.score : '—'}
                         </td>
                       </tr>
@@ -71,14 +69,14 @@ export default function GradesPage() {
                   })}
                 </tbody>
                 <tfoot>
-                  <tr className="border-t border-gray-200 bg-gray-50">
-                    <td colSpan={4} className="px-4 py-2 text-xs text-gray-400">
+                  <tr className="border-t border-zinc-800 bg-zinc-800/50">
+                    <td colSpan={4} className="px-4 py-2 text-xs text-zinc-500">
                       修習 {totalCredits} 學分
                       {passedCredits < totalCredits && (
-                        <span>・通過 <span className="text-green-600">{passedCredits}</span> 學分</span>
+                        <span>・通過 <span className="text-emerald-400">{passedCredits}</span> 學分</span>
                       )}
                       {avg !== null && (
-                        <span>・平均 <span className="text-gray-600 font-medium">{avg.toFixed(1)}</span></span>
+                        <span>・平均 <span className="text-zinc-300 font-medium">{avg.toFixed(1)}</span></span>
                       )}
                     </td>
                   </tr>

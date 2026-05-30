@@ -112,7 +112,6 @@ export interface ApplyLeaveRequest {
   date: string       // ROC compact YYYMMDD
   periods: string[]
   leave_id: string
-  leave_name: string
   reason: string
 }
 
@@ -131,7 +130,6 @@ export async function applyLeave(req: ApplyLeaveRequest, file?: File): Promise<A
   fd.append('date', req.date)
   fd.append('periods_json', JSON.stringify(req.periods))
   fd.append('leave_id', req.leave_id)
-  fd.append('leave_name', req.leave_name)
   fd.append('reason', req.reason)
   if (file) fd.append('attachment', file)
   const res = await http.post<ApplyLeaveResult>('/api/apply-leave', fd)

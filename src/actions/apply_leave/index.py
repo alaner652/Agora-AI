@@ -30,6 +30,8 @@ LEAVE_TYPES: list[dict] = [
     {"id": "31", "name": "原住民假"},
 ]
 
+_LEAVE_NAME: dict[str, str] = {t["id"]: t["name"] for t in LEAVE_TYPES}
+
 
 def _build_lea_value(compact_date: str, period_order: list[str], target_periods: set[str], leave_id: str) -> str:
     values = [leave_id if label in target_periods else "0" for label in period_order]
@@ -52,22 +54,21 @@ async def apply_leave(
     date: str,
     periods: list[str],
     leave_id: str,
-    leave_name: str,
     reason: str,
     image_path: str | None = None,
 ) -> dict:
     """送出請假申請。
 
-    date:       民國 compact YYYMMDD，e.g. "1150521"
-    periods:    要請假的節次 labels，e.g. ["1", "2", "早自習"]
-    leave_id:   假別代碼，e.g. "21"
-    leave_name: 假別名稱，e.g. "事假"
-    reason:     請假原因
+    date:     民國 compact YYYMMDD，e.g. "1150521"
+    periods:  要請假的節次 labels，e.g. ["1", "2", "早自習"]
+    leave_id: 假別代碼，e.g. "21"
+    reason:   請假原因
     image_path: 附件路徑（公假必填，其他可 None）
 
     Returns:
         {"success": True/False/None, "message": str}
     """
+    leave_name = _LEAVE_NAME.get(leave_id, leave_id)
     target = set(periods)
 
     # 取得節次順序（用來建 lea_value）

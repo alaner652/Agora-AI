@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { login, saveToken } from '../api/auth'
+import { Button } from '../components/ui'
 
 export default function LoginPage() {
   const [uid, setUid] = useState('')
@@ -33,52 +34,50 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+    <div className="min-h-screen flex items-center justify-center bg-zinc-950">
+      <div className="w-full max-w-sm bg-zinc-900 rounded-2xl border border-zinc-800 p-8">
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-semibold text-gray-900">TPCU.me</h1>
-          <p className="text-sm text-gray-500 mt-1">台北城市科技大學學生入口</p>
+          <h1 className="text-2xl font-bold text-orange-500 tracking-wide">TPCU.me</h1>
+          <p className="text-sm text-zinc-500 mt-1">台北城市科技大學學生入口</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">學號</label>
+            <label className="block text-sm font-medium text-zinc-300 mb-1">學號</label>
             <input
               type="text"
               value={uid}
-              onChange={(e) => setUid(e.target.value)}
+              onChange={e => setUid(e.target.value)}
               placeholder="e.g. B1234567"
               required
               autoFocus
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full bg-zinc-800 border border-zinc-700 text-zinc-100 placeholder:text-zinc-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">密碼</label>
+            <label className="block text-sm font-medium text-zinc-300 mb-1">密碼</label>
             <input
               type="password"
               value={pwd}
-              onChange={(e) => setPwd(e.target.value)}
+              onChange={e => setPwd(e.target.value)}
               required
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full bg-zinc-800 border border-zinc-700 text-zinc-100 placeholder:text-zinc-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
           </div>
 
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+            <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+              {error}
+            </p>
           )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg py-2 text-sm font-medium transition-colors"
-          >
+          <Button type="submit" loading={loading} className="w-full justify-center py-2">
             {loading ? '登入中...' : '登入'}
-          </button>
+          </Button>
         </form>
 
-        <p className="text-xs text-gray-400 text-center mt-6">
+        <p className="text-xs text-zinc-600 text-center mt-6">
           密碼僅用於取得學校 Session，不儲存在伺服器
         </p>
       </div>
