@@ -20,7 +20,10 @@ from agent import (
     AskUserEvent,
     DoneEvent,
 )
+from agent.conv_logger import ConversationLogger
 from agent.tools import dispatch as _preflight
+
+_LOG_DIR = pathlib.Path(__file__).parent.parent / "logs" / "conversations"
 
 UID      = os.environ.get("TPCU_UID", "")
 API_KEY  = os.environ.get("LLM_API_KEY", "")
@@ -98,30 +101,40 @@ async def chat() -> None:
     llm = OpenAI(api_key=api_key, base_url=BASE_URL or None, timeout=60.0)
     memory = ChatMemory()
     memory.remember("uid", uid)
-    agent = ChatAgent(jsessionid=jsessionid, llm=llm, model=MODEL, memory=memory)
+    conv_logger = ConversationLogger(_LOG_DIR)
+    agent = ChatAgent(
+        jsessionid=jsessionid,
+        llm=llm,
+        model=MODEL,
+        memory=memory,
+        logger=conv_logger,
+    )
 
     print(f"已連線（{MODEL}）")
     print("輸入 exit 離開\n")
 
-    while True:
-        try:
-            user_input = input("你：").strip()
-        except (EOFError, KeyboardInterrupt):
-            print("\n再見")
-            break
+    try:
+        while True:
+            try:
+                user_input = input("你：").strip()
+            except (EOFError, KeyboardInterrupt):
+                print("\n再見")
+                break
 
-        if user_input.lower() in ("exit", "quit", "bye", "掰掰", "再見"):
-            print("再見")
-            break
-        if not user_input:
-            continue
+            if user_input.lower() in ("exit", "quit", "bye", "掰掰", "再見"):
+                print("再見")
+                break
+            if not user_input:
+                continue
 
-        print("思考中...", end="", flush=True)
-        try:
-            print("\r\033[KAI：", end="", flush=True)
-            await _drain(agent, agent.step(user_input))
-        except (APITimeoutError, APIConnectionError):
-            print("\r\033[KAI 連線失敗，請重試\n")
+            print("思考中...", end="", flush=True)
+            try:
+                print("\r\033[KAI：", end="", flush=True)
+                await _drain(agent, agent.step(user_input))
+            except (APITimeoutError, APIConnectionError):
+                print("\r\033[KAI 連線失敗，請重試\n")
+    finally:
+        conv_logger.close()
 
 
 if __name__ == "__main__":

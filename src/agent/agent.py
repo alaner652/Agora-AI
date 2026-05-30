@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import time
 from dataclasses import dataclass
 from typing import AsyncIterator
 
@@ -12,6 +13,7 @@ from openai import OpenAI, APITimeoutError, APIConnectionError
 from log import get_logger
 from session import refresh
 
+from .conv_logger import ConversationLogger
 from .memory import ChatMemory
 from .reflection import reflect
 from .tools import TOOLS, AskUserError, dispatch
@@ -105,11 +107,19 @@ class ChatAgent:
     The caller (CLI, HTTP handler, …) decides how to present each event.
     """
 
-    def __init__(self, jsessionid: str, llm: OpenAI, model: str, memory: ChatMemory) -> None:
+    def __init__(
+        self,
+        jsessionid: str,
+        llm: OpenAI,
+        model: str,
+        memory: ChatMemory,
+        logger: ConversationLogger | None = None,
+    ) -> None:
         self._session = jsessionid
         self._llm = llm
         self._model = model
         self._memory = memory
+        self._logger = logger
         # When AskUserEvent is yielded, we park the pending tool call here
         # until answer_ask_user() is called.
         self._pending_ask: dict | None = None
@@ -120,6 +130,8 @@ class ChatAgent:
 
     async def step(self, user_message: str) -> AsyncIterator[AgentEvent]:
         """Process one user turn; yield events until done."""
+        if self._logger:
+            self._logger.on_user_message(user_message)
         self._memory.add({"role": "user", "content": user_message})
         async for event in self._run_loop():
             yield event
@@ -169,8 +181,12 @@ class ChatAgent:
 
             # --- No tool calls: final text response ---
             if not msg.tool_calls:
+                text_buf: list[str] = []
                 for char in (msg.content or ""):
                     yield TextDeltaEvent(text=char)
+                    text_buf.append(char)
+                if self._logger:
+                    self._logger.on_assistant_response("".join(text_buf))
                 yield DoneEvent()
                 return
 
@@ -188,10 +204,13 @@ class ChatAgent:
                         "tool_call_id": tc.id,
                         "content": result,
                     })
+                    if self._logger:
+                        self._logger.on_tool_call(tc.function.name, {}, result, 0.0)
                     continue
 
                 yield ToolCallEvent(name=tc.function.name, args=args)
 
+                t0 = time.monotonic()
                 try:
                     raw = await self._execute(tc.function.name, args)
                 except AskUserError as e:
@@ -203,6 +222,7 @@ class ChatAgent:
                     self._pending_ask = {"tool_call_id": tc.id}
                     # Don't add a tool result yet — we need the user's answer first
                     continue
+                latency_ms = (time.monotonic() - t0) * 1000
 
                 result = reflect(tc.function.name, raw)
                 ok = "error" not in json.loads(result) if result.startswith("{") else True
@@ -212,6 +232,8 @@ class ChatAgent:
                     "tool_call_id": tc.id,
                     "content": result,
                 })
+                if self._logger:
+                    self._logger.on_tool_call(tc.function.name, args, result, latency_ms)
 
             if ask_event is not None:
                 yield ask_event

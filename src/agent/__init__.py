@@ -7,6 +7,7 @@ from .agent import (
     AskUserEvent,
     DoneEvent,
 )
+from .conv_logger import ConversationLogger
 from .memory import ChatMemory
 from .tools import TOOLS, AskUserError
 
@@ -18,6 +19,7 @@ __all__ = [
     "TextDeltaEvent",
     "AskUserEvent",
     "DoneEvent",
+    "ConversationLogger",
     "ChatMemory",
     "TOOLS",
     "AskUserError",

@@ -15,3 +15,6 @@ output/*
 
 # 開發暫存
 schedule_debug.html
+
+# 對話記錄（含使用者輸入，不上傳）
+logs/conversations/*.json
