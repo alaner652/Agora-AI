@@ -5,13 +5,13 @@ from __future__ import annotations
 import json
 import pathlib
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import AsyncIterator
 
 from openai import OpenAI, APITimeoutError, APIConnectionError
 
 from log import get_logger
-from session import refresh
 
 from .conv_logger import ConversationLogger
 from .memory import ChatMemory
@@ -117,12 +117,16 @@ class ChatAgent:
         model: str,
         memory: ChatMemory,
         logger: ConversationLogger | None = None,
+        refresh_fn: Callable[[str], Awaitable[str]] | None = None,
     ) -> None:
         self._session = jsessionid
         self._llm = llm
         self._model = model
         self._memory = memory
         self._logger = logger
+        # Called when session expires: async (uid) -> new_jsessionid.
+        # None in API mode — callers must re-login via /login instead.
+        self._refresh_fn = refresh_fn
         # When AskUserEvent is yielded, we park the pending tool call here
         # until answer_ask_user() is called.
         self._pending_ask: dict | None = None
@@ -290,8 +294,15 @@ class ChatAgent:
             return await dispatch(name, args, self._session, self._memory)
         except ValueError as e:
             if "Session 過期" in str(e):
+                if self._refresh_fn is None:
+                    # API mode: no password available — tell the client to re-login.
+                    return json.dumps({
+                        "error": "Session 已過期，請重新呼叫 /login",
+                        "error_code": str(ErrorCode.SESSION_EXPIRED),
+                        "success": False,
+                    }, ensure_ascii=False)
                 _log.info("session expired, refreshing")
                 uid = self._memory.recall("uid", "")
-                self._session = await refresh(uid)
+                self._session = await self._refresh_fn(uid)
                 return await dispatch(name, args, self._session, self._memory)
             return json.dumps({"error": str(e)}, ensure_ascii=False)

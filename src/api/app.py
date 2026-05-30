@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
@@ -21,26 +22,25 @@ from agent import (
     ToolCallEvent,
     ToolResultEvent,
 )
-from session import get_session_api, refresh_api
+from session import get_session_api
 
 from .models import AnswerRequest, ChatRequest, LoginRequest, LoginResponse
 from .state import AgentRegistry
 
 load_dotenv()
 
-_LLM_API_KEY   = os.getenv("LLM_API_KEY", "")
-_LLM_BASE_URL  = os.getenv("LLM_BASE_URL")
-_LLM_MODEL     = os.getenv("LLM_MODEL", "gpt-4o-mini")
+_LLM_API_KEY  = os.getenv("LLM_API_KEY", "")
+_LLM_BASE_URL = os.getenv("LLM_BASE_URL")
+_LLM_MODEL    = os.getenv("LLM_MODEL", "gpt-4o-mini")
 
 _registry: AgentRegistry | None = None
-_llm: OpenAI | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _registry, _llm
-    _llm = OpenAI(api_key=_LLM_API_KEY, base_url=_LLM_BASE_URL)
-    _registry = AgentRegistry(llm=_llm, model=_LLM_MODEL)
+    global _registry
+    llm = OpenAI(api_key=_LLM_API_KEY, base_url=_LLM_BASE_URL)
+    _registry = AgentRegistry(llm=llm, model=_LLM_MODEL)
     yield
 
 
@@ -81,6 +81,13 @@ def _get_registry() -> AgentRegistry:
     return _registry
 
 
+async def _get_agent_or_401(token: str):
+    result = await _get_registry().get(token)
+    if result is None:
+        raise HTTPException(status_code=401, detail="Token 無效或已過期，請重新呼叫 /login")
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -97,16 +104,16 @@ async def login(request: Request, body: LoginRequest):
         jsessionid = await get_session_api(body.uid, body.pwd)
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"登入失敗：{e}")
-    _get_registry().update_session(body.uid, jsessionid)
-    return LoginResponse(token=body.uid)
+
+    token = secrets.token_urlsafe(32)
+    await _get_registry().register(token, body.uid, jsessionid)
+    return LoginResponse(token=token)
 
 
 @app.post("/chat")
 @limiter.limit("5/minute")
 async def chat(request: Request, body: ChatRequest):
-    registry = _get_registry()
-    jsessionid_placeholder = ""  # agent already has session from /login; created fresh on first call
-    agent, lock = await registry.get_or_create(body.token, jsessionid_placeholder)
+    agent, lock = await _get_agent_or_401(body.token)
 
     if lock.locked():
         raise HTTPException(status_code=429, detail="上一個請求仍在處理中")
@@ -122,8 +129,7 @@ async def chat(request: Request, body: ChatRequest):
 @app.post("/answer")
 @limiter.limit("5/minute")
 async def answer(request: Request, body: AnswerRequest):
-    registry = _get_registry()
-    agent, lock = await registry.get_or_create(body.token, "")
+    agent, lock = await _get_agent_or_401(body.token)
 
     if lock.locked():
         raise HTTPException(status_code=429, detail="上一個請求仍在處理中")

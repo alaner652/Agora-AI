@@ -1,4 +1,4 @@
-"""In-memory agent registry: token → (ChatAgent, asyncio.Lock)."""
+"""In-memory agent registry: opaque token → (ChatAgent, asyncio.Lock)."""
 
 from __future__ import annotations
 
@@ -9,14 +9,14 @@ from dataclasses import dataclass, field
 from openai import OpenAI
 
 from agent import ChatAgent, ChatMemory, ConversationLogger
-from agent.agent import SYSTEM_PROMPT  # noqa: F401 (re-used by app.py)
 
-_LOG_DIR_BASE = __import__("pathlib").Path(".logs/api")
-_EVICT_AFTER = 2 * 3600  # 2 hours of inactivity
+_LOG_DIR_BASE = __import__("pathlib").Path("logs/api")
+_EVICT_AFTER = 2 * 3600  # seconds of inactivity before eviction
 
 
 @dataclass
 class _UserState:
+    uid: str
     agent: ChatAgent
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     last_active: float = field(default_factory=time.monotonic)
@@ -26,32 +26,46 @@ class AgentRegistry:
     def __init__(self, llm: OpenAI, model: str) -> None:
         self._llm = llm
         self._model = model
-        self._store: dict[str, _UserState] = {}
+        self._store: dict[str, _UserState] = {}  # token → state
         self._meta_lock = asyncio.Lock()
 
-    async def get_or_create(self, token: str, jsessionid: str) -> tuple[ChatAgent, asyncio.Lock]:
+    async def register(self, token: str, uid: str, jsessionid: str) -> None:
+        """Create a new agent for the user (called on successful /login)."""
+        from session import refresh_api
+
+        async def _refresh(uid: str) -> str:
+            # API agents never have the password — callers must re-login.
+            raise ValueError("Session 過期")
+
+        async with self._meta_lock:
+            log_dir = _LOG_DIR_BASE / uid
+            logger = ConversationLogger(log_dir)
+            memory = ChatMemory()
+            memory.remember("uid", uid)
+            agent = ChatAgent(
+                jsessionid=jsessionid,
+                llm=self._llm,
+                model=self._model,
+                memory=memory,
+                logger=logger,
+                refresh_fn=None,  # no password stored — client must re-login
+            )
+            self._store[token] = _UserState(uid=uid, agent=agent)
+
+    async def get(self, token: str) -> tuple[ChatAgent, asyncio.Lock] | None:
+        """Return (agent, lock) for a token, or None if unknown/evicted."""
         async with self._meta_lock:
             self._evict()
-            if token not in self._store:
-                log_dir = _LOG_DIR_BASE / token
-                logger = ConversationLogger(log_dir)
-                memory = ChatMemory()
-                memory.remember("uid", token)
-                agent = ChatAgent(
-                    jsessionid=jsessionid,
-                    llm=self._llm,
-                    model=self._model,
-                    memory=memory,
-                    logger=logger,
-                )
-                self._store[token] = _UserState(agent=agent)
-            state = self._store[token]
+            state = self._store.get(token)
+            if state is None:
+                return None
             state.last_active = time.monotonic()
             return state.agent, state.lock
 
     def update_session(self, token: str, jsessionid: str) -> None:
-        if token in self._store:
-            self._store[token].agent.update_session(jsessionid)
+        state = self._store.get(token)
+        if state:
+            state.agent.update_session(jsessionid)
 
     def _evict(self) -> None:
         now = time.monotonic()

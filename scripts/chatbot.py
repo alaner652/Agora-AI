@@ -168,6 +168,7 @@ async def chat() -> None:
         model=MODEL,
         memory=memory,
         logger=conv_logger,
+        refresh_fn=refresh,
     )
 
     print(f"已連線（{MODEL}）")
