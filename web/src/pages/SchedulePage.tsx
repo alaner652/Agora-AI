@@ -81,25 +81,25 @@ export default function SchedulePage() {
 
   return (
     <PageShell title="課表" action={semesterSelect}>
-      {!semester && <p className="text-zinc-500 text-sm">請先選擇學期</p>}
+      {!semester && <p className="text-stone-400 text-sm">請先選擇學期</p>}
       {semester && isLoading && (
-        <div className="flex items-center gap-2 text-zinc-500 text-sm">
+        <div className="flex items-center gap-2 text-stone-500 text-sm">
           <Spinner className="w-4 h-4" />載入中...
         </div>
       )}
 
       {semester && !isLoading && entries && (
         entries.length === 0 ? (
-          <p className="text-zinc-500 text-sm">此學期無課表資料</p>
+          <p className="text-stone-400 text-sm">此學期無課表資料</p>
         ) : (
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+          <div className="bg-white border border-stone-200 rounded-xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="border-collapse text-xs w-full">
                 <thead>
                   <tr>
-                    <th className="border border-zinc-800 bg-zinc-800/60 p-2 text-zinc-500 w-14">節次</th>
+                    <th className="border border-stone-200 bg-stone-50 p-2 text-stone-400 w-14">節次</th>
                     {displayDays.map(d => (
-                      <th key={d} className="border border-zinc-800 bg-zinc-800/60 p-2 text-zinc-300 font-medium w-28">
+                      <th key={d} className="border border-stone-200 bg-stone-50 p-2 text-stone-700 font-medium w-28">
                         週{DAY_LABELS[d]}
                       </th>
                     ))}
@@ -108,21 +108,21 @@ export default function SchedulePage() {
                 <tbody>
                   {Array.from({ length: totalPeriods }, (_, i) => i + 1).map(p => (
                     <tr key={p}>
-                      <td className="border border-zinc-800 text-center p-1.5 w-14">
-                        <div className="font-mono text-zinc-500 text-xs">{p}</div>
+                      <td className="border border-stone-200 text-center p-1.5 w-14">
+                        <div className="font-mono text-stone-400 text-xs">{p}</div>
                         {periodTimes[p] && (
-                          <div className="text-zinc-600 text-[10px] leading-tight mt-0.5 tabular-nums">{periodTimes[p]}</div>
+                          <div className="text-stone-400 text-[10px] leading-tight mt-0.5 tabular-nums">{periodTimes[p]}</div>
                         )}
                       </td>
                       {displayDays.map(d => {
                         const cell = grid[d]?.[p]
                         return (
-                          <td key={d} className={`border border-zinc-800 p-1.5 align-top ${cell ? 'bg-orange-500/8' : ''}`}>
+                          <td key={d} className={`border border-stone-200 p-1.5 align-top ${cell ? 'bg-orange-50' : ''}`}>
                             {cell && (
                               <div>
-                                <div className="font-medium text-orange-300 leading-tight">{cell.course}</div>
-                                {cell.teacher && <div className="text-zinc-500 mt-0.5">{cell.teacher}</div>}
-                                {cell.classroom && <div className="text-zinc-600">{cell.classroom}</div>}
+                                <div className="font-medium text-orange-600 leading-tight">{cell.course}</div>
+                                {cell.teacher && <div className="text-stone-400 mt-0.5">{cell.teacher}</div>}
+                                {cell.classroom && <div className="text-stone-400">{cell.classroom}</div>}
                               </div>
                             )}
                           </td>
@@ -139,14 +139,14 @@ export default function SchedulePage() {
 
       {extras.length > 0 && (
         <div className="mt-4">
-          <p className="text-xs text-zinc-600 mb-2">其他節次</p>
+          <p className="text-xs text-stone-400 mb-2">其他節次</p>
           <div className="space-y-1">
             {extras.map((e, i) => (
-              <div key={i} className="text-xs bg-orange-500/8 border border-orange-500/20 rounded-lg px-3 py-1.5 flex gap-3">
-                <span className="text-zinc-500">週{DAY_LABELS[e.weekday]} {e.period}</span>
-                <span className="font-medium text-orange-300">{e.course}</span>
-                {e.teacher && <span className="text-zinc-500">{e.teacher}</span>}
-                {e.classroom && <span className="text-zinc-600">{e.classroom}</span>}
+              <div key={i} className="text-xs bg-orange-50 border border-orange-200 rounded-lg px-3 py-1.5 flex gap-3">
+                <span className="text-stone-500">週{DAY_LABELS[e.weekday]} {e.period}</span>
+                <span className="font-medium text-orange-600">{e.course}</span>
+                {e.teacher && <span className="text-stone-400">{e.teacher}</span>}
+                {e.classroom && <span className="text-stone-400">{e.classroom}</span>}
               </div>
             ))}
           </div>

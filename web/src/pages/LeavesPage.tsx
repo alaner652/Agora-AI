@@ -28,8 +28,8 @@ function toCEInputFromDate(d: Date): string {
   return d.toISOString().slice(0, 10)
 }
 
-const dateCls = 'bg-zinc-800 border border-zinc-700 text-zinc-100 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 w-full sm:w-auto'
-const quickDateCls = 'text-xs text-orange-400 hover:text-orange-300 hover:underline transition-colors'
+const dateCls = 'bg-white border border-stone-300 text-stone-900 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400/50 w-full sm:w-auto'
+const quickDateCls = 'text-xs text-orange-500 hover:text-orange-600 hover:underline transition-colors'
 
 // ── Leave Notice ──────────────────────────────────────────────────────────────
 
@@ -78,22 +78,22 @@ const NOTICE_ITEMS = [
 
 function LeaveNotice({ onAck }: { onAck: () => void }) {
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 mb-6">
+    <div className="bg-white border border-stone-200 rounded-xl p-5 mb-6">
       <div className="mb-5">
-        <h3 className="text-base font-semibold text-zinc-100 mb-1">學生請假注意事項</h3>
-        <p className="text-xs text-zinc-500">請閱讀以下事項後，再進行請假申請。</p>
+        <h3 className="text-base font-semibold text-stone-900 mb-1">學生請假注意事項</h3>
+        <p className="text-xs text-stone-400">請閱讀以下事項後，再進行請假申請。</p>
       </div>
 
       <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
         {NOTICE_ITEMS.map((item, i) => (
           <div key={i} className="flex gap-3">
             <span className="text-orange-500 text-xs font-medium shrink-0 mt-0.5 w-24">{item.label}</span>
-            <div className="text-xs text-zinc-400 leading-relaxed">
+            <div className="text-xs text-stone-600 leading-relaxed">
               {item.steps ? (
                 <ol className="space-y-1">
                   {item.steps.map((s, j) => (
                     <li key={j} className="flex gap-1.5">
-                      <span className="text-zinc-600 shrink-0">{j + 1}.</span>
+                      <span className="text-stone-400 shrink-0">{j + 1}.</span>
                       <span>{s}</span>
                     </li>
                   ))}
@@ -106,8 +106,8 @@ function LeaveNotice({ onAck }: { onAck: () => void }) {
         ))}
       </div>
 
-      <div className="mt-5 pt-4 border-t border-zinc-800 flex items-center justify-between">
-        <p className="text-xs text-orange-400 font-medium">請假經核准後送生活輔導組登錄，未經登錄視同曠課。</p>
+      <div className="mt-5 pt-4 border-t border-stone-200 flex items-center justify-between">
+        <p className="text-xs text-orange-500 font-medium">請假經核准後送生活輔導組登錄，未經登錄視同曠課。</p>
         <Button onClick={onAck} size="sm">我已閱讀，開始申請</Button>
       </div>
     </div>
@@ -218,27 +218,27 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
 
   if (done) {
     return (
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 mb-6 text-center">
-        <p className="text-emerald-400 font-medium">✓ {workdays.length > 1 ? `${workdays.length} 天` : ''}假單申請成功！</p>
+      <div className="bg-white border border-stone-200 rounded-xl p-5 mb-6 text-center">
+        <p className="text-emerald-600 font-medium">✓ {workdays.length > 1 ? `${workdays.length} 天` : ''}假單申請成功！</p>
       </div>
     )
   }
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 mb-6">
+    <div className="bg-white border border-stone-200 rounded-xl p-5 mb-6">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold text-zinc-100">申請假單</h3>
-        <button onClick={onClose} className="text-zinc-600 hover:text-zinc-300 text-lg leading-none transition-colors">✕</button>
+        <h3 className="text-sm font-semibold text-stone-900">申請假單</h3>
+        <button onClick={onClose} className="text-stone-400 hover:text-stone-600 text-lg leading-none transition-colors">✕</button>
       </div>
 
       {/* Date range */}
       <div className="mb-4">
         <div className="flex items-center gap-2 mb-1.5">
-          <label className="text-xs text-zinc-500">請假日期</label>
+          <label className="text-xs text-stone-500">請假日期</label>
           <button type="button" onClick={() => setQuickDate(0)} className={quickDateCls}>今天</button>
-          <span className="text-zinc-700 text-xs">|</span>
+          <span className="text-stone-300 text-xs">|</span>
           <button type="button" onClick={() => setQuickDate(1)} className={quickDateCls}>明天</button>
-          <span className="text-zinc-700 text-xs">|</span>
+          <span className="text-stone-300 text-xs">|</span>
           <button type="button" onClick={setThisWeek} className={quickDateCls}>本週</button>
         </div>
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
@@ -246,7 +246,7 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
             onChange={e => { setFormStart(e.target.value); setPeriods(new Set()) }}
             className={dateCls}
           />
-          <span className="hidden sm:block text-zinc-600 text-sm">—</span>
+          <span className="hidden sm:block text-stone-300 text-sm">—</span>
           <input type="date" value={formEnd}
             min={formStart}
             onChange={e => setFormEnd(e.target.value)}
@@ -254,20 +254,20 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
           />
         </div>
         {workdays.length > 0 && (
-          <p className="mt-1.5 text-xs text-zinc-500">
-            共 <span className="text-orange-400 font-medium">{workdays.length}</span> 個工作日
-            {workdays.length > 1 && <span className="text-zinc-600 ml-1">（已排除週六日）</span>}
+          <p className="mt-1.5 text-xs text-stone-500">
+            共 <span className="text-orange-500 font-medium">{workdays.length}</span> 個工作日
+            {workdays.length > 1 && <span className="text-stone-400 ml-1">（已排除週六日）</span>}
           </p>
         )}
         {formStart && formEnd && workdays.length === 0 && (
-          <p className="mt-1.5 text-xs text-amber-500">所選日期範圍無工作日（週末）</p>
+          <p className="mt-1.5 text-xs text-amber-600">所選日期範圍無工作日（週末）</p>
         )}
       </div>
 
       {/* Leave type + reason */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
         <div>
-          <label className="block text-xs text-zinc-500 mb-1">假別</label>
+          <label className="block text-xs text-stone-500 mb-1">假別</label>
           {!rocStartDate ? (
             <Select disabled className="w-full">
               <option>請先選擇日期</option>
@@ -275,7 +275,7 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
           ) : formLoading ? (
             <div className="flex items-center gap-2 h-9">
               <Spinner className="w-4 h-4" />
-              <span className="text-xs text-zinc-500">載入中...</span>
+              <span className="text-xs text-stone-500">載入中...</span>
             </div>
           ) : (
             <Select value={leaveId} onChange={e => setLeaveId(e.target.value)} className="w-full">
@@ -287,7 +287,7 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
         </div>
 
         <div>
-          <label className="block text-xs text-zinc-500 mb-1">原因</label>
+          <label className="block text-xs text-stone-500 mb-1">原因</label>
           <Input type="text" value={reason} onChange={e => setReason(e.target.value)}
             placeholder="請假原因" />
         </div>
@@ -297,11 +297,11 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
       {rocStartDate && (
         <div className="mb-4">
           <div className="flex items-center gap-2 mb-2">
-            <label className="text-xs text-zinc-500">節次</label>
-            {isMultiDay && <span className="text-xs text-zinc-600">（以起始日課表為準，統一套用所有天）</span>}
+            <label className="text-xs text-stone-500">節次</label>
+            {isMultiDay && <span className="text-xs text-stone-400">（以起始日課表為準，統一套用所有天）</span>}
           </div>
           {formLoading ? (
-            <p className="text-xs text-zinc-600">載入節次中...</p>
+            <p className="text-xs text-stone-400">載入節次中...</p>
           ) : formData?.period_order && formData.period_order.length > 0 ? (
             <>
               <div className="flex flex-wrap gap-1.5">
@@ -317,8 +317,8 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
                         selected
                           ? 'bg-orange-500 text-white border-orange-500'
                           : hasClass
-                            ? 'bg-orange-500/10 text-orange-400 border-orange-500/30 hover:bg-orange-500/20'
-                            : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:bg-zinc-700 hover:text-zinc-300'
+                            ? 'bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100'
+                            : 'bg-white text-stone-500 border-stone-300 hover:bg-stone-50'
                       }`}
                     >
                       {p}
@@ -326,56 +326,56 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
                   )
                 })}
               </div>
-              <p className="mt-1.5 text-xs text-zinc-600">橘色為有課節次</p>
+              <p className="mt-1.5 text-xs text-stone-400">橘色為有課節次</p>
             </>
           ) : (
-            <p className="text-xs text-zinc-600">無法取得節次資訊</p>
+            <p className="text-xs text-stone-400">無法取得節次資訊</p>
           )}
         </div>
       )}
 
       {/* Attachment */}
       <div className="mb-4">
-        <label className="block text-xs text-zinc-500 mb-1">
-          附件{isPublicLeave && <span className="text-red-400 ml-0.5">*</span>}
-          <span className="text-zinc-600 ml-1">（JPEG / PDF，最大 3MB）</span>
+        <label className="block text-xs text-stone-500 mb-1">
+          附件{isPublicLeave && <span className="text-red-500 ml-0.5">*</span>}
+          <span className="text-stone-400 ml-1">（JPEG / PDF，最大 3MB）</span>
         </label>
         {file ? (
           <div className="flex items-center gap-2">
-            <span className="text-sm text-zinc-300 truncate max-w-xs">{file.name}</span>
-            <button type="button" onClick={() => setFile(null)} className="text-xs text-red-400 hover:text-red-300 shrink-0 transition-colors">移除</button>
+            <span className="text-sm text-stone-700 truncate max-w-xs">{file.name}</span>
+            <button type="button" onClick={() => setFile(null)} className="text-xs text-red-500 hover:text-red-600 shrink-0 transition-colors">移除</button>
           </div>
         ) : (
           <input type="file" accept=".jpg,.jpeg,.pdf" onChange={handleFileChange}
-            className="text-sm text-zinc-400 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border file:border-zinc-700 file:text-xs file:text-zinc-300 file:bg-zinc-800 hover:file:bg-zinc-700 transition-colors" />
+            className="text-sm text-stone-500 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border file:border-stone-300 file:text-xs file:text-stone-700 file:bg-stone-100 hover:file:bg-stone-200 transition-colors" />
         )}
-        {fileError && <p className="mt-1 text-xs text-red-400">{fileError}</p>}
+        {fileError && <p className="mt-1 text-xs text-red-600">{fileError}</p>}
       </div>
 
-      {submitMsg && <p className="text-sm text-red-400 mb-3">{submitMsg}</p>}
+      {submitMsg && <p className="text-sm text-red-600 mb-3">{submitMsg}</p>}
 
       {/* Progress */}
       {progress && (
-        <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 mb-3">
+        <div className="bg-stone-100 border border-stone-200 rounded-lg px-4 py-3 mb-3">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-zinc-400">送出中 {progress.current} / {progress.total}</span>
+            <span className="text-xs text-stone-600">送出中 {progress.current} / {progress.total}</span>
             <Spinner className="w-4 h-4" />
           </div>
-          <div className="w-full bg-zinc-700 rounded-full h-1.5">
+          <div className="w-full bg-stone-200 rounded-full h-1.5">
             <div
               className="bg-orange-500 h-1.5 rounded-full transition-all"
               style={{ width: `${(progress.current / progress.total) * 100}%` }}
             />
           </div>
-          <p className="text-xs text-zinc-500 mt-1.5">{progress.day}</p>
+          <p className="text-xs text-stone-500 mt-1.5">{progress.day}</p>
         </div>
       )}
 
       {/* Confirmation */}
       {confirm && !progress ? (
-        <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 mb-3">
-          <p className="text-sm text-amber-400 mb-2 font-medium">確認送出申請？</p>
-          <div className="text-xs text-amber-400/80 space-y-1">
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
+          <p className="text-sm text-amber-700 mb-2 font-medium">確認送出申請？</p>
+          <div className="text-xs text-amber-700 space-y-1">
             <p>日期：{isMultiDay ? `${formStart} ～ ${formEnd}（共 ${workdays.length} 天）` : formStart}</p>
             <p>假別：{formData?.leave_types.find(t => t.id === leaveId)?.name ?? leaveId}</p>
             <p>節次：{[...periods].join('、')}</p>
@@ -387,7 +387,7 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
               {workdays.map(d => {
                 const s = toCEInputFromDate(d)
                 return (
-                  <span key={s} className="text-[10px] bg-zinc-800 text-zinc-400 rounded px-1.5 py-0.5">
+                  <span key={s} className="text-[10px] bg-stone-100 text-stone-500 rounded px-1.5 py-0.5">
                     {s}（{inputValToRoc(s)}）
                   </span>
                 )
@@ -438,7 +438,7 @@ function DeleteButton({ leave, onDeleted }: { leave: LeaveItem; onDeleted: () =>
     },
   })
 
-  if (msg) return <span className="text-xs text-red-400">{msg}</span>
+  if (msg) return <span className="text-xs text-red-600">{msg}</span>
 
   if (confirm) {
     return (
@@ -446,12 +446,12 @@ function DeleteButton({ leave, onDeleted }: { leave: LeaveItem; onDeleted: () =>
         <button
           onClick={() => mutation.mutate()}
           disabled={mutation.isPending}
-          className="text-xs text-red-400 hover:text-red-300 font-medium disabled:opacity-50 transition-colors"
+          className="text-xs text-red-600 hover:text-red-700 font-medium disabled:opacity-50 transition-colors"
         >
           {mutation.isPending ? '刪除中...' : '確認'}
         </button>
-        <span className="text-zinc-700 text-xs">|</span>
-        <button onClick={() => setConfirm(false)} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">取消</button>
+        <span className="text-stone-300 text-xs">|</span>
+        <button onClick={() => setConfirm(false)} className="text-xs text-stone-500 hover:text-stone-700 transition-colors">取消</button>
       </div>
     )
   }
@@ -459,7 +459,7 @@ function DeleteButton({ leave, onDeleted }: { leave: LeaveItem; onDeleted: () =>
   return (
     <button
       onClick={() => setConfirm(true)}
-      className="text-xs text-zinc-600 hover:text-red-400 transition-colors shrink-0"
+      className="text-xs text-stone-400 hover:text-red-500 transition-colors shrink-0"
     >
       刪除
     </button>
@@ -538,47 +538,47 @@ export default function LeavesPage() {
       </div>
 
       {isLoading && (
-        <div className="flex items-center gap-2 text-zinc-500 text-sm">
+        <div className="flex items-center gap-2 text-stone-500 text-sm">
           <Spinner className="w-4 h-4" />載入中...
         </div>
       )}
 
       {!isLoading && leaves && (
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+        <div className="bg-white border border-stone-200 rounded-xl overflow-hidden">
           {leaves.length === 0 ? (
-            <p className="text-zinc-500 text-sm text-center py-8">此區間無假單</p>
+            <p className="text-stone-400 text-sm text-center py-8">此區間無假單</p>
           ) : (
             <>
               {/* Desktop table */}
               <div className="hidden md:block">
                 <table className="w-full text-sm table-fixed">
                   <thead>
-                    <tr className="bg-zinc-800/60 border-b border-zinc-800">
-                      <th className="text-left px-4 py-2.5 font-medium text-zinc-400">事由 / 假單號</th>
-                      <th className="text-left px-4 py-2.5 font-medium text-zinc-400 w-36">請假日期</th>
-                      <th className="text-left px-4 py-2.5 font-medium text-zinc-400 w-24">申請日</th>
-                      <th className="text-center px-4 py-2.5 font-medium text-zinc-400 w-24">導師</th>
-                      <th className="text-center px-4 py-2.5 font-medium text-zinc-400 w-24">教務</th>
+                    <tr className="bg-stone-50 border-b border-stone-200">
+                      <th className="text-left px-4 py-2.5 font-medium text-stone-500">事由 / 假單號</th>
+                      <th className="text-left px-4 py-2.5 font-medium text-stone-500 w-36">請假日期</th>
+                      <th className="text-left px-4 py-2.5 font-medium text-stone-500 w-24">申請日</th>
+                      <th className="text-center px-4 py-2.5 font-medium text-stone-500 w-24">導師</th>
+                      <th className="text-center px-4 py-2.5 font-medium text-stone-500 w-24">教務</th>
                       <th className="w-16"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {leaves.map((l, i) => (
-                      <tr key={i} className="border-b border-zinc-800 last:border-0 align-top hover:bg-zinc-800/30 transition-colors">
+                      <tr key={i} className="border-b border-stone-100 last:border-0 align-top hover:bg-stone-50 transition-colors">
                         <td className="px-4 py-2.5">
-                          <div className="font-medium text-zinc-200 truncate">{l.reason || '（無事由）'}</div>
-                          <div className="text-xs text-zinc-600 mt-0.5 tabular-nums">#{l.barcode || l.index}</div>
+                          <div className="font-medium text-stone-800 truncate">{l.reason || '（無事由）'}</div>
+                          <div className="text-xs text-stone-400 mt-0.5 tabular-nums">#{l.barcode || l.index}</div>
                           {l.teacher_note && l.teacher_note !== '/' && (
-                            <div className="text-xs text-zinc-600 mt-0.5 truncate" title={l.teacher_note}>導師：{l.teacher_note}</div>
+                            <div className="text-xs text-stone-400 mt-0.5 truncate" title={l.teacher_note}>導師：{l.teacher_note}</div>
                           )}
                           {l.officer_note && l.officer_note !== '/' && (
-                            <div className="text-xs text-zinc-600 truncate" title={l.officer_note}>教務：{l.officer_note}</div>
+                            <div className="text-xs text-stone-400 truncate" title={l.officer_note}>教務：{l.officer_note}</div>
                           )}
                         </td>
-                        <td className="px-4 py-2.5 text-zinc-400 tabular-nums text-xs">
+                        <td className="px-4 py-2.5 text-stone-500 tabular-nums text-xs">
                           {l.start_date === l.end_date ? l.start_date : `${l.start_date} — ${l.end_date}`}
                         </td>
-                        <td className="px-4 py-2.5 text-zinc-500 tabular-nums text-xs">{l.apply_date}</td>
+                        <td className="px-4 py-2.5 text-stone-400 tabular-nums text-xs">{l.apply_date}</td>
                         <td className="px-4 py-2.5 text-center"><StatusBadge label={l.teacher_status} /></td>
                         <td className="px-4 py-2.5 text-center"><StatusBadge label={l.officer_status} /></td>
                         <td className="px-4 py-2.5 text-center">
@@ -591,29 +591,29 @@ export default function LeavesPage() {
               </div>
 
               {/* Mobile cards */}
-              <div className="md:hidden divide-y divide-zinc-800">
+              <div className="md:hidden divide-y divide-stone-100">
                 {leaves.map((l, i) => (
                   <div key={i} className="px-4 py-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="font-medium text-zinc-200 truncate">{l.reason || '（無事由）'}</p>
-                        <p className="text-xs text-zinc-600 tabular-nums">#{l.barcode || l.index}</p>
+                        <p className="font-medium text-stone-800 truncate">{l.reason || '（無事由）'}</p>
+                        <p className="text-xs text-stone-400 tabular-nums">#{l.barcode || l.index}</p>
                       </div>
                       {l.can_delete && <DeleteButton leave={l} onDeleted={handleDeleted} />}
                     </div>
-                    <p className="mt-2 text-xs text-zinc-400 tabular-nums">
+                    <p className="mt-2 text-xs text-stone-500 tabular-nums">
                       請假：{l.start_date === l.end_date ? l.start_date : `${l.start_date} — ${l.end_date}`}
                     </p>
-                    <p className="text-xs text-zinc-600">申請：{l.apply_date}</p>
+                    <p className="text-xs text-stone-400">申請：{l.apply_date}</p>
                     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <span className="text-xs text-zinc-600">導師</span><StatusBadge label={l.teacher_status} />
-                      <span className="text-xs text-zinc-600">教務</span><StatusBadge label={l.officer_status} />
+                      <span className="text-xs text-stone-400">導師</span><StatusBadge label={l.teacher_status} />
+                      <span className="text-xs text-stone-400">教務</span><StatusBadge label={l.officer_status} />
                     </div>
                     {l.teacher_note && l.teacher_note !== '/' && (
-                      <p className="text-xs text-zinc-600 mt-1 truncate">導師備註：{l.teacher_note}</p>
+                      <p className="text-xs text-stone-400 mt-1 truncate">導師備註：{l.teacher_note}</p>
                     )}
                     {l.officer_note && l.officer_note !== '/' && (
-                      <p className="text-xs text-zinc-600 truncate">教務備註：{l.officer_note}</p>
+                      <p className="text-xs text-stone-400 truncate">教務備註：{l.officer_note}</p>
                     )}
                   </div>
                 ))}

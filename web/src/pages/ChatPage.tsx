@@ -107,7 +107,7 @@ function ThinkingDots() {
       {[0, 150, 300].map(d => (
         <span
           key={d}
-          className="w-1.5 h-1.5 rounded-full bg-stone-500 animate-bounce"
+          className="w-1.5 h-1.5 rounded-full bg-stone-300 animate-bounce"
           style={{ animationDelay: `${d}ms` }}
         />
       ))}
@@ -119,15 +119,15 @@ function LiveToolPanel({ calls }: { calls: ToolRecord[] }) {
   return (
     <div className="space-y-1.5 py-0.5">
       {calls.map((tc, i) => (
-        <div key={i} className="flex items-center gap-2 text-xs text-stone-500">
+        <div key={i} className="flex items-center gap-2 text-xs text-stone-400">
           {tc.ok === null ? (
-            <Spinner className="w-3 h-3 shrink-0 text-stone-500" />
+            <Spinner className="w-3 h-3 shrink-0" />
           ) : tc.ok ? (
             <span className="text-emerald-500 shrink-0">✓</span>
           ) : (
-            <span className="text-red-400 shrink-0">✗</span>
+            <span className="text-red-500 shrink-0">✗</span>
           )}
-          <span className={!tc.ok && tc.ok !== null ? 'text-red-400' : ''}>
+          <span className={!tc.ok && tc.ok !== null ? 'text-red-500' : ''}>
             {TOOL_LABELS[tc.name] ?? tc.name}
           </span>
         </div>
@@ -143,7 +143,7 @@ function DoneToolPanel({ calls }: { calls: ToolRecord[] }) {
     <div className="mt-2 text-xs">
       <button
         onClick={() => setOpen(v => !v)}
-        className="text-stone-600 hover:text-stone-400 flex items-center gap-1.5 transition-colors"
+        className="text-stone-400 hover:text-stone-600 flex items-center gap-1.5 transition-colors"
       >
         <svg
           className={`w-3 h-3 transition-transform ${open ? 'rotate-90' : ''}`}
@@ -156,10 +156,10 @@ function DoneToolPanel({ calls }: { calls: ToolRecord[] }) {
       {open && (
         <div className="mt-1 space-y-1 pl-4">
           {calls.map((tc, i) => (
-            <div key={i} className="flex items-center gap-2 text-stone-500">
+            <div key={i} className="flex items-center gap-2 text-stone-400">
               <span className={`w-1 h-1 rounded-full shrink-0 ${tc.ok ? 'bg-emerald-500' : 'bg-red-500'}`} />
               {TOOL_LABELS[tc.name] ?? tc.name}
-              {!tc.ok && <span className="text-red-400 ml-auto">失敗</span>}
+              {!tc.ok && <span className="text-red-500 ml-auto">失敗</span>}
             </div>
           ))}
         </div>
@@ -177,17 +177,17 @@ const mdComponents = {
     <ol className="list-decimal pl-4 mb-2 space-y-0.5">{children}</ol>,
   li: ({ children }: { children?: React.ReactNode }) => <li>{children}</li>,
   strong: ({ children }: { children?: React.ReactNode }) =>
-    <strong className="font-semibold text-zinc-100">{children}</strong>,
+    <strong className="font-semibold text-stone-900">{children}</strong>,
   h1: ({ children }: { children?: React.ReactNode }) =>
-    <h1 className="font-semibold text-base mb-1.5 mt-3 text-zinc-100">{children}</h1>,
+    <h1 className="font-semibold text-base mb-1.5 mt-3 text-stone-900">{children}</h1>,
   h2: ({ children }: { children?: React.ReactNode }) =>
-    <h2 className="font-semibold mb-1 mt-2.5 text-zinc-100">{children}</h2>,
+    <h2 className="font-semibold mb-1 mt-2.5 text-stone-900">{children}</h2>,
   h3: ({ children }: { children?: React.ReactNode }) =>
-    <h3 className="font-semibold mb-1 mt-2 text-zinc-200">{children}</h3>,
+    <h3 className="font-semibold mb-1 mt-2 text-stone-800">{children}</h3>,
   code: ({ inline, children }: { inline?: boolean; children?: React.ReactNode }) =>
     inline
-      ? <code className="bg-zinc-700 px-1.5 py-0.5 rounded text-xs font-mono text-orange-300">{children}</code>
-      : <code className="block bg-zinc-900 border border-zinc-700 rounded-lg p-3 overflow-x-auto text-xs font-mono mb-2 whitespace-pre text-zinc-300">{children}</code>,
+      ? <code className="bg-stone-100 px-1.5 py-0.5 rounded text-xs font-mono text-orange-600">{children}</code>
+      : <code className="block bg-stone-100 border border-stone-200 rounded-lg p-3 overflow-x-auto text-xs font-mono mb-2 whitespace-pre text-stone-700">{children}</code>,
   pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
   img: ({ src, alt }: { src?: string; alt?: string }) =>
     src ? <img src={src} alt={alt ?? ''} className="max-w-full rounded-lg mt-2" /> : null,
@@ -197,10 +197,10 @@ const mdComponents = {
     </div>
   ),
   th: ({ children }: { children?: React.ReactNode }) => (
-    <th className="border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-left font-medium text-zinc-400">{children}</th>
+    <th className="border border-stone-200 bg-stone-100 px-2 py-1.5 text-left font-medium text-stone-500">{children}</th>
   ),
   td: ({ children }: { children?: React.ReactNode }) => (
-    <td className="border border-zinc-700 px-2 py-1.5 text-zinc-300">{children}</td>
+    <td className="border border-stone-200 px-2 py-1.5 text-stone-700">{children}</td>
   ),
 }
 
@@ -423,12 +423,12 @@ export default function ChatPage() {
     <div className="flex flex-col h-screen md:h-dvh">
 
       {/* ── Top bar ── */}
-      <div className="shrink-0 border-b border-stone-700 bg-stone-900 px-4 sm:px-6 py-3 flex items-center justify-between">
-        <h1 className="text-sm font-semibold text-zinc-100">AI 助理</h1>
+      <div className="shrink-0 border-b border-stone-200 bg-white px-4 sm:px-6 py-3 flex items-center justify-between">
+        <h1 className="text-sm font-semibold text-stone-900">AI 助理</h1>
         {messages.length > 0 && !streaming && (
           <button
             onClick={handleClearHistory}
-            className="text-xs text-stone-500 hover:text-stone-300 transition-colors"
+            className="text-xs text-stone-400 hover:text-stone-600 transition-colors"
           >
             清除對話
           </button>
@@ -436,22 +436,22 @@ export default function ChatPage() {
       </div>
 
       {/* ── Message list ── */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto bg-stone-50">
         {!historyLoaded && (
-          <div className="flex items-center justify-center h-full gap-2 text-zinc-600 text-sm">
+          <div className="flex items-center justify-center h-full gap-2 text-stone-400 text-sm">
             <Spinner />載入歷史中...
           </div>
         )}
 
         {isEmpty && (
           <div className="flex flex-col items-center justify-center h-full px-6 pb-16">
-            <p className="text-sm text-stone-500 mb-5 text-center">詢問課表、成績、缺曠、請假等問題</p>
+            <p className="text-sm text-stone-400 mb-5 text-center">詢問課表、成績、缺曠、請假等問題</p>
             <div className="grid grid-cols-2 gap-2 w-full max-w-xs">
               {SUGGESTIONS.map(s => (
                 <button
                   key={s}
                   onClick={() => sendSuggestion(s)}
-                  className="text-left text-xs text-stone-400 bg-stone-800 hover:bg-stone-700 border border-stone-700 rounded-lg px-3 py-2 transition-colors leading-snug"
+                  className="text-left text-xs text-stone-600 bg-white hover:bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 transition-colors leading-snug shadow-sm"
                 >
                   {s}
                 </button>
@@ -478,12 +478,12 @@ export default function ChatPage() {
                             if (e.key === 'Escape') cancelEdit()
                           }}
                           rows={3}
-                          className="w-full bg-zinc-800 border border-zinc-600 text-zinc-100 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-500/50"
+                          className="w-full bg-white border border-stone-300 text-stone-900 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-400/50"
                         />
                         <div className="flex justify-end gap-2">
                           <button
                             onClick={cancelEdit}
-                            className="text-xs text-zinc-500 hover:text-zinc-300 px-3 py-1.5 rounded-lg border border-zinc-700 hover:bg-zinc-800 transition-colors"
+                            className="text-xs text-stone-500 hover:text-stone-700 px-3 py-1.5 rounded-lg border border-stone-300 hover:bg-stone-50 transition-colors"
                           >
                             取消
                           </button>
@@ -501,7 +501,7 @@ export default function ChatPage() {
                         {!streaming && (
                           <button
                             onClick={() => startEdit(i)}
-                            className="absolute -left-7 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity text-zinc-600 hover:text-zinc-400 p-1"
+                            className="absolute -left-7 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity text-stone-400 hover:text-stone-600 p-1"
                             title="編輯"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -527,7 +527,7 @@ export default function ChatPage() {
                           <div className="mb-2"><LiveToolPanel calls={m.toolCalls!} /></div>
                         )}
                         {m.content && (
-                          <div className="text-sm leading-relaxed text-zinc-300">
+                          <div className="text-sm leading-relaxed text-stone-700">
                             <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents as never}>
                               {m.content}
                             </ReactMarkdown>
@@ -537,7 +537,7 @@ export default function ChatPage() {
                           <img key={j} src={uri} alt="圖表" className="max-w-full rounded-lg mt-2" />
                         ))}
                         {m.aborted && (
-                          <p className="text-xs text-zinc-600 mt-1 italic">（已中斷）</p>
+                          <p className="text-xs text-stone-400 mt-1 italic">（已中斷）</p>
                         )}
                         {!(streaming && i === lastIdx) && (m.toolCalls ?? []).length > 0 && (
                           <DoneToolPanel calls={m.toolCalls!} />
@@ -551,14 +551,14 @@ export default function ChatPage() {
 
             {askUser && (
               <div className="flex justify-start">
-                <div className="bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 max-w-sm">
-                  <p className="text-sm text-zinc-200 mb-3">{askUser.question}</p>
+                <div className="bg-white border border-stone-200 rounded-xl px-4 py-3 max-w-sm shadow-sm">
+                  <p className="text-sm text-stone-800 mb-3">{askUser.question}</p>
                   <div className="space-y-1.5">
                     {askUser.options.map(opt => (
                       <button
                         key={opt}
                         onClick={() => handleAnswer(opt)}
-                        className="w-full text-left text-sm bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 rounded-lg px-3 py-2 transition-colors"
+                        className="w-full text-left text-sm bg-stone-50 hover:bg-stone-100 border border-stone-200 text-stone-700 rounded-lg px-3 py-2 transition-colors"
                       >
                         {opt}
                       </button>
@@ -574,20 +574,20 @@ export default function ChatPage() {
       </div>
 
       {/* ── Input bar ── */}
-      <div className="shrink-0 border-t border-stone-700 bg-stone-900">
+      <div className="shrink-0 border-t border-stone-200 bg-white">
         <div className="max-w-3xl mx-auto px-4 py-3">
           {/* Uploaded file chip */}
           {uploadedFile && (
             <div className="flex items-center gap-2 mb-2">
-              <span className="inline-flex items-center gap-1.5 text-xs text-zinc-300 bg-zinc-800 border border-zinc-700 rounded-lg px-2.5 py-1">
-                <svg className="w-3.5 h-3.5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <span className="inline-flex items-center gap-1.5 text-xs text-stone-700 bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-1">
+                <svg className="w-3.5 h-3.5 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                     d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                 </svg>
                 {uploadedFile.name}
                 <button
                   onClick={() => setUploadedFile(null)}
-                  className="text-zinc-600 hover:text-zinc-300 ml-0.5 transition-colors"
+                  className="text-stone-400 hover:text-stone-600 ml-0.5 transition-colors"
                 >✕</button>
               </span>
             </div>
@@ -601,7 +601,7 @@ export default function ChatPage() {
               onClick={() => fileInputRef.current?.click()}
               disabled={streaming || uploading}
               title="上傳附件"
-              className="h-9 w-9 flex items-center justify-center rounded-lg border border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600 hover:bg-zinc-800 disabled:opacity-40 transition-colors shrink-0"
+              className="h-9 w-9 flex items-center justify-center rounded-lg border border-stone-300 text-stone-400 hover:text-stone-600 hover:border-stone-400 hover:bg-stone-100 disabled:opacity-40 transition-colors shrink-0"
             >
               {uploading
                 ? <Spinner className="w-4 h-4" />
@@ -622,8 +622,8 @@ export default function ChatPage() {
               onChange={e => setInput(e.target.value)}
               placeholder="輸入訊息..."
               disabled={streaming || !!askUser || editingIndex !== null}
-              className="flex-1 h-9 bg-zinc-800 border border-zinc-700 text-zinc-100 placeholder:text-zinc-500
-                rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50"
+              className="flex-1 h-9 bg-stone-50 border border-stone-300 text-stone-900 placeholder:text-stone-400
+                rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400/50 disabled:opacity-50"
             />
 
             {/* Send / Stop */}
@@ -631,7 +631,7 @@ export default function ChatPage() {
               <button
                 type="button"
                 onClick={() => abortRef.current?.abort()}
-                className="h-9 px-4 bg-zinc-700 hover:bg-zinc-600 border border-zinc-600 text-zinc-300 rounded-lg text-sm font-medium transition-colors shrink-0"
+                className="h-9 px-4 bg-stone-200 hover:bg-stone-300 border border-stone-300 text-stone-700 rounded-lg text-sm font-medium transition-colors shrink-0"
               >
                 停止
               </button>

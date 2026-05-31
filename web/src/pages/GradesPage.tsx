@@ -33,38 +33,38 @@ export default function GradesPage() {
   return (
     <PageShell title="成績">
       {isLoading && (
-        <div className="flex items-center gap-2 text-zinc-500 text-sm">
+        <div className="flex items-center gap-2 text-stone-500 text-sm">
           <Spinner className="w-4 h-4" />載入中...
         </div>
       )}
-      {error && <p className="text-red-400 text-sm">載入失敗</p>}
+      {error && <p className="text-red-600 text-sm">載入失敗</p>}
 
       {Object.entries(grouped).map(([sem, rows]) => {
         const { totalCredits, passedCredits, avg } = semesterSummary(rows)
         return (
           <div key={sem} className="mb-8">
-            <h3 className="text-xs font-medium text-zinc-500 mb-2 uppercase tracking-wider">{sem}</h3>
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+            <h3 className="text-xs font-medium text-stone-400 mb-2 uppercase tracking-wider">{sem}</h3>
+            <div className="bg-white border border-stone-200 rounded-xl overflow-hidden">
               <table className="w-full text-sm table-fixed">
                 <thead>
-                  <tr className="bg-zinc-800/60 border-b border-zinc-800">
-                    <th className="text-left px-4 py-2.5 font-medium text-zinc-400">課程</th>
-                    <th className="text-center px-4 py-2.5 font-medium text-zinc-400 w-20">性質</th>
-                    <th className="text-right px-4 py-2.5 font-medium text-zinc-400 w-16">學分</th>
-                    <th className="text-right px-4 py-2.5 font-medium text-zinc-400 w-20">成績</th>
+                  <tr className="bg-stone-50 border-b border-stone-200">
+                    <th className="text-left px-4 py-2.5 font-medium text-stone-500">課程</th>
+                    <th className="text-center px-4 py-2.5 font-medium text-stone-500 w-20">性質</th>
+                    <th className="text-right px-4 py-2.5 font-medium text-stone-500 w-16">學分</th>
+                    <th className="text-right px-4 py-2.5 font-medium text-stone-500 w-20">成績</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((e, i) => {
                     const failing = !e.passed && e.score !== ''
                     return (
-                      <tr key={i} className={`border-b border-zinc-800 last:border-0 ${failing ? 'bg-red-500/5' : ''}`}>
-                        <td className={`px-4 py-2.5 truncate ${failing ? 'text-red-400' : 'text-zinc-200'}`}>
+                      <tr key={i} className={`border-b border-stone-100 last:border-0 ${failing ? 'bg-red-50' : ''}`}>
+                        <td className={`px-4 py-2.5 truncate ${failing ? 'text-red-600' : 'text-stone-800'}`}>
                           {e.course}
                         </td>
-                        <td className="px-4 py-2.5 text-center text-zinc-500 text-xs">{e.type}</td>
-                        <td className="px-4 py-2.5 text-right text-zinc-400">{e.credits}</td>
-                        <td className={`px-4 py-2.5 text-right font-medium ${failing ? 'text-red-400' : 'text-zinc-200'}`}>
+                        <td className="px-4 py-2.5 text-center text-stone-400 text-xs">{e.type}</td>
+                        <td className="px-4 py-2.5 text-right text-stone-500">{e.credits}</td>
+                        <td className={`px-4 py-2.5 text-right font-medium ${failing ? 'text-red-600' : 'text-stone-800'}`}>
                           {e.score !== '' ? e.score : '—'}
                         </td>
                       </tr>
@@ -72,14 +72,14 @@ export default function GradesPage() {
                   })}
                 </tbody>
                 <tfoot>
-                  <tr className="border-t border-zinc-800 bg-zinc-800/40">
-                    <td colSpan={4} className="px-4 py-2 text-xs text-zinc-500">
+                  <tr className="border-t border-stone-100 bg-stone-50">
+                    <td colSpan={4} className="px-4 py-2 text-xs text-stone-400">
                       修習 {totalCredits} 學分
                       {passedCredits < totalCredits && (
-                        <span>・通過 <span className="text-emerald-400">{passedCredits}</span> 學分</span>
+                        <span>・通過 <span className="text-emerald-600">{passedCredits}</span> 學分</span>
                       )}
                       {avg !== null && (
-                        <span>・平均 <span className="text-zinc-300 font-medium">{avg.toFixed(1)}</span></span>
+                        <span>・平均 <span className="text-stone-700 font-medium">{avg.toFixed(1)}</span></span>
                       )}
                     </td>
                   </tr>

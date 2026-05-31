@@ -156,7 +156,7 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64 gap-2 text-zinc-500 text-sm">
+      <div className="flex items-center justify-center h-64 gap-2 text-stone-500 text-sm">
         <Spinner />載入中…
       </div>
     )
@@ -165,24 +165,24 @@ export default function SettingsPage() {
   return (
     <PageShell title="AI 設定">
       <div className="max-w-lg">
-        <p className="text-sm text-zinc-500 mb-6">設定您自己的 LLM API。登出後重新登入才會套用新設定。</p>
+        <p className="text-sm text-stone-500 mb-6">設定您自己的 LLM API。登出後重新登入才會套用新設定。</p>
 
         {/* Current status */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 mb-6 text-sm">
+        <div className="bg-white border border-stone-200 rounded-xl px-4 py-3 mb-6 text-sm">
           {currentConfig?.has_custom_config ? (
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
-                <span className="font-medium text-zinc-200">使用自訂設定</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                <span className="font-medium text-stone-800">使用自訂設定</span>
               </div>
-              <div className="text-zinc-500 pl-4">
+              <div className="text-stone-500 pl-4">
                 <div>URL：{currentConfig.base_url}</div>
                 <div>模型：{currentConfig.model}</div>
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-2 text-zinc-500">
-              <span className="w-2 h-2 rounded-full bg-zinc-600 inline-block" />
+            <div className="flex items-center gap-2 text-stone-500">
+              <span className="w-2 h-2 rounded-full bg-stone-300 inline-block" />
               使用伺服器預設設定
             </div>
           )}
@@ -190,7 +190,7 @@ export default function SettingsPage() {
 
         {/* Provider quick select */}
         <div className="mb-4">
-          <label className="block text-sm font-medium text-zinc-300 mb-2">Provider</label>
+          <label className="block text-sm font-medium text-stone-700 mb-2">Provider</label>
           <div className="flex flex-wrap gap-2">
             {PROVIDER_PRESETS.map((p, i) => (
               <button
@@ -199,7 +199,7 @@ export default function SettingsPage() {
                 className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                   selectedPreset === i
                     ? 'bg-orange-500 text-white border-orange-500'
-                    : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-orange-500 hover:text-orange-400'
+                    : 'bg-white text-stone-600 border-stone-300 hover:border-orange-400 hover:text-orange-500'
                 }`}
               >
                 {p.label}
@@ -209,7 +209,7 @@ export default function SettingsPage() {
         </div>
 
         <div className="mb-4">
-          <label className="block text-sm font-medium text-zinc-300 mb-1">Base URL</label>
+          <label className="block text-sm font-medium text-stone-700 mb-1">Base URL</label>
           <Input
             type="text"
             value={baseUrl}
@@ -220,9 +220,9 @@ export default function SettingsPage() {
         </div>
 
         <div className="mb-4">
-          <label className="block text-sm font-medium text-zinc-300 mb-1">
+          <label className="block text-sm font-medium text-stone-700 mb-1">
             API Key
-            <span className="ml-1 text-xs text-zinc-600 font-normal">
+            <span className="ml-1 text-xs text-stone-400 font-normal">
               {currentConfig?.has_custom_config ? '（留空表示不更改）' : '（Ollama 等自架可留空）'}
             </span>
           </label>
@@ -235,7 +235,7 @@ export default function SettingsPage() {
               className="pr-14 py-2"
             />
             <button type="button" onClick={() => setShowKey(v => !v)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 text-xs px-1 transition-colors">
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 text-xs px-1 transition-colors">
               {showKey ? '隱藏' : '顯示'}
             </button>
           </div>
@@ -243,12 +243,12 @@ export default function SettingsPage() {
 
         <div className="mb-6">
           <div className="flex items-center justify-between mb-1">
-            <label className="block text-sm font-medium text-zinc-300">模型名稱</label>
+            <label className="block text-sm font-medium text-stone-700">模型名稱</label>
             <button
               type="button"
               onClick={handleLoadModels}
               disabled={!baseUrl || loadingModels}
-              className="flex items-center gap-1 text-xs text-zinc-500 hover:text-orange-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-1 text-xs text-stone-400 hover:text-orange-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               {loadingModels ? <Spinner className="w-3 h-3" /> : (
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -264,7 +264,7 @@ export default function SettingsPage() {
             value={model}
             onChange={e => setModel(e.target.value)}
             placeholder="gemini-2.0-flash-lite"
-            className="w-full bg-zinc-900 border border-zinc-700 text-zinc-100 placeholder:text-zinc-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50"
+            className="w-full bg-stone-50 border border-stone-300 text-stone-900 placeholder:text-stone-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400/50"
           />
           {modelOptions.length > 0 && (
             <datalist id="model-datalist">
@@ -273,13 +273,13 @@ export default function SettingsPage() {
           )}
         </div>
 
-        {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
+        {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
 
         {testResult && (
           <div className={`text-sm mb-4 px-3 py-2 rounded-lg border ${
             testResult.ok
-              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-              : 'bg-red-500/10 border-red-500/20 text-red-400'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+              : 'bg-red-50 border-red-200 text-red-600'
           }`}>
             {testResult.ok ? '✓ 連線成功 — ' : '✗ 連線失敗 — '}
             {testResult.msg}
@@ -298,7 +298,7 @@ export default function SettingsPage() {
           )}
         </div>
 
-        <p className="text-xs text-zinc-600 mt-6">
+        <p className="text-xs text-stone-400 mt-6">
           儲存後需重新登入，新的 LLM 設定才會生效。
         </p>
       </div>

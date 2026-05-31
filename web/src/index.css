@@ -10,33 +10,31 @@
 
 body {
   margin: 0;
-  /* stone-900 — warm dark, Claude-like */
-  background-color: #1c1917;
-  color: #f5f5f4;
+  background-color: #fafaf9; /* stone-50 */
+  color: #1c1917; /* stone-900 */
   min-height: 100vh;
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #44403c; border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: #57534e; }
+::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #a8a29e; }
 
-/* Solid surface — no transparency, no blur */
 .glass {
-  background: #292524;
-  border: 1px solid #3d3935;
+  background: #ffffff;
+  border: 1px solid #e7e5e4; /* stone-200 */
 }
 
 .glass-sm {
-  background: #252220;
-  border: 1px solid #3d3935;
+  background: #fafaf9;
+  border: 1px solid #e7e5e4;
 }
 
-/* Select / date */
-select option { background-color: #1c1917; color: #f5f5f4; }
+select option { background-color: #ffffff; color: #1c1917; }
 
 input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(0.5);
+  filter: none;
   cursor: pointer;
+  opacity: 0.4;
 }

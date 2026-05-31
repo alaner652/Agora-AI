@@ -49,13 +49,13 @@ export default function Layout() {
 
   const sidebarContent = (
     <>
-      <div className="px-5 py-5 border-b border-stone-700 flex items-center justify-between">
+      <div className="px-5 py-5 border-b border-stone-200 flex items-center justify-between">
         <div>
-          <span className="text-base font-semibold text-orange-400 tracking-wide">TPCU.me</span>
-          <p className="text-[10px] text-stone-500 mt-0.5">學生入口</p>
+          <span className="text-base font-semibold text-orange-500 tracking-wide">TPCU.me</span>
+          <p className="text-[10px] text-stone-400 mt-0.5">學生入口</p>
         </div>
         <button
-          className="md:hidden text-stone-500 hover:text-stone-300 p-1 rounded-md hover:bg-stone-700 transition-colors"
+          className="md:hidden text-stone-400 hover:text-stone-600 p-1 rounded-md hover:bg-stone-100 transition-colors"
           onClick={() => setOpen(false)}
           aria-label="關閉選單"
         >
@@ -74,8 +74,8 @@ export default function Layout() {
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 isActive
-                  ? 'bg-orange-400/10 text-orange-400'
-                  : 'text-stone-400 hover:bg-stone-700 hover:text-stone-100'
+                  ? 'bg-orange-50 text-orange-600'
+                  : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
               }`
             }
           >
@@ -83,7 +83,7 @@ export default function Layout() {
               <>
                 <NavIcon
                   d={icon}
-                  className={`w-4 h-4 shrink-0 ${isActive ? 'text-orange-400' : 'text-stone-500'}`}
+                  className={`w-4 h-4 shrink-0 ${isActive ? 'text-orange-500' : 'text-stone-400'}`}
                 />
                 {label}
               </>
@@ -92,10 +92,10 @@ export default function Layout() {
         ))}
       </nav>
 
-      <div className="px-3 py-4 border-t border-stone-700">
+      <div className="px-3 py-4 border-t border-stone-200">
         <button
           onClick={logout}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-stone-500 hover:bg-stone-700 hover:text-stone-300 transition-colors"
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-stone-500 hover:bg-stone-100 hover:text-stone-700 transition-colors"
         >
           <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}
@@ -108,17 +108,17 @@ export default function Layout() {
   )
 
   return (
-    <div className="flex min-h-screen bg-[#1c1917]">
+    <div className="flex min-h-screen bg-stone-50">
       {open && (
         <div
-          className="fixed inset-0 bg-black/60 z-10 md:hidden"
+          className="fixed inset-0 bg-stone-900/30 z-10 md:hidden"
           onClick={() => setOpen(false)}
         />
       )}
 
       <aside
         className={`
-          fixed inset-y-0 left-0 z-20 w-52 bg-stone-900 border-r border-stone-700 flex flex-col shrink-0
+          fixed inset-y-0 left-0 z-20 w-52 bg-white border-r border-stone-200 flex flex-col shrink-0
           transition-transform duration-200
           md:relative md:translate-x-0 md:z-auto
           ${open ? 'translate-x-0' : '-translate-x-full'}
@@ -128,17 +128,17 @@ export default function Layout() {
       </aside>
 
       <div className="flex-1 flex flex-col min-h-screen min-w-0">
-        <div className="md:hidden flex items-center px-4 py-3 border-b border-stone-700 bg-stone-900 shrink-0">
+        <div className="md:hidden flex items-center px-4 py-3 border-b border-stone-200 bg-white shrink-0">
           <button
             onClick={() => setOpen(true)}
-            className="text-stone-400 hover:text-stone-200 p-1 mr-3 rounded-md hover:bg-stone-700 transition-colors"
+            className="text-stone-500 hover:text-stone-700 p-1 mr-3 rounded-md hover:bg-stone-100 transition-colors"
             aria-label="開啟選單"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <span className="text-base font-semibold text-orange-400">TPCU.me</span>
+          <span className="text-base font-semibold text-orange-500">TPCU.me</span>
         </div>
 
         <main className="flex-1 overflow-auto">
