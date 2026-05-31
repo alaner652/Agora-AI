@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { Bot, Paperclip, Trash2, Send, Square, ChevronRight } from 'lucide-react'
 import { getCookie, deleteCookie } from '@/lib/cookie'
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
@@ -100,11 +101,18 @@ const TOOL_LABELS: Record<string, string> = {
   render_image: '產生圖表', ask_user: '詢問使用者',
 }
 
+const SUGGESTIONS = [
+  { text: '查詢本學期課表', sub: '瀏覽今學期所有課程' },
+  { text: '最近成績怎麼樣？', sub: '查看歷年成績紀錄' },
+  { text: '本月有哪些缺曠？', sub: '確認出勤紀錄' },
+  { text: '幫我申請病假', sub: '線上請假申請' },
+]
+
 function ThinkingDots() {
   return (
-    <div className="flex items-center gap-1 py-1">
+    <div className="flex items-center gap-1.5 py-2 px-1">
       {[0, 150, 300].map(d => (
-        <span key={d} className="w-1.5 h-1.5 rounded-full bg-stone-300 animate-bounce"
+        <span key={d} className="w-2 h-2 rounded-full bg-stone-300 animate-bounce"
           style={{ animationDelay: `${d}ms` }} />
       ))}
     </div>
@@ -113,11 +121,11 @@ function ThinkingDots() {
 
 function LiveToolPanel({ calls }: { calls: ToolRecord[] }) {
   return (
-    <div className="space-y-1.5 py-0.5">
+    <div className="space-y-1.5 py-1">
       {calls.map((tc, i) => (
         <div key={i} className="flex items-center gap-2 text-xs text-stone-400">
           {tc.ok === null ? (
-            <div className="border-2 border-stone-200 border-t-orange-500 rounded-full animate-spin w-3 h-3 shrink-0" />
+            <div className="border-2 border-stone-200 border-t-indigo-500 rounded-full animate-spin w-3 h-3 shrink-0" />
           ) : tc.ok ? (
             <span className="text-emerald-500 shrink-0">✓</span>
           ) : (
@@ -139,19 +147,16 @@ function DoneToolPanel({ calls }: { calls: ToolRecord[] }) {
     <div className="mt-2 text-xs">
       <button onClick={() => setOpen(v => !v)}
         className="text-stone-400 hover:text-stone-600 flex items-center gap-1.5 transition-colors">
-        <svg className={`w-3 h-3 transition-transform ${open ? 'rotate-90' : ''}`}
-          fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-        </svg>
+        <ChevronRight className={`w-3 h-3 transition-transform ${open ? 'rotate-90' : ''}`} />
         已使用 {calls.length} 個工具
       </button>
       {open && (
-        <div className="mt-1 space-y-1 pl-4">
+        <div className="mt-1.5 space-y-1 pl-4 border-l border-stone-100">
           {calls.map((tc, i) => (
             <div key={i} className="flex items-center gap-2 text-stone-400">
-              <span className={`w-1 h-1 rounded-full shrink-0 ${tc.ok ? 'bg-emerald-500' : 'bg-red-500'}`} />
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${tc.ok ? 'bg-emerald-400' : 'bg-red-400'}`} />
               {TOOL_LABELS[tc.name] ?? tc.name}
-              {!tc.ok && <span className="text-red-500 ml-auto">失敗</span>}
+              {!tc.ok && <span className="text-red-400 ml-auto">失敗</span>}
             </div>
           ))}
         </div>
@@ -178,7 +183,7 @@ const mdComponents = {
     <h3 className="font-semibold mb-1 mt-2 text-stone-800">{children}</h3>,
   code: ({ inline, children }: { inline?: boolean; children?: React.ReactNode }) =>
     inline
-      ? <code className="bg-stone-100 px-1.5 py-0.5 rounded text-xs font-mono text-orange-600">{children}</code>
+      ? <code className="bg-stone-100 px-1.5 py-0.5 rounded text-xs font-mono text-indigo-600">{children}</code>
       : <code className="block bg-stone-100 border border-stone-200 rounded-lg p-3 overflow-x-auto text-xs font-mono mb-2 whitespace-pre text-stone-700">{children}</code>,
   pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
   img: ({ src, alt }: { src?: string; alt?: string }) =>
@@ -196,8 +201,6 @@ const mdComponents = {
   ),
 }
 
-const SUGGESTIONS = ['查詢本學期課表', '最近的成績怎麼樣？', '本月有哪些缺曠？', '幫我申請明天的病假']
-
 export default function ChatPage() {
   const router = useRouter()
   const [messages, setMessages] = useState<TextMessage[]>([])
@@ -213,7 +216,7 @@ export default function ChatPage() {
   const bottomRef = useRef<HTMLDivElement>(null)
   const editRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     const token = getCookie('token')
@@ -226,6 +229,12 @@ export default function ChatPage() {
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, streaming])
   useEffect(() => { if (editingIndex !== null) editRef.current?.focus() }, [editingIndex])
+
+  const autoResize = useCallback((el: HTMLTextAreaElement | null) => {
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`
+  }, [])
 
   function handleSessionExpired() {
     deleteCookie('token')
@@ -345,8 +354,8 @@ export default function ChatPage() {
     }
   }
 
-  async function handleSend(e: { preventDefault(): void }) {
-    e.preventDefault()
+  async function handleSend(e?: { preventDefault?(): void }) {
+    e?.preventDefault?.()
     if (!input.trim() || streaming) return
     const token = getCookie('token')
     if (!token) { router.push('/login'); return }
@@ -354,6 +363,9 @@ export default function ChatPage() {
     if (uploadedFile) userMsg += `\n\n（附件路徑：${uploadedFile.path}）`
     setInput('')
     setUploadedFile(null)
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+    }
     setMessages(prev => [...prev, {
       role: 'user',
       content: uploadedFile ? `${input.trim()}\n📎 ${uploadedFile.name}` : userMsg,
@@ -363,7 +375,7 @@ export default function ChatPage() {
 
   function sendSuggestion(text: string) {
     setInput(text)
-    inputRef.current?.focus()
+    setTimeout(() => textareaRef.current?.focus(), 0)
   }
 
   async function handleAnswer(selected: string) {
@@ -403,42 +415,62 @@ export default function ChatPage() {
   const isEmpty = historyLoaded && messages.length === 0 && !streaming
 
   return (
-    <div className="flex flex-col h-screen md:h-dvh">
-      <div className="shrink-0 border-b border-stone-200 bg-white px-4 sm:px-6 py-3 flex items-center justify-between">
-        <h1 className="text-sm font-semibold text-stone-900">AI 助理</h1>
+    <div className="flex flex-col h-[calc(100dvh-3rem)]">
+      {/* Messages area */}
+      <div className="flex-1 overflow-y-auto bg-stone-50 relative">
+        {/* Clear button — shown when messages exist */}
         {messages.length > 0 && !streaming && (
-          <button onClick={handleClearHistory} className="text-xs text-stone-400 hover:text-stone-600 transition-colors">
-            清除對話
+          <button
+            onClick={handleClearHistory}
+            title="清除對話"
+            className="absolute top-3 right-4 z-10 p-1.5 text-stone-300 hover:text-red-400 hover:bg-red-50 rounded-lg transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
           </button>
         )}
-      </div>
 
-      <div className="flex-1 overflow-y-auto bg-stone-50">
+        {/* Loading history */}
         {!historyLoaded && (
           <div className="flex items-center justify-center h-full gap-2 text-stone-400 text-sm">
-            <div className="border-2 border-stone-200 border-t-orange-500 rounded-full animate-spin w-4 h-4" />
-            載入歷史中...
+            <div className="border-2 border-stone-200 border-t-indigo-500 rounded-full animate-spin w-4 h-4" />
+            載入中...
           </div>
         )}
 
+        {/* Empty state */}
         {isEmpty && (
-          <div className="flex flex-col items-center justify-center h-full px-6 pb-16">
-            <p className="text-sm text-stone-400 mb-5 text-center">詢問課表、成績、缺曠、請假等問題</p>
-            <div className="grid grid-cols-2 gap-2 w-full max-w-xs">
+          <div className="flex flex-col items-center justify-center h-full px-6 pb-8 gap-6">
+            <div className="flex flex-col items-center gap-3 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center">
+                <Bot className="w-7 h-7 text-indigo-500" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-stone-700 mb-1">需要什麼協助？</p>
+                <p className="text-xs text-stone-400">詢問課表、成績、缺曠、假單等問題</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 w-full max-w-sm">
               {SUGGESTIONS.map(s => (
-                <button key={s} onClick={() => sendSuggestion(s)}
-                  className="text-left text-xs text-stone-600 bg-white hover:bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 transition-colors leading-snug shadow-sm">
-                  {s}
+                <button key={s.text} onClick={() => sendSuggestion(s.text)}
+                  className="text-left bg-white hover:bg-indigo-50 border border-stone-200 hover:border-indigo-200 rounded-xl px-3 py-2.5 transition-colors group">
+                  <p className="text-xs font-medium text-stone-700 group-hover:text-indigo-700 leading-snug">{s.text}</p>
+                  <p className="text-[10px] text-stone-400 mt-0.5 group-hover:text-indigo-400">{s.sub}</p>
                 </button>
               ))}
             </div>
           </div>
         )}
 
+        {/* Messages */}
         {!isEmpty && (
-          <div className="py-6 px-4 md:px-6 space-y-5 max-w-3xl mx-auto">
+          <div className="py-6 px-4 md:px-6 space-y-6 max-w-3xl mx-auto">
             {messages.map((m, i) => (
-              <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div key={i} className={`flex gap-3 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                {m.role === 'assistant' && (
+                  <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center shrink-0 mt-0.5">
+                    <Bot className="w-4 h-4 text-indigo-500" />
+                  </div>
+                )}
                 <div className={`${m.role === 'user' ? 'max-w-[75%]' : 'flex-1 min-w-0'}`}>
                   {m.role === 'user' ? (
                     editingIndex === i ? (
@@ -449,7 +481,7 @@ export default function ChatPage() {
                             if (e.key === 'Escape') cancelEdit()
                           }}
                           rows={3}
-                          className="w-full bg-white border border-stone-300 text-stone-900 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-400/50"
+                          className="w-full bg-white border border-stone-300 text-stone-900 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400/50"
                         />
                         <div className="flex justify-end gap-2">
                           <button onClick={cancelEdit}
@@ -457,7 +489,7 @@ export default function ChatPage() {
                             取消
                           </button>
                           <button onClick={submitEdit} disabled={!editText.trim()}
-                            className="text-xs bg-orange-500 hover:bg-orange-600 disabled:opacity-40 text-white px-3 py-1.5 rounded-lg transition-colors">
+                            className="text-xs bg-indigo-500 hover:bg-indigo-600 disabled:opacity-40 text-white px-3 py-1.5 rounded-lg transition-colors">
                             重新送出
                           </button>
                         </div>
@@ -466,7 +498,7 @@ export default function ChatPage() {
                       <div className="group relative">
                         {!streaming && (
                           <button onClick={() => startEdit(i)}
-                            className="absolute -left-7 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity text-stone-400 hover:text-stone-600 p-1"
+                            className="absolute -left-7 top-2 opacity-0 group-hover:opacity-100 transition-opacity text-stone-300 hover:text-stone-500 p-1"
                             title="編輯">
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -474,7 +506,7 @@ export default function ChatPage() {
                             </svg>
                           </button>
                         )}
-                        <div className="bg-orange-500 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap">
+                        <div className="bg-indigo-500 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap">
                           {m.content}
                         </div>
                       </div>
@@ -486,7 +518,7 @@ export default function ChatPage() {
                         : <ThinkingDots />
                     ) : (
                       <div>
-                        {streaming && i === lastIdx && m.content === '' && (m.toolCalls ?? []).length > 0 && (
+                        {streaming && i === lastIdx && (m.toolCalls ?? []).length > 0 && m.content === '' && (
                           <div className="mb-2"><LiveToolPanel calls={m.toolCalls!} /></div>
                         )}
                         {m.content && (
@@ -511,13 +543,16 @@ export default function ChatPage() {
             ))}
 
             {askUser && (
-              <div className="flex justify-start">
-                <div className="bg-white border border-stone-200 rounded-xl px-4 py-3 max-w-sm shadow-sm">
+              <div className="flex gap-3 justify-start">
+                <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center shrink-0 mt-0.5">
+                  <Bot className="w-4 h-4 text-indigo-500" />
+                </div>
+                <div className="bg-white border border-stone-200 rounded-2xl rounded-tl-sm px-4 py-3 max-w-sm shadow-sm">
                   <p className="text-sm text-stone-800 mb-3">{askUser.question}</p>
                   <div className="space-y-1.5">
                     {askUser.options.map(opt => (
                       <button key={opt} onClick={() => handleAnswer(opt)}
-                        className="w-full text-left text-sm bg-stone-50 hover:bg-stone-100 border border-stone-200 text-stone-700 rounded-lg px-3 py-2 transition-colors">
+                        className="w-full text-left text-sm bg-stone-50 hover:bg-indigo-50 border border-stone-200 hover:border-indigo-200 text-stone-700 hover:text-indigo-700 rounded-lg px-3 py-2 transition-colors">
                         {opt}
                       </button>
                     ))}
@@ -531,15 +566,13 @@ export default function ChatPage() {
         )}
       </div>
 
+      {/* Input area */}
       <div className="shrink-0 border-t border-stone-200 bg-white">
         <div className="max-w-3xl mx-auto px-4 py-3">
           {uploadedFile && (
             <div className="flex items-center gap-2 mb-2">
               <span className="inline-flex items-center gap-1.5 text-xs text-stone-700 bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-1">
-                <svg className="w-3.5 h-3.5 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                </svg>
+                <Paperclip className="w-3.5 h-3.5 text-stone-400" />
                 {uploadedFile.name}
                 <button onClick={() => setUploadedFile(null)}
                   className="text-stone-400 hover:text-stone-600 ml-0.5 transition-colors">✕</button>
@@ -547,39 +580,47 @@ export default function ChatPage() {
             </div>
           )}
 
-          <form onSubmit={handleSend} className="flex gap-2 items-end">
+          <div className="flex gap-2 items-end">
             <input ref={fileInputRef} type="file" className="hidden" accept="image/*,.pdf" onChange={handleFileSelect} />
             <button type="button" onClick={() => fileInputRef.current?.click()}
               disabled={streaming || uploading} title="上傳附件"
-              className="h-9 w-9 flex items-center justify-center rounded-lg border border-stone-300 text-stone-400 hover:text-stone-600 hover:border-stone-400 hover:bg-stone-100 disabled:opacity-40 transition-colors shrink-0">
+              className="h-9 w-9 flex items-center justify-center rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 hover:bg-stone-50 disabled:opacity-40 transition-colors shrink-0">
               {uploading
-                ? <div className="border-2 border-stone-200 border-t-orange-500 rounded-full animate-spin w-4 h-4" />
-                : (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                      d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                  </svg>
-                )
+                ? <div className="border-2 border-stone-200 border-t-indigo-500 rounded-full animate-spin w-4 h-4" />
+                : <Paperclip className="w-4 h-4" />
               }
             </button>
 
-            <input ref={inputRef} type="text" value={input} onChange={e => setInput(e.target.value)}
-              placeholder="輸入訊息..." disabled={streaming || !!askUser || editingIndex !== null}
-              className="flex-1 h-9 bg-stone-50 border border-stone-300 text-stone-900 placeholder:text-stone-400 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400/50 disabled:opacity-50"
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={e => { setInput(e.target.value); autoResize(e.target) }}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  handleSend()
+                }
+              }}
+              placeholder="輸入訊息… (Shift+Enter 換行)"
+              rows={1}
+              disabled={streaming || !!askUser || editingIndex !== null}
+              className="flex-1 min-h-9 max-h-40 bg-stone-50 border border-stone-200 text-stone-900 placeholder:text-stone-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400/50 disabled:opacity-50 resize-none overflow-y-auto leading-5"
             />
 
             {streaming ? (
               <button type="button" onClick={() => abortRef.current?.abort()}
-                className="h-9 px-4 bg-stone-200 hover:bg-stone-300 border border-stone-300 text-stone-700 rounded-lg text-sm font-medium transition-colors shrink-0">
-                停止
+                className="h-9 w-9 flex items-center justify-center bg-stone-100 hover:bg-stone-200 border border-stone-200 text-stone-600 rounded-lg transition-colors shrink-0">
+                <Square className="w-3.5 h-3.5" />
               </button>
             ) : (
-              <button type="submit" disabled={!input.trim() || !!askUser || editingIndex !== null}
-                className="h-9 px-4 bg-orange-500 hover:bg-orange-600 disabled:opacity-40 text-white rounded-lg text-sm font-medium transition-colors shrink-0">
-                送出
+              <button type="button" onClick={() => handleSend()}
+                disabled={!input.trim() || !!askUser || editingIndex !== null}
+                className="h-9 w-9 flex items-center justify-center bg-indigo-500 hover:bg-indigo-600 disabled:opacity-40 text-white rounded-lg transition-colors shrink-0">
+                <Send className="w-4 h-4" />
               </button>
             )}
-          </form>
+          </div>
+          <p className="text-[10px] text-stone-300 mt-1.5 text-center">AI 可能會出錯，重要事項請自行確認</p>
         </div>
       </div>
     </div>

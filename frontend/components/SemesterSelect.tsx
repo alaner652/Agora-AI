@@ -2,6 +2,13 @@
 
 import { useRouter, usePathname } from 'next/navigation'
 import type { SemesterOption } from '@/lib/data'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 interface SemesterSelectProps {
   options: SemesterOption[]
@@ -12,20 +19,20 @@ export function SemesterSelect({ options, current }: SemesterSelectProps) {
   const router = useRouter()
   const pathname = usePathname()
 
-  function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const params = new URLSearchParams({ semester: e.target.value })
-    router.push(`${pathname}?${params}`)
-  }
-
   return (
-    <select
-      value={current}
-      onChange={handleChange}
-      className="bg-white border border-stone-300 text-stone-900 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400/50"
-    >
-      {options.map(o => (
-        <option key={o.value} value={o.value}>{o.label}</option>
-      ))}
-    </select>
+    <Select value={current} onValueChange={value => {
+      if (value == null) return
+      const params = new URLSearchParams({ semester: value })
+      router.push(`${pathname}?${params}`)
+    }}>
+      <SelectTrigger>
+        <SelectValue displayValue={options.find(o => o.value === current)?.label} />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map(o => (
+          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   )
 }

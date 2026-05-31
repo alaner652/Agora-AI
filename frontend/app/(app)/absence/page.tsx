@@ -11,18 +11,24 @@ import { toCEInput, inputValToRoc, thisMonthRange } from '@/lib/date'
 import { DateRangePicker } from '@/components/DateRangePicker'
 import { deleteCookie } from '@/lib/cookie'
 import { Button } from '@/components/ui/button'
-import { PageShell } from '@/components/PageShell'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { PageLayout } from '@/components/PageLayout'
+import { ALL_PERIODS, ABSENCE_TYPE_CLS } from '@/lib/constants'
 
-const ALL_PERIODS = ['朝會', '自', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'K', 'A', 'B', 'C', 'D', 'E']
+function typeCls(t: string) { return ABSENCE_TYPE_CLS[t] ?? 'bg-stone-100 text-stone-500' }
 
-const TYPE_CLS: Record<string, string> = {
-  '缺曠': 'bg-red-50 text-red-600',
-  '病假': 'bg-orange-50 text-orange-600',
-  '事假': 'bg-amber-50 text-amber-700',
-  '公假': 'bg-sky-50 text-sky-600',
-  '喪假': 'bg-purple-50 text-purple-600',
+function mostCommonType(entries: AbsenceEntry[]): string {
+  if (!entries.length) return '—'
+  const counts: Record<string, number> = {}
+  for (const e of entries) counts[e.type] = (counts[e.type] ?? 0) + 1
+  return Object.entries(counts).sort(([, a], [, b]) => b - a)[0]?.[0] ?? '—'
 }
-function typeCls(t: string) { return TYPE_CLS[t] ?? 'bg-stone-100 text-stone-500' }
 
 type PivotRow = { weekday: string; cells: Record<string, string> }
 
@@ -88,33 +94,45 @@ export default function AbsencePage() {
   const activePeriods = ALL_PERIODS.filter(p => entries?.some(e => e.period === p))
 
   return (
-    <PageShell title="缺曠">
-      <div className="flex flex-wrap items-end gap-3 mb-6">
+    <PageLayout>
+      {entries && (
+        <PageLayout.Trend>
+          <PageLayout.TrendCard title="缺曠天數" value={pivot.length} sub="天" />
+          <PageLayout.TrendCard title="缺曠節次" value={entries.length} sub="節" />
+          <PageLayout.TrendCard title="最常假別" value={mostCommonType(entries)} />
+        </PageLayout.Trend>
+      )}
+
+      <PageLayout.Toolbar>
         <div>
           <label className="block text-xs text-stone-500 mb-1">學期</label>
-          <select
-            value={semester}
-            onChange={e => setSemester(e.target.value)}
-            className="bg-white border border-stone-300 text-stone-900 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400/50"
-          >
-            <option value="">選擇學期</option>
-            {(opts?.semesters ?? []).map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
+          <Select value={semester} onValueChange={v => v != null && setSemester(v)}>
+            <SelectTrigger className="w-40">
+              <SelectValue
+                displayValue={opts?.semesters.find(o => o.value === semester)?.label}
+                placeholder="選擇學期"
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {(opts?.semesters ?? []).map(o => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div>
           <label className="block text-xs text-stone-500 mb-1">假別</label>
-          <select
-            value={leaveType}
-            onChange={e => setLeaveType(e.target.value)}
-            className="bg-white border border-stone-300 text-stone-900 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400/50"
-          >
-            {(opts?.leave_types ?? [{ value: '00', label: '全部' }]).map(t => (
-              <option key={t.value} value={t.value}>{t.label}</option>
-            ))}
-          </select>
+          <Select value={leaveType} onValueChange={v => v != null && setLeaveType(v)}>
+            <SelectTrigger className="w-28">
+              <SelectValue displayValue={opts?.leave_types.find(t => t.value === leaveType)?.label} />
+            </SelectTrigger>
+            <SelectContent>
+              {(opts?.leave_types ?? [{ value: '00', label: '全部' }]).map(t => (
+                <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <DateRangePicker
@@ -130,66 +148,55 @@ export default function AbsencePage() {
         <Button
           onClick={handleSearch}
           disabled={!semester}
-          className="bg-orange-500 hover:bg-orange-600 text-white"
+          className="bg-indigo-500 hover:bg-indigo-600 text-white self-end"
         >
           查詢
         </Button>
-      </div>
+      </PageLayout.Toolbar>
 
-      {isLoading && (
-        <div className="flex items-center gap-2 text-stone-500 text-sm">
-          <div className="border-2 border-stone-200 border-t-orange-500 rounded-full animate-spin w-4 h-4" />
-          載入中...
-        </div>
-      )}
-
-      {!isLoading && entries && (
-        <div className="bg-white border border-stone-200 rounded-xl overflow-hidden">
-          {pivot.length === 0 ? (
-            <p className="text-stone-400 text-sm text-center py-8">此區間無記錄</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="text-xs border-collapse w-full whitespace-nowrap">
-                <thead>
-                  <tr className="bg-stone-50 border-b border-stone-200">
-                    <th className="px-3 py-2 text-left font-medium text-stone-500 sticky left-0 bg-stone-50 z-10 border-r border-stone-200 w-8">項次</th>
-                    <th className="px-3 py-2 text-left font-medium text-stone-500 sticky left-8 bg-stone-50 z-10 border-r border-stone-200 min-w-32">日期</th>
-                    {activePeriods.map(p => (
-                      <th key={p} className="px-2 py-2 text-center font-medium text-stone-500 min-w-11">{p}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {pivot.map(([date, { weekday, cells }], idx) => (
-                    <tr key={date} className="border-b border-stone-100 last:border-0 hover:bg-stone-50">
-                      <td className="px-3 py-2 text-stone-400 tabular-nums text-center sticky left-0 bg-white border-r border-stone-200">{idx + 1}</td>
-                      <td className="px-3 py-2 text-stone-700 tabular-nums sticky left-8 bg-white border-r border-stone-200">
-                        {date}<span className="text-stone-400 ml-1.5">（{weekday}）</span>
-                      </td>
-                      {activePeriods.map(p => (
-                        <td key={p} className="px-1.5 py-2 text-center">
-                          {cells[p] ? (
-                            <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${typeCls(cells[p])}`}>
-                              {cells[p]}
-                            </span>
-                          ) : null}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t border-stone-100 bg-stone-50">
-                    <td colSpan={2 + activePeriods.length} className="px-3 py-2 text-xs text-stone-400">
-                      共 {pivot.length} 天・{entries.length} 節次
+      <PageLayout.Table loading={isLoading}>
+        {pivot.length === 0 ? (
+          <p className="text-stone-400 text-sm text-center py-8">此區間無記錄</p>
+        ) : (
+          <table className="text-xs border-collapse w-full whitespace-nowrap">
+            <thead>
+              <tr className="bg-stone-50 border-b border-stone-200">
+                <th className="px-3 py-2 text-left font-medium text-stone-500 sticky left-0 bg-stone-50 z-10 border-r border-stone-200 w-8">項次</th>
+                <th className="px-3 py-2 text-left font-medium text-stone-500 sticky left-8 bg-stone-50 z-10 border-r border-stone-200 min-w-32">日期</th>
+                {activePeriods.map(p => (
+                  <th key={p} className="px-2 py-2 text-center font-medium text-stone-500 min-w-11">{p}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {pivot.map(([date, { weekday, cells }], idx) => (
+                <tr key={date} className="border-b border-stone-100 last:border-0 hover:bg-stone-50">
+                  <td className="px-3 py-2 text-stone-400 tabular-nums text-center sticky left-0 bg-white border-r border-stone-200">{idx + 1}</td>
+                  <td className="px-3 py-2 text-stone-700 tabular-nums sticky left-8 bg-white border-r border-stone-200">
+                    {date}<span className="text-stone-400 ml-1.5">（{weekday}）</span>
+                  </td>
+                  {activePeriods.map(p => (
+                    <td key={p} className="px-1.5 py-2 text-center">
+                      {cells[p] ? (
+                        <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${typeCls(cells[p])}`}>
+                          {cells[p]}
+                        </span>
+                      ) : null}
                     </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-    </PageShell>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t border-stone-100 bg-stone-50">
+                <td colSpan={2 + activePeriods.length} className="px-3 py-2 text-xs text-stone-400">
+                  共 {pivot.length} 天・{entries!.length} 節次
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        )}
+      </PageLayout.Table>
+    </PageLayout>
   )
 }

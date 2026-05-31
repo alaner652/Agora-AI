@@ -2,14 +2,22 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { RefreshCw } from 'lucide-react'
 import {
   getLLMConfig, setLLMConfig, deleteLLMConfig, testLLMConfig, listLLMModels,
   type LLMConfigRequest,
 } from '@/lib/data'
 import { deleteCookie } from '@/lib/cookie'
-import { PageShell } from '@/components/PageShell'
+import { PageLayout } from '@/components/PageLayout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 const PROVIDER_PRESETS = [
   {
@@ -31,7 +39,7 @@ const PROVIDER_PRESETS = [
     knownModels: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768', 'gemma2-9b-it'],
   },
   {
-    label: 'Ollama (自架)',
+    label: 'Ollama',
     base_url: 'http://localhost:11434/v1',
     model: 'llama3.2',
     knownModels: [] as string[],
@@ -83,6 +91,7 @@ export default function SettingsPage() {
   function applyPreset(idx: number) {
     setSelectedPreset(idx)
     setTestResult(null)
+    setError('')
     setModelOptions(PROVIDER_PRESETS[idx].knownModels)
     const p = PROVIDER_PRESETS[idx]
     if (p.base_url) setBaseUrl(p.base_url)
@@ -92,10 +101,12 @@ export default function SettingsPage() {
   async function handleLoadModels() {
     if (!baseUrl) return
     setLoadingModels(true)
+    setError('')
     try {
       const res = await listLLMModels(baseUrl, apiKey)
       if (res.ok && res.models.length > 0) {
         setModelOptions(res.models)
+        if (!res.models.includes(model)) setModel(res.models[0])
       } else {
         setError(res.error?.trim() || '此 Provider 不支援自動取得模型清單')
       }
@@ -127,7 +138,7 @@ export default function SettingsPage() {
     try {
       await deleteLLMConfig()
       setCurrentConfig({ has_custom_config: false, base_url: '', model: '' })
-      setBaseUrl(''); setApiKey(''); setModel(''); setTestResult(null)
+      setBaseUrl(''); setApiKey(''); setModel(''); setTestResult(null); setModelOptions([])
     } catch {
       setError('清除失敗，請重試')
     }
@@ -150,26 +161,30 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64 gap-2 text-stone-500 text-sm">
-        <div className="border-2 border-stone-200 border-t-orange-500 rounded-full animate-spin w-4 h-4" />
+      <div className="flex items-center justify-center h-64 gap-2 text-stone-400 text-sm">
+        <div className="border-2 border-stone-200 border-t-indigo-500 rounded-full animate-spin w-4 h-4" />
         載入中…
       </div>
     )
   }
 
   return (
-    <PageShell title="AI 設定">
-      <div className="max-w-lg">
-        <p className="text-sm text-stone-500 mb-6">設定您自己的 LLM API。登出後重新登入才會套用新設定。</p>
+    <PageLayout>
+      <div className="max-w-lg space-y-5">
 
-        <div className="bg-white border border-stone-200 rounded-xl px-4 py-3 mb-6 text-sm">
+        {/* Current config status */}
+        <div className={`rounded-xl border px-4 py-3 text-sm ${
+          currentConfig?.has_custom_config
+            ? 'bg-emerald-50 border-emerald-200'
+            : 'bg-stone-50 border-stone-200'
+        }`}>
           {currentConfig?.has_custom_config ? (
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-                <span className="font-medium text-stone-800">使用自訂設定</span>
+                <span className="font-medium text-emerald-800">使用自訂設定</span>
               </div>
-              <div className="text-stone-500 pl-4">
+              <div className="text-stone-500 pl-4 text-xs space-y-0.5">
                 <div>URL：{currentConfig.base_url}</div>
                 <div>模型：{currentConfig.model}</div>
               </div>
@@ -182,15 +197,16 @@ export default function SettingsPage() {
           )}
         </div>
 
-        <div className="mb-4">
+        {/* Provider selector */}
+        <div>
           <label className="block text-sm font-medium text-stone-700 mb-2">Provider</label>
           <div className="flex flex-wrap gap-2">
             {PROVIDER_PRESETS.map((p, i) => (
               <button key={p.label} onClick={() => applyPreset(i)}
                 className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                   selectedPreset === i
-                    ? 'bg-orange-500 text-white border-orange-500'
-                    : 'bg-white text-stone-600 border-stone-300 hover:border-orange-400 hover:text-orange-500'
+                    ? 'bg-indigo-500 text-white border-indigo-500'
+                    : 'bg-white text-stone-600 border-stone-300 hover:border-indigo-300 hover:text-indigo-500'
                 }`}>
                 {p.label}
               </button>
@@ -198,23 +214,34 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <div className="mb-4">
+        {/* Base URL */}
+        <div>
           <label className="block text-sm font-medium text-stone-700 mb-1">Base URL</label>
-          <Input type="text" value={baseUrl}
+          <Input
+            type="text"
+            value={baseUrl}
             onChange={e => { setBaseUrl(e.target.value); setSelectedPreset(PROVIDER_PRESETS.length - 1) }}
-            placeholder="https://api.openai.com/v1" className="py-2" />
+            placeholder="https://api.openai.com/v1"
+            className="py-2"
+          />
         </div>
 
-        <div className="mb-4">
+        {/* API Key */}
+        <div>
           <label className="block text-sm font-medium text-stone-700 mb-1">
             API Key
-            <span className="ml-1 text-xs text-stone-400 font-normal">
-              {currentConfig?.has_custom_config ? '（留空表示不更改）' : '（Ollama 等自架可留空）'}
+            <span className="ml-1.5 text-xs text-stone-400 font-normal">
+              {currentConfig?.has_custom_config ? '（留空表示不更改）' : '（自架 Ollama 可留空）'}
             </span>
           </label>
           <div className="relative">
-            <Input type={showKey ? 'text' : 'password'} value={apiKey}
-              onChange={e => setApiKey(e.target.value)} placeholder="sk-..." className="pr-14 py-2" />
+            <Input
+              type={showKey ? 'text' : 'password'}
+              value={apiKey}
+              onChange={e => setApiKey(e.target.value)}
+              placeholder="sk-..."
+              className="pr-14 py-2"
+            />
             <button type="button" onClick={() => setShowKey(v => !v)}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 text-xs px-1 transition-colors">
               {showKey ? '隱藏' : '顯示'}
@@ -222,36 +249,47 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <div className="mb-6">
+        {/* Model */}
+        <div>
           <div className="flex items-center justify-between mb-1">
-            <label className="block text-sm font-medium text-stone-700">模型名稱</label>
+            <label className="text-sm font-medium text-stone-700">模型</label>
             <button type="button" onClick={handleLoadModels} disabled={!baseUrl || loadingModels}
-              className="flex items-center gap-1 text-xs text-stone-400 hover:text-orange-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              className="flex items-center gap-1 text-xs text-stone-400 hover:text-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
               {loadingModels
-                ? <div className="border-2 border-stone-200 border-t-orange-500 rounded-full animate-spin w-3 h-3" />
-                : (
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                )}
-              {loadingModels ? '載入中…' : '載入模型清單'}
+                ? <div className="border-2 border-stone-200 border-t-indigo-500 rounded-full animate-spin w-3 h-3" />
+                : <RefreshCw className="w-3 h-3" />
+              }
+              {loadingModels ? '載入中…' : '載入清單'}
             </button>
           </div>
-          <input type="text" list="model-datalist" value={model} onChange={e => setModel(e.target.value)}
-            placeholder="gemini-2.0-flash-lite"
-            className="w-full bg-stone-50 border border-stone-300 text-stone-900 placeholder:text-stone-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400/50"
-          />
-          {modelOptions.length > 0 && (
-            <datalist id="model-datalist">
-              {modelOptions.map(id => <option key={id} value={id} />)}
-            </datalist>
+          {modelOptions.length > 0 ? (
+            <Select value={model} onValueChange={v => v != null && setModel(v)}>
+              <SelectTrigger>
+                <SelectValue displayValue={model} placeholder="選擇模型" />
+              </SelectTrigger>
+              <SelectContent>
+                {modelOptions.map(m => (
+                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              type="text"
+              value={model}
+              onChange={e => setModel(e.target.value)}
+              placeholder="gemini-2.0-flash-lite"
+              className="py-2"
+            />
           )}
         </div>
 
-        {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
+        {/* Error */}
+        {error && <p className="text-red-600 text-sm">{error}</p>}
 
+        {/* Test result */}
         {testResult && (
-          <div className={`text-sm mb-4 px-3 py-2 rounded-lg border ${
+          <div className={`text-sm px-3 py-2 rounded-lg border ${
             testResult.ok
               ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
               : 'bg-red-50 border-red-200 text-red-600'
@@ -261,25 +299,25 @@ export default function SettingsPage() {
           </div>
         )}
 
-        <div className="flex gap-3 flex-wrap">
-          <button onClick={handleTest} disabled={testing}
-            className="px-4 py-2 border border-stone-300 text-stone-700 text-sm rounded-lg hover:bg-stone-50 disabled:opacity-40 transition-colors">
+        {/* Actions */}
+        <div className="flex gap-3 flex-wrap pt-1">
+          <Button variant="outline" onClick={handleTest} disabled={testing}>
             {testing ? '測試中…' : '測試連線'}
-          </button>
-          <button onClick={handleSave} disabled={saving}
-            className="px-4 py-2 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 disabled:opacity-40 transition-colors">
+          </Button>
+          <Button onClick={handleSave} disabled={saving}
+            className="bg-indigo-500 hover:bg-indigo-600 text-white">
             {saving ? '儲存中…' : '儲存設定'}
-          </button>
+          </Button>
           {currentConfig?.has_custom_config && (
-            <button onClick={handleDelete}
-              className="px-4 py-2 text-red-500 hover:text-red-600 hover:bg-red-50 text-sm rounded-lg transition-colors">
+            <Button variant="ghost" onClick={handleDelete}
+              className="text-red-500 hover:text-red-600 hover:bg-red-50">
               清除自訂
-            </button>
+            </Button>
           )}
         </div>
 
-        <p className="text-xs text-stone-400 mt-6">儲存後需重新登入，新的 LLM 設定才會生效。</p>
+        <p className="text-xs text-stone-400">儲存後需重新登入，新的 LLM 設定才會生效。</p>
       </div>
-    </PageShell>
+    </PageLayout>
   )
 }

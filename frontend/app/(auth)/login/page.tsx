@@ -47,7 +47,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center px-4 bg-stone-50">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-semibold text-orange-500 tracking-wide">TPCU.me</h1>
+          <h1 className="text-2xl font-semibold text-indigo-500 tracking-wide">TPCU.me</h1>
           <p className="text-sm text-stone-400 mt-1">台北城市科技大學學生入口</p>
         </div>
 
@@ -86,7 +86,7 @@ export default function LoginPage() {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full justify-center py-2 mt-2 bg-orange-500 hover:bg-orange-600 text-white"
+              className="w-full justify-center py-2 mt-2 bg-indigo-500 hover:bg-indigo-600 text-white"
             >
               {loading ? '登入中...' : '登入'}
             </Button>
