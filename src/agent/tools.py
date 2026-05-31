@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import json
-import pathlib
-
 import httpx
 
 from log import get_logger
@@ -20,9 +18,6 @@ from .errors import ErrorCode
 from .memory import ChatMemory
 
 _log = get_logger(__name__)
-
-_OUTPUT_DIR = pathlib.Path(__file__).parent.parent.parent / "output"
-
 
 class AskUserError(Exception):
     """Raised when the agent needs a structured answer from the user."""
@@ -192,25 +187,6 @@ TOOLS: list[dict] = [
             },
         },
     },
-    {
-        "type": "function",
-        "function": {
-            "name": "render_image",
-            "description": "將最近一次查詢的課表、缺曠或成績資料渲染成圖片並顯示。須先呼叫對應的 fetch 工具取得資料。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "type": {
-                        "type": "string",
-                        "enum": ["schedule", "absence", "grades"],
-                        "description": "資料類型",
-                    },
-                    "title": {"type": "string", "description": "圖片標題（選填）"},
-                },
-                "required": ["type"],
-            },
-        },
-    },
 ]
 
 
@@ -296,26 +272,6 @@ async def dispatch(name: str, args: dict, jsessionid: str, memory: ChatMemory) -
 
         elif name == "ask_user":
             raise AskUserError(question=args["question"], options=args["options"])
-
-        elif name == "render_image":
-            type_ = args["type"]
-            cached = memory.cache.get(type_)
-            if not cached:
-                return _err(f"尚未查詢 {type_}，請先執行對應查詢", ErrorCode.DATA_NOT_FOUND)
-            entries = cached["entries"]
-            title = args.get("title") or cached.get("title", "")
-            if type_ == "schedule":
-                from utils.render_schedule.index import render
-                path = render(entries, title=title, output=str(_OUTPUT_DIR / "schedule.png"))
-            elif type_ == "absence":
-                from utils.render_absence.index import render
-                path = render(entries, title=title, output=str(_OUTPUT_DIR / "absence.png"))
-            elif type_ == "grades":
-                from utils.render_grades.index import render
-                path = render(entries, title=title, output=str(_OUTPUT_DIR / "grades.png"))
-            else:
-                return _err(f"未知的渲染類型：{type_}", ErrorCode.TOOL_UNKNOWN)
-            return json.dumps({"success": True, "type": type_}, ensure_ascii=False)
 
         else:
             return _err(f"未知工具：{name}", ErrorCode.TOOL_UNKNOWN)

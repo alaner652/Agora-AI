@@ -21,7 +21,6 @@ TOOL_META: dict[str, ToolMeta] = {
     "fetch_grades":         ToolMeta("fetch_grades"),
     "get_leaves":           ToolMeta("get_leaves"),
     "get_leave_form":       ToolMeta("get_leave_form"),
-    "render_image":         ToolMeta("render_image", requires_session=False),
     "ask_user":             ToolMeta("ask_user",     requires_session=False),
     "apply_leave": ToolMeta(
         "apply_leave",

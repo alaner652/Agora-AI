@@ -1,0 +1,102 @@
+'use client'
+
+import { useState, type FormEvent } from 'react'
+import { useRouter } from 'next/navigation'
+import axios from 'axios'
+import { setCookie } from '@/lib/cookie'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+
+export default function LoginPage() {
+  const [uid, setUid] = useState('')
+  const [pwd, setPwd] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const router = useRouter()
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+    try {
+      const res = await axios.post<{ token: string }>(`${BASE}/login`, { uid, pwd })
+      setCookie('token', res.data.token)
+      router.push('/schedule')
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { detail?: { error?: string } | string } }; code?: string; message?: string }
+      if (!axiosErr.response) {
+        setError(`無法連線到伺服器（${BASE}），請確認後端是否運行`)
+      } else {
+        const detail = axiosErr.response.data?.detail
+        if (typeof detail === 'object' && detail !== null && 'error' in detail) {
+          setError(String((detail as { error: string }).error))
+        } else if (typeof detail === 'string') {
+          setError(detail)
+        } else {
+          setError('登入失敗，請確認學號密碼')
+        }
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center px-4 bg-stone-50">
+      <div className="w-full max-w-sm">
+        <div className="mb-8 text-center">
+          <h1 className="text-2xl font-semibold text-orange-500 tracking-wide">TPCU.me</h1>
+          <p className="text-sm text-stone-400 mt-1">台北城市科技大學學生入口</p>
+        </div>
+
+        <div className="bg-white border border-stone-200 rounded-xl p-8 shadow-sm">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-1.5">學號</label>
+              <Input
+                type="text"
+                value={uid}
+                onChange={e => setUid(e.target.value)}
+                placeholder="e.g. B1234567"
+                required
+                autoFocus
+                className="py-2"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-1.5">密碼</label>
+              <Input
+                type="password"
+                value={pwd}
+                onChange={e => setPwd(e.target.value)}
+                required
+                className="py-2"
+              />
+            </div>
+
+            {error && (
+              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                {error}
+              </p>
+            )}
+
+            <Button
+              type="submit"
+              disabled={loading}
+              className="w-full justify-center py-2 mt-2 bg-orange-500 hover:bg-orange-600 text-white"
+            >
+              {loading ? '登入中...' : '登入'}
+            </Button>
+          </form>
+
+          <p className="text-xs text-stone-400 text-center mt-6">
+            密碼僅用於取得學校 Session，不儲存在伺服器
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}

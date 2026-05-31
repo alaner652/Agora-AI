@@ -14,8 +14,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse, StreamingResponse
 from openai import OpenAI
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -36,8 +35,6 @@ from .state import AgentRegistry
 from storage import init_db, init_user_settings_db, get_llm_config
 
 load_dotenv()
-
-_WEB_DIST = Path(__file__).parent.parent.parent / "web" / "dist"
 
 _LLM_API_KEY  = os.getenv("LLM_API_KEY", "")
 _LLM_BASE_URL = os.getenv("LLM_BASE_URL")
@@ -78,9 +75,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(data_router, prefix="/api")
-
-if (_WEB_DIST / "assets").exists():
-    app.mount("/assets", StaticFiles(directory=_WEB_DIST / "assets"), name="static_assets")
 
 
 # ---------------------------------------------------------------------------
@@ -206,11 +200,3 @@ async def answer(request: Request, body: AnswerRequest):
                 yield chunk
 
     return StreamingResponse(generate(), media_type="text/event-stream")
-
-
-@app.get("/{full_path:path}")
-async def spa_fallback(full_path: str):
-    index = _WEB_DIST / "index.html"
-    if not index.exists():
-        raise HTTPException(status_code=404, detail="Not found")
-    return FileResponse(index)

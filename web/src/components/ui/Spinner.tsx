@@ -1,7 +1,0 @@
-interface SpinnerProps { className?: string }
-
-export function Spinner({ className = 'w-4 h-4' }: SpinnerProps) {
-  return (
-    <div className={`border-2 border-stone-200 border-t-orange-500 rounded-full animate-spin ${className}`} />
-  )
-}
