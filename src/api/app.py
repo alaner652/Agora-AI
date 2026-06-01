@@ -15,8 +15,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
-from openai import OpenAI
+from openai import AsyncOpenAI
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -25,15 +24,25 @@ from agent import (
     AskUserEvent,
     DoneEvent,
     TextDeltaEvent,
+    ThinkingDeltaEvent,
     ToolCallEvent,
     ToolResultEvent,
+    UsageEvent,
 )
+from agent.providers import OpenAICompatProvider
 from session import refresh_api as _fresh_login
 
 from .models import AnswerRequest, ChatRequest, LoginRequest, LoginResponse
 from .routes import router as data_router
 from .state import AgentRegistry
-from storage import init_db, init_user_settings_db, get_llm_config
+from storage import (
+    init_db,
+    init_user_settings_db,
+    init_token_usage_db,
+    get_llm_config,
+    record_usage,
+    touch_session,
+)
 
 load_dotenv()
 
@@ -51,8 +60,10 @@ async def lifespan(app: FastAPI):
     global _registry
     init_db()
     init_user_settings_db()
-    llm = OpenAI(api_key=_LLM_API_KEY, base_url=_LLM_BASE_URL)
-    _registry = AgentRegistry(llm=llm, model=_LLM_MODEL)
+    init_token_usage_db()
+    client = AsyncOpenAI(api_key=_LLM_API_KEY, base_url=_LLM_BASE_URL)
+    provider = OpenAICompatProvider(client, _LLM_MODEL)
+    _registry = AgentRegistry(provider=provider)
     app.state.registry = _registry
     yield
 
@@ -70,6 +81,7 @@ async def validation_exception_handler(_request: Request, exc: RequestValidation
         sanitized = {k: ("<binary>" if isinstance(v, bytes) else v) for k, v in err.items()}
         errors.append(sanitized)
     return JSONResponse(status_code=422, content={"detail": errors})
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -88,23 +100,65 @@ if (_WEB_DIST / "assets").exists():
 # ---------------------------------------------------------------------------
 
 def _event_to_dict(event) -> dict:
-    if isinstance(event, ToolCallEvent):
-        return {"type": "tool_call", "name": event.name, "args": event.args}
-    if isinstance(event, ToolResultEvent):
-        return {"type": "tool_result", "name": event.name, "ok": event.ok,
-                "data": event.data, "unconfirmed": event.unconfirmed}
-    if isinstance(event, TextDeltaEvent):
-        return {"type": "text_delta", "text": event.text}
-    if isinstance(event, AskUserEvent):
-        return {"type": "ask_user", "question": event.question,
-                "options": event.options, "tool_call_id": event.tool_call_id}
-    if isinstance(event, DoneEvent):
-        return {"type": "done"}
-    return {"type": "unknown"}
+    """Convert AgentEvent to JSON-serializable dict with robust type handling."""
+    try:
+        if isinstance(event, ToolCallEvent):
+            return {"type": "tool_call", "name": event.name, "args": event.args}
+        if isinstance(event, ToolResultEvent):
+            # Ensure data is JSON-parseable string; if not, wrap it
+            try:
+                json.loads(event.data)
+                data_val = event.data
+            except (json.JSONDecodeError, TypeError):
+                data_val = json.dumps({"error": "Invalid JSON in tool result", "raw": str(event.data)}, ensure_ascii=False)
+            return {
+                "type": "tool_result",
+                "name": event.name,
+                "ok": event.ok,
+                "data": data_val,
+                "unconfirmed": event.unconfirmed,
+            }
+        if isinstance(event, TextDeltaEvent):
+            return {"type": "text_delta", "text": event.text}
+        if isinstance(event, ThinkingDeltaEvent):
+            return {"type": "thinking", "text": event.text}
+        if isinstance(event, AskUserEvent):
+            return {
+                "type": "ask_user",
+                "question": event.question,
+                "options": event.options,
+                "tool_call_id": event.tool_call_id,
+            }
+        if isinstance(event, UsageEvent):
+            return {
+                "type": "usage",
+                "input_tokens": event.input_tokens,
+                "output_tokens": event.output_tokens,
+                "cached_tokens": event.cached_tokens,
+                "cost_usd": float(event.cost_usd),
+            }
+        if isinstance(event, DoneEvent):
+            return {"type": "done"}
+        return {"type": "unknown"}
+    except Exception as e:
+        import logging
+        logging.exception(f"Error serializing event {type(event).__name__}: {e}")
+        return {"type": "error", "message": f"Event serialization failed: {str(e)}"}
 
 
-async def _stream_events(gen):
+async def _stream_events(gen, session_id: str, uid: str, model: str):
     async for event in gen:
+        if isinstance(event, UsageEvent):
+            record_usage(
+                session_id=session_id,
+                uid=uid,
+                model=model,
+                input_tokens=event.input_tokens,
+                output_tokens=event.output_tokens,
+                cached_tokens=event.cached_tokens,
+                cost_usd=event.cost_usd,
+            )
+            touch_session(session_id)
         yield f"data: {json.dumps(_event_to_dict(event), ensure_ascii=False)}\n\n"
 
 
@@ -114,11 +168,23 @@ def _get_registry() -> AgentRegistry:
     return _registry
 
 
-async def _get_agent_or_401(token: str):
-    result = await _get_registry().get(token)
+async def _resolve_agent(token: str, session_id: str | None):
+    """Return (agent, lock, resolved_session_id) or raise 401."""
+    reg = _get_registry()
+    if session_id:
+        result = await reg.get_by_session(token, session_id)
+        resolved_sid = session_id
+    else:
+        result = await reg.get(token)
+        resolved_sid = reg.get_active_session_id(token)
+
     if result is None:
-        raise HTTPException(status_code=401, detail={"error": "Token 無效或已過期，請重新呼叫 /login", "error_code": "AUTH_002"})
-    return result
+        raise HTTPException(
+            status_code=401,
+            detail={"error": "Token 無效或已過期，請重新呼叫 /login", "error_code": "AUTH_002"},
+        )
+    agent, lock = result
+    return agent, lock, resolved_sid
 
 
 # ---------------------------------------------------------------------------
@@ -140,15 +206,14 @@ async def login(request: Request, body: LoginRequest):
 
     user_cfg = get_llm_config(body.uid)
     if user_cfg:
-        llm = OpenAI(api_key=user_cfg.api_key or "EMPTY", base_url=user_cfg.base_url)
-        model = user_cfg.model
+        client = AsyncOpenAI(api_key=user_cfg.api_key or "EMPTY", base_url=user_cfg.base_url)
+        provider = OpenAICompatProvider(client, user_cfg.model)
     else:
-        llm = None   # AgentRegistry will use its default
-        model = None
+        provider = None  # AgentRegistry will use its default
 
     token = secrets.token_urlsafe(32)
-    await _get_registry().register(token, body.uid, jsessionid, llm=llm, model=model)
-    return LoginResponse(token=token)
+    session_id = await _get_registry().register(token, body.uid, jsessionid, provider=provider)
+    return LoginResponse(token=token, session_id=session_id)
 
 
 _UPLOAD_ROOT = Path(__file__).parent.parent.parent / "uploads"
@@ -157,37 +222,45 @@ _UPLOAD_ROOT = Path(__file__).parent.parent.parent / "uploads"
 def _load_attachment(path_str: str | None) -> tuple[str | None, str]:
     """Return (base64_data, mime_type) or (None, '') if not usable."""
     if not path_str:
-        return None, ''
+        return None, ""
     p = Path(path_str).resolve()
     try:
         _UPLOAD_ROOT.resolve()
         p.relative_to(_UPLOAD_ROOT.resolve())
     except ValueError:
-        return None, ''
+        return None, ""
     if not p.exists() or not p.is_file():
-        return None, ''
-    mime = mimetypes.guess_type(str(p))[0] or 'application/octet-stream'
-    if not mime.startswith('image/'):
-        return None, ''
+        return None, ""
+    mime = mimetypes.guess_type(str(p))[0] or "application/octet-stream"
+    if not mime.startswith("image/"):
+        return None, ""
     return base64.b64encode(p.read_bytes()).decode(), mime
 
 
 @app.post("/chat")
 @limiter.limit("5/minute")
 async def chat(request: Request, body: ChatRequest):
-    agent, lock = await _get_agent_or_401(body.token)
+    agent, lock, session_id = await _resolve_agent(body.token, body.session_id)
 
     if lock.locked():
         raise HTTPException(status_code=429, detail="上一個請求仍在處理中")
 
+    uid = _get_registry().get_uid(body.token) or ""
     image_b64, image_mime = _load_attachment(body.attachment_path)
 
     async def generate():
         async with lock:
             async for chunk in _stream_events(
-                agent.step(body.message, image_b64=image_b64, image_mime=image_mime)
+                agent.step(body.message, image_b64=image_b64, image_mime=image_mime),
+                session_id=session_id,
+                uid=uid,
+                model=agent._provider.model,
             ):
                 yield chunk
+            # Persist agent memory in OpenAI format so it survives server restarts
+            # and is available to GET /api/history for display.
+            from storage import save_history as _save
+            _save(session_id, uid, agent._memory.history)
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 
@@ -195,15 +268,24 @@ async def chat(request: Request, body: ChatRequest):
 @app.post("/answer")
 @limiter.limit("5/minute")
 async def answer(request: Request, body: AnswerRequest):
-    agent, lock = await _get_agent_or_401(body.token)
+    agent, lock, session_id = await _resolve_agent(body.token, body.session_id)
 
     if lock.locked():
         raise HTTPException(status_code=429, detail="上一個請求仍在處理中")
 
+    uid = _get_registry().get_uid(body.token) or ""
+
     async def generate():
         async with lock:
-            async for chunk in _stream_events(agent.answer_ask_user(body.selected)):
+            async for chunk in _stream_events(
+                agent.answer_ask_user(body.selected),
+                session_id=session_id,
+                uid=uid,
+                model=agent._provider.model,
+            ):
                 yield chunk
+            from storage import save_history as _save
+            _save(session_id, uid, agent._memory.history)
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 

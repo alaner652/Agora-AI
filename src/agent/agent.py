@@ -5,16 +5,17 @@ from __future__ import annotations
 import json
 import pathlib
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
-from typing import AsyncIterator
 
-from openai import OpenAI, APITimeoutError, APIConnectionError
+from openai import APITimeoutError, APIConnectionError
 
 from log import get_logger
 
 from .conv_logger import ConversationLogger
 from .memory import ChatMemory
+from .providers import LLMProvider, TextChunk, ThinkingChunk, ToolCallDelta, UsageData
+from .providers.pricing import calculate_cost
 from .reflection import reflect
 from .errors import ErrorCode
 from .tool_meta import get_meta
@@ -46,6 +47,11 @@ class TextDeltaEvent:
 
 
 @dataclass
+class ThinkingDeltaEvent:
+    text: str
+
+
+@dataclass
 class AskUserEvent:
     question: str
     options: list[str]
@@ -53,11 +59,22 @@ class AskUserEvent:
 
 
 @dataclass
+class UsageEvent:
+    input_tokens: int
+    output_tokens: int
+    cached_tokens: int
+    cost_usd: float
+
+
+@dataclass
 class DoneEvent:
     pass
 
 
-AgentEvent = ToolCallEvent | ToolResultEvent | TextDeltaEvent | AskUserEvent | DoneEvent
+AgentEvent = (
+    ToolCallEvent | ToolResultEvent | TextDeltaEvent | ThinkingDeltaEvent
+    | AskUserEvent | UsageEvent | DoneEvent
+)
 
 
 def _load_ai_guide() -> str:
@@ -83,6 +100,7 @@ SYSTEM_PROMPT = f"""{_AI_GUIDE}
 
 
 def _message_to_dict(msg) -> dict:
+    """Convert an OpenAI SDK message object to a plain dict for memory storage."""
     d: dict = {"role": msg.role}
     if msg.content is not None:
         d["content"] = msg.content
@@ -94,7 +112,6 @@ def _message_to_dict(msg) -> dict:
                 "function": {
                     "name": tc.function.name,
                     "arguments": tc.function.arguments,
-                    # Preserve Gemini-specific fields (e.g. thought_signature)
                     **(getattr(tc.function, "model_extra", None) or {}),
                 },
                 **(getattr(tc, "model_extra", None) or {}),
@@ -116,25 +133,17 @@ class ChatAgent:
     def __init__(
         self,
         jsessionid: str,
-        llm: OpenAI,
-        model: str,
+        provider: LLMProvider,
         memory: ChatMemory,
         logger: ConversationLogger | None = None,
         refresh_fn: Callable[[str], Awaitable[str]] | None = None,
     ) -> None:
         self._session = jsessionid
-        self._llm = llm
-        self._model = model
+        self._provider = provider
         self._memory = memory
         self._logger = logger
-        # Called when session expires: async (uid) -> new_jsessionid.
-        # None in API mode — callers must re-login via /login instead.
         self._refresh_fn = refresh_fn
-        # When AskUserEvent is yielded, we park the pending tool call here
-        # until answer_ask_user() is called.
         self._pending_ask: dict | None = None
-        # Tracks tool names called within the current user turn (for unconfirmed detection).
-        # Reset in step(); carried over into answer_ask_user() so ask_user is visible.
         self._recent_tool_names: list[str] = []
 
     # ------------------------------------------------------------------
@@ -149,10 +158,10 @@ class ChatAgent:
         self,
         user_message: str,
         image_b64: str | None = None,
-        image_mime: str = 'image/png',
+        image_mime: str = "image/png",
     ) -> AsyncIterator[AgentEvent]:
         """Process one user turn; yield events until done."""
-        self._recent_tool_names: list[str] = []   # reset per user turn
+        self._recent_tool_names = []
         if self._logger:
             self._logger.on_user_message(user_message)
         if image_b64:
@@ -189,6 +198,8 @@ class ChatAgent:
     async def _run_loop(self) -> AsyncIterator[AgentEvent]:
         max_llm_calls = 20
         llm_call_count = 0
+        # Accumulate total usage across all LLM calls in this turn
+        total_input = total_output = total_cached = 0
 
         while True:
             if llm_call_count >= max_llm_calls:
@@ -202,54 +213,100 @@ class ChatAgent:
                 + self._memory.get_context()
             )
 
-            create_kwargs: dict = dict(
-                model=self._model,
-                messages=messages,
-                tools=TOOLS,
-                tool_choice="auto",
-            )
+            # --- Stream from provider ---
+            text_buf: list[str] = []
+            tool_calls_acc: dict[int, dict] = {}  # index → {id, name, args, thought_signature}
 
+            # Disable thinking on continuation calls: Gemini requires thought_signature
+            # when replaying a tool_call that was preceded by thinking, but streaming
+            # does not expose thought_signature.  Turning off thinking for rounds 2+
+            # avoids the 400 INVALID_ARGUMENT error entirely.
+            is_continuation = llm_call_count > 1
             try:
-                response = self._llm.chat.completions.create(**create_kwargs)
+                async for chunk in self._provider.stream(messages, TOOLS,
+                                                         disable_thinking=is_continuation):
+                    if isinstance(chunk, TextChunk):
+                        yield TextDeltaEvent(text=chunk.text)
+                        text_buf.append(chunk.text)
+                    elif isinstance(chunk, ThinkingChunk):
+                        yield ThinkingDeltaEvent(text=chunk.text)
+                    elif isinstance(chunk, ToolCallDelta):
+                        # Provider yields complete tool calls after stream ends
+                        tool_calls_acc[chunk.index] = {
+                            "id": chunk.id,
+                            "name": chunk.name,
+                            "args": chunk.args_fragment,
+                            "thought_signature": chunk.thought_signature,
+                        }
+                    elif isinstance(chunk, UsageData):
+                        total_input += chunk.input_tokens
+                        total_output += chunk.output_tokens
+                        total_cached += chunk.cached_tokens
             except (APITimeoutError, APIConnectionError):
-                # Remove the last user message so the caller can retry
                 if self._memory.history and self._memory.history[-1].get("role") == "user":
                     self._memory.history.pop()
                 raise
 
-            msg = response.choices[0].message
-            self._memory.add(_message_to_dict(msg))
+            # Build complete tool calls list (sorted by index)
+            tool_calls = [tool_calls_acc[i] for i in sorted(tool_calls_acc)]
 
-            # --- No tool calls: final text response ---
-            if not msg.tool_calls:
-                text_buf: list[str] = []
-                for char in (msg.content or ""):
-                    yield TextDeltaEvent(text=char)
-                    text_buf.append(char)
+            # Add assistant message to memory
+            full_text = "".join(text_buf)
+            msg_dict: dict = {"role": "assistant", "content": full_text or None}
+            if tool_calls:
+                msg_dict["tool_calls"] = [
+                    {
+                        "id": tc["id"],
+                        "type": "function",
+                        "function": {
+                            "name": tc["name"],
+                            "arguments": tc["args"],
+                            # Gemini thinking mode: must be echoed back verbatim;
+                            # None when running without thinking or on other providers
+                            **({"thought_signature": tc["thought_signature"]}
+                               if tc.get("thought_signature") else {}),
+                        },
+                    }
+                    for tc in tool_calls
+                ]
+            self._memory.add(msg_dict)
+
+            # No tool calls → final text response
+            if not tool_calls:
                 if self._logger:
-                    self._logger.on_assistant_response("".join(text_buf))
+                    self._logger.on_assistant_response(full_text)
+                if total_input > 0 or total_output > 0:
+                    cost = calculate_cost(
+                        self._provider.model, total_input, total_output, total_cached
+                    )
+                    yield UsageEvent(
+                        input_tokens=total_input,
+                        output_tokens=total_output,
+                        cached_tokens=total_cached,
+                        cost_usd=cost,
+                    )
                 yield DoneEvent()
                 return
 
-            # --- Tool calls ---
+            # --- Execute tool calls ---
             ask_event: AskUserEvent | None = None
 
-            for tc in msg.tool_calls:
+            for tc in tool_calls:
+                tc_id = tc["id"]
+                tc_name = tc["name"]
+                tc_args_str = tc["args"]
+
                 try:
-                    args = json.loads(tc.function.arguments)
+                    args = json.loads(tc_args_str)
                 except json.JSONDecodeError as e:
-                    _log.warning("malformed tool args for %s: %s", tc.function.name, e)
+                    _log.warning("malformed tool args for %s: %s", tc_name, e)
                     result = json.dumps({"error": f"工具參數格式錯誤：{e}"}, ensure_ascii=False)
-                    self._memory.add({
-                        "role": "tool",
-                        "tool_call_id": tc.id,
-                        "content": result,
-                    })
+                    self._memory.add({"role": "tool", "tool_call_id": tc_id, "content": result})
                     if self._logger:
-                        self._logger.on_tool_call(tc.function.name, {}, result, 0.0)
+                        self._logger.on_tool_call(tc_name, {}, result, 0.0)
                     continue
 
-                meta = get_meta(tc.function.name)
+                meta = get_meta(tc_name)
                 unconfirmed = (
                     meta.danger_level >= 1
                     and "ask_user" not in self._recent_tool_names
@@ -257,62 +314,52 @@ class ChatAgent:
                 if unconfirmed:
                     _log.warning(
                         "tool %s (danger_level=%d) executed without prior ask_user",
-                        tc.function.name, meta.danger_level,
+                        tc_name, meta.danger_level,
                     )
-                    import json as _json
-                    result = _json.dumps({
+                    result = json.dumps({
                         "error": "必須先呼叫 ask_user 向使用者確認，才能執行此操作",
                         "error_code": str(ErrorCode.CONFIRMATION_REQUIRED),
                         "success": False,
                     }, ensure_ascii=False)
-                    yield ToolResultEvent(name=tc.function.name, ok=False, data=result, unconfirmed=True)
-                    self._memory.add({
-                        "role": "tool",
-                        "tool_call_id": tc.id,
-                        "content": result,
-                    })
+                    yield ToolResultEvent(name=tc_name, ok=False, data=result, unconfirmed=True)
+                    self._memory.add({"role": "tool", "tool_call_id": tc_id, "content": result})
                     if self._logger:
-                        self._logger.on_tool_call(tc.function.name, args, result, 0.0, unconfirmed=True)
+                        self._logger.on_tool_call(tc_name, args, result, 0.0, unconfirmed=True)
                     continue
 
-                yield ToolCallEvent(name=tc.function.name, args=args)
+                yield ToolCallEvent(name=tc_name, args=args)
 
                 t0 = time.monotonic()
                 try:
-                    raw = await self._execute(tc.function.name, args)
+                    raw = await self._execute(tc_name, args)
                 except AskUserError as e:
-                    self._recent_tool_names.append(tc.function.name)  # "ask_user" was called
+                    self._recent_tool_names.append(tc_name)
                     ask_event = AskUserEvent(
                         question=e.question,
                         options=e.options,
-                        tool_call_id=tc.id,
+                        tool_call_id=tc_id,
                     )
-                    self._pending_ask = {"tool_call_id": tc.id}
-                    # Don't add a tool result yet — we need the user's answer first
+                    self._pending_ask = {"tool_call_id": tc_id}
                     continue
                 latency_ms = (time.monotonic() - t0) * 1000
 
-                result = reflect(tc.function.name, raw)
+                result = reflect(tc_name, raw)
                 try:
                     parsed = json.loads(result)
                     ok = not ("error" in parsed or parsed.get("success") is False) if isinstance(parsed, dict) else True
                 except (json.JSONDecodeError, AttributeError):
                     ok = True
-                self._recent_tool_names.append(tc.function.name)
-                yield ToolResultEvent(name=tc.function.name, ok=ok, data=result, unconfirmed=unconfirmed)
-                self._memory.add({
-                    "role": "tool",
-                    "tool_call_id": tc.id,
-                    "content": result,
-                })
+                self._recent_tool_names.append(tc_name)
+                yield ToolResultEvent(name=tc_name, ok=ok, data=result, unconfirmed=unconfirmed)
+                self._memory.add({"role": "tool", "tool_call_id": tc_id, "content": result})
                 if self._logger:
-                    self._logger.on_tool_call(tc.function.name, args, result, latency_ms, unconfirmed=unconfirmed)
+                    self._logger.on_tool_call(tc_name, args, result, latency_ms, unconfirmed=unconfirmed)
 
             if ask_event is not None:
                 yield ask_event
-                return  # Caller must call answer_ask_user() to continue
+                return
 
-            # All tool calls handled; loop back to get the next LLM response
+            # All tool calls handled; loop back to get next LLM response
 
     async def _execute(self, name: str, args: dict) -> str:
         """Run a tool, refreshing the session on expiry."""
@@ -321,7 +368,6 @@ class ChatAgent:
         except ValueError as e:
             if "Session 過期" in str(e):
                 if self._refresh_fn is None:
-                    # API mode: no password available — tell the client to re-login.
                     return json.dumps({
                         "error": "Session 已過期，請重新呼叫 /login",
                         "error_code": str(ErrorCode.SESSION_EXPIRED),

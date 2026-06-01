@@ -4,7 +4,9 @@ from .agent import (
     ToolCallEvent,
     ToolResultEvent,
     TextDeltaEvent,
+    ThinkingDeltaEvent,
     AskUserEvent,
+    UsageEvent,
     DoneEvent,
 )
 from .conv_logger import ConversationLogger
@@ -17,7 +19,9 @@ __all__ = [
     "ToolCallEvent",
     "ToolResultEvent",
     "TextDeltaEvent",
+    "ThinkingDeltaEvent",
     "AskUserEvent",
+    "UsageEvent",
     "DoneEvent",
     "ConversationLogger",
     "ChatMemory",

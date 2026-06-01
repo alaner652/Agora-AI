@@ -294,6 +294,25 @@ async def dispatch(name: str, args: dict, jsessionid: str, memory: ChatMemory) -
                 result["error_code"] = _classify_action_error(result.get("message", ""))
             return json.dumps(result, ensure_ascii=False)
 
+        elif name == "render_image":
+            import importlib
+            import os
+            import tempfile
+
+            rtype = args.get("type", "")
+            _RENDER_TYPES = {"schedule", "absence", "grades"}
+            if rtype not in _RENDER_TYPES:
+                return _err(f"不支援的圖表類型：{rtype}", ErrorCode.UNKNOWN)
+            cached = memory.cache.get(rtype)
+            if cached is None:
+                return _err(f"尚無 {rtype} 資料，請先執行查詢後再產生圖表", ErrorCode.UNKNOWN)
+            mod = importlib.import_module(f"utils.render_{rtype}.index")
+            entries = cached["entries"]
+            title = args.get("title") or cached.get("title", "")
+            output = os.path.join(tempfile.gettempdir(), f"{rtype}.png")
+            path = mod.render(entries, title=title, output=output)
+            return json.dumps({"path": path}, ensure_ascii=False)
+
         elif name == "ask_user":
             raise AskUserError(question=args["question"], options=args["options"])
 

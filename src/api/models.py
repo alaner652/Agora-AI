@@ -10,17 +10,20 @@ class LoginRequest(BaseModel):
 
 class LoginResponse(BaseModel):
     token: str
+    session_id: str
 
 
 class ChatRequest(BaseModel):
     token: str = Field(..., min_length=1)
     message: str = Field(..., min_length=1)
     attachment_path: str | None = None
+    session_id: str | None = None  # None → use active session
 
 
 class AnswerRequest(BaseModel):
     token: str = Field(..., min_length=1)
     selected: str = Field(..., min_length=1)
+    session_id: str | None = None
 
 
 class LLMConfigRequest(BaseModel):
@@ -38,3 +41,10 @@ class LLMConfigResponse(BaseModel):
     has_custom_config: bool
     base_url: str = ""
     model: str = ""
+
+
+class SessionResponse(BaseModel):
+    session_id: str
+    title: str | None
+    created_at: float
+    updated_at: float

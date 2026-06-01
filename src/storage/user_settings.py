@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 from cryptography.fernet import Fernet, InvalidToken
 
-_DB = pathlib.Path("data/history.db")
+_DB = pathlib.Path(__file__).parent.parent.parent / "data" / "history.db"
 
 _fernet: Fernet | None = None
 

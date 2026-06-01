@@ -8,12 +8,12 @@ import pathlib
 import tempfile
 
 import httpx
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile, File
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, UploadFile, File
 from fastapi.responses import FileResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 from actions.fetch_schedule.index import get_options as _sched_opts, get_schedule as _sched
 from actions.fetch_absence.index import get_options as _abs_opts, get_absence as _absence
@@ -21,9 +21,14 @@ from actions.fetch_grades.index import get_grades as _grades
 from actions.fetch_leaves.index import get_leaves as _leaves
 from actions.apply_leave.index import apply_leave as _apply_leave, get_leave_form as _get_leave_form, LEAVE_TYPES
 from actions.delete_leave.index import delete_leave as _delete_leave
-from storage import save_history, load_history, clear_history, get_llm_config, set_llm_config, delete_llm_config
+from storage import (
+    save_history, load_history, clear_history,
+    get_llm_config, set_llm_config, delete_llm_config,
+    list_sessions, create_session, delete_session, get_session_info,
+    get_session_usage, get_user_usage,
+)
 
-from .models import LLMConfigRequest, LLMConfigResponse, LLMModelsRequest
+from .models import LLMConfigRequest, LLMConfigResponse, LLMModelsRequest, SessionResponse
 from .state import AgentRegistry
 
 _IMAGE_DIR = pathlib.Path(__file__).parent.parent.parent / "output"
@@ -64,6 +69,12 @@ def _resolve_uid(
     if uid is None:
         raise HTTPException(status_code=401, detail={"error": "Token 無效或已過期", "error_code": "AUTH_002"})
     return uid
+
+
+def _resolve_token(
+    creds: HTTPAuthorizationCredentials = Depends(_bearer),
+) -> str:
+    return creds.credentials
 
 
 def _handle_exc(e: Exception) -> HTTPException:
@@ -250,28 +261,150 @@ async def rendered_image(
 
 
 # ---------------------------------------------------------------------------
-# Chat history
+# Chat sessions
+# ---------------------------------------------------------------------------
+
+@router.post("/sessions", response_model=SessionResponse)
+async def create_new_session(
+    token: str = Depends(_resolve_token),
+    request: Request = None,
+):
+    reg = _get_registry(request)
+    uid = reg.get_uid(token)
+    if uid is None:
+        raise HTTPException(status_code=401, detail={"error": "Token 無效或已過期", "error_code": "AUTH_002"})
+    session_id = await reg.create_session(token)
+    if session_id is None:
+        raise HTTPException(status_code=401, detail={"error": "Token 無效或已過期", "error_code": "AUTH_002"})
+    info = get_session_info(session_id)
+    return SessionResponse(
+        session_id=session_id,
+        title=info.title if info else None,
+        created_at=info.created_at if info else 0,
+        updated_at=info.updated_at if info else 0,
+    )
+
+
+@router.get("/sessions")
+async def list_user_sessions(uid: str = Depends(_resolve_uid)):
+    sessions = list_sessions(uid)
+    return {
+        "sessions": [
+            {"session_id": s.session_id, "title": s.title,
+             "created_at": s.created_at, "updated_at": s.updated_at}
+            for s in sessions
+        ]
+    }
+
+
+@router.delete("/sessions/{session_id}")
+async def delete_session_endpoint(
+    session_id: str,
+    uid: str = Depends(_resolve_uid),
+):
+    info = get_session_info(session_id)
+    if info is None or info.uid != uid:
+        raise HTTPException(status_code=404, detail={"error": "Session 不存在", "error_code": "NOT_FOUND"})
+    clear_history(session_id)
+    delete_session(session_id)
+    return {"ok": True}
+
+
+@router.put("/sessions/{session_id}/activate")
+async def activate_session(
+    session_id: str,
+    token: str = Depends(_resolve_token),
+    request: Request = None,
+):
+    reg = _get_registry(request)
+    uid = reg.get_uid(token)
+    info = get_session_info(session_id)
+    if info is None or info.uid != uid:
+        raise HTTPException(status_code=404, detail={"error": "Session 不存在", "error_code": "NOT_FOUND"})
+    ok = await reg.switch_session(token, session_id)
+    if not ok:
+        raise HTTPException(status_code=401, detail={"error": "Token 無效或已過期", "error_code": "AUTH_002"})
+    return {"ok": True, "session_id": session_id}
+
+
+# ---------------------------------------------------------------------------
+# Chat history (session-scoped)
 # ---------------------------------------------------------------------------
 
 class SaveHistoryBody(BaseModel):
+    session_id: str
     messages: list[dict]
 
 
 @router.get("/history")
-async def get_history(uid: str = Depends(_resolve_uid)):
-    return {"messages": load_history(uid)}
+async def get_history(
+    session_id: str = Query(...),
+    uid: str = Depends(_resolve_uid),
+):
+    info = get_session_info(session_id)
+    if info is None or info.uid != uid:
+        raise HTTPException(status_code=404, detail={"error": "Session 不存在", "error_code": "NOT_FOUND"})
+    return {"messages": load_history(session_id)}
 
 
 @router.post("/history")
 async def post_history(body: SaveHistoryBody, uid: str = Depends(_resolve_uid)):
-    save_history(uid, body.messages)
+    info = get_session_info(body.session_id)
+    if info is None or info.uid != uid:
+        raise HTTPException(status_code=404, detail={"error": "Session 不存在", "error_code": "NOT_FOUND"})
+    save_history(body.session_id, uid, body.messages)
     return {"ok": True}
 
 
 @router.delete("/history")
-async def delete_history(uid: str = Depends(_resolve_uid)):
-    clear_history(uid)
+async def delete_history(
+    session_id: str = Query(...),
+    uid: str = Depends(_resolve_uid),
+):
+    info = get_session_info(session_id)
+    if info is None or info.uid != uid:
+        raise HTTPException(status_code=404, detail={"error": "Session 不存在", "error_code": "NOT_FOUND"})
+    clear_history(session_id)
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Token usage
+# ---------------------------------------------------------------------------
+
+@router.get("/token-usage")
+async def user_token_usage(
+    days: int = Query(default=30, ge=1, le=365),
+    uid: str = Depends(_resolve_uid),
+):
+    stats = get_user_usage(uid, days=days)
+    return {
+        "days": days,
+        "input_tokens": stats.input_tokens,
+        "output_tokens": stats.output_tokens,
+        "cached_tokens": stats.cached_tokens,
+        "cost_usd": round(stats.cost_usd, 6),
+        "turns": stats.turns,
+    }
+
+
+@router.get("/token-usage/{session_id}")
+async def session_token_usage(
+    session_id: str,
+    uid: str = Depends(_resolve_uid),
+):
+    info = get_session_info(session_id)
+    if info is None or info.uid != uid:
+        raise HTTPException(status_code=404, detail={"error": "Session 不存在", "error_code": "NOT_FOUND"})
+    stats = get_session_usage(session_id)
+    return {
+        "session_id": session_id,
+        "input_tokens": stats.input_tokens,
+        "output_tokens": stats.output_tokens,
+        "cached_tokens": stats.cached_tokens,
+        "cost_usd": round(stats.cost_usd, 6),
+        "turns": stats.turns,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -280,6 +413,25 @@ async def delete_history(uid: str = Depends(_resolve_uid)):
 
 _UPLOAD_DIR = pathlib.Path(__file__).parent.parent.parent / "uploads"
 _MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
+
+
+@router.post("/upload")
+async def upload_file(
+    file: UploadFile = File(...),
+    uid: str = Depends(_resolve_uid),
+):
+    content = await file.read()
+    if len(content) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=400, detail={"error": "檔案過大（上限 10 MB）"})
+
+    dest_dir = _UPLOAD_DIR / uid
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    safe_name = pathlib.Path(file.filename or "upload").name
+    dest = dest_dir / safe_name
+    dest.write_bytes(content)
+
+    return {"path": str(dest), "name": safe_name}
 
 
 # ---------------------------------------------------------------------------
@@ -309,8 +461,8 @@ async def delete_llm_settings(uid: str = Depends(_resolve_uid)):
 @router.post("/settings/llm/test")
 async def test_llm_settings(body: LLMConfigRequest, uid: str = Depends(_resolve_uid)):
     try:
-        client = OpenAI(api_key=body.api_key or "EMPTY", base_url=body.base_url)
-        resp = client.chat.completions.create(
+        client = AsyncOpenAI(api_key=body.api_key or "EMPTY", base_url=body.base_url)
+        resp = await client.chat.completions.create(
             model=body.model,
             messages=[{"role": "user", "content": "hi"}],
             max_tokens=5,
@@ -324,32 +476,9 @@ async def test_llm_settings(body: LLMConfigRequest, uid: str = Depends(_resolve_
 @router.post("/settings/llm/models")
 async def list_llm_models(body: LLMModelsRequest, uid: str = Depends(_resolve_uid)):
     try:
-        client = OpenAI(api_key=body.api_key or "EMPTY", base_url=body.base_url)
-        result = client.models.list()
+        client = AsyncOpenAI(api_key=body.api_key or "EMPTY", base_url=body.base_url)
+        result = await client.models.list()
         ids = sorted(m.id for m in result.data)
         return {"ok": True, "models": ids}
     except Exception as e:
         return {"ok": False, "models": [], "error": str(e)}
-
-
-# ---------------------------------------------------------------------------
-# File upload (for leave attachments)
-# ---------------------------------------------------------------------------
-
-@router.post("/upload")
-async def upload_file(
-    file: UploadFile = File(...),
-    uid: str = Depends(_resolve_uid),
-):
-    content = await file.read()
-    if len(content) > _MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=400, detail={"error": "檔案過大（上限 10 MB）"})
-
-    dest_dir = _UPLOAD_DIR / uid
-    dest_dir.mkdir(parents=True, exist_ok=True)
-
-    safe_name = pathlib.Path(file.filename or "upload").name
-    dest = dest_dir / safe_name
-    dest.write_bytes(content)
-
-    return {"path": str(dest), "name": safe_name}
