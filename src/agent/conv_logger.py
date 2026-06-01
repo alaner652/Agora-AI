@@ -28,10 +28,7 @@ class TurnLog:
     user: str
     tool_calls: list[ToolCallLog] = field(default_factory=list)
     assistant: str = ""
-    confidence: dict | None = None
-    latency_ms: float = 0.0
-    llm_calls: int = 0
-    token_usage: dict | None = None
+    _meta: dict | None = None
 
 
 @dataclass
@@ -52,7 +49,7 @@ class ConversationLogger:
     Hooks (call in order per turn):
         on_user_message(text)
         on_tool_call(name, args, result_json, latency_ms)   [0..N times]
-        on_assistant_response(text)
+        on_assistant_response(text, *, llm_calls, llm_ms, token_usage)
     Call close() when the session ends to stamp ended_at.
     """
 
@@ -99,7 +96,6 @@ class ConversationLogger:
         try:
             result = json.loads(result_json)
             if isinstance(result, dict):
-                # Error if: has "error" key (legacy _err format) OR success is explicitly False
                 ok = not ("error" in result or result.get("success") is False)
                 error_code = result.get("error_code")
             else:
@@ -125,15 +121,33 @@ class ConversationLogger:
         text: str,
         *,
         llm_calls: int = 0,
+        llm_ms: float = 0.0,
         token_usage: dict | None = None,
     ) -> None:
         if self._current_turn is None:
             return
         self._current_turn.assistant = text
-        self._current_turn.latency_ms = round((time.monotonic() - self._turn_start) * 1000, 1)
-        self._current_turn.llm_calls = llm_calls
-        self._current_turn.token_usage = token_usage
-        self._current_turn.confidence = self._compute_confidence(self._current_turn)
+        total_ms = round((time.monotonic() - self._turn_start) * 1000, 1)
+        tool_ms = round(sum(tc.latency_ms for tc in self._current_turn.tool_calls), 1)
+        self._current_turn._meta = {
+            "confidence": self._compute_confidence(self._current_turn),
+            "latency": {
+                "total_ms": total_ms,
+                "llm_ms": round(llm_ms, 1),
+                "tool_ms": tool_ms,
+            },
+            "llm_calls": llm_calls,
+            **({"tokens": token_usage} if token_usage else {}),
+        }
+        self._session.turns.append(self._current_turn)
+        self._current_turn = None
+        self._flush()
+
+    def flush_on_error(self) -> None:
+        """Flush current partial turn on abnormal exit (no assistant response recorded)."""
+        if self._current_turn is None:
+            return
+        self._current_turn._meta = {"error": True}
         self._session.turns.append(self._current_turn)
         self._current_turn = None
         self._flush()
@@ -165,11 +179,11 @@ class ConversationLogger:
             "score": score,
             "source": "rule",
             "signals": {
-                "all_tools_ok":      all_ok,
-                "used_ask_user":     used_confirm,
-                "unconfirmed":       has_unconfirmed,
-                "tool_count":        len(calls),
-                "error_codes":       error_codes,
+                "all_tools_ok":       all_ok,
+                "used_ask_user":      used_confirm,
+                "unconfirmed":        has_unconfirmed,
+                "tool_count":         len(calls),
+                "error_codes":        error_codes,
                 "hallucination_risk": hallucination_risk,
             },
         }

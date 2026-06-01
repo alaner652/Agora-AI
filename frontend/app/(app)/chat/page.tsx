@@ -4,9 +4,10 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Bot, Paperclip, Send, Square, ChevronRight, History } from 'lucide-react'
+import { Bot, Paperclip, Send, Square, ChevronRight, History, LayoutGrid } from 'lucide-react'
 import { getCookie, deleteCookie } from '@/lib/cookie'
 import { SessionHistoryPanel } from '@/components/SessionHistoryPanel'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import type { ToolRecord, TextMessage } from '@/lib/data'
 import { newSession } from '@/lib/data'
 
@@ -356,8 +357,8 @@ export default function ChatPage() {
     if (!input.trim() || streaming) return
     const token = getCookie('token')
     if (!token) { router.push('/login'); return }
-    let userMsg = input.trim()
-    if (uploadedFile) userMsg += `\n\n（附件路徑：${uploadedFile.path}）`
+    const userMsg = input.trim()
+    const attachmentPath = uploadedFile?.path ?? null
     setInput('')
     setUploadedFile(null)
     if (textareaRef.current) {
@@ -365,9 +366,9 @@ export default function ChatPage() {
     }
     setMessages(prev => [...prev, {
       role: 'user',
-      content: uploadedFile ? `${input.trim()}\n📎 ${uploadedFile.name}` : userMsg,
+      content: uploadedFile ? `${userMsg}\n📎 ${uploadedFile.name}` : userMsg,
     }])
-    await runStream(`${BASE}/chat`, { token, message: userMsg })
+    await runStream(`${BASE}/chat`, { token, message: userMsg, attachment_path: attachmentPath })
   }
 
   function sendSuggestion(text: string) {
@@ -434,15 +435,6 @@ export default function ChatPage() {
         viewingSessionId={viewingSessionId}
         disabled={streaming}
       />
-
-      {/* Fixed 會話管理 button */}
-      <button
-        onClick={() => setHistoryPanelOpen(true)}
-        className="fixed top-14 left-4 z-20 flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg shadow-sm transition-colors"
-      >
-        <History className="w-3.5 h-3.5" />
-        會話管理
-      </button>
 
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto bg-stone-50 relative">
@@ -599,6 +591,26 @@ export default function ChatPage() {
 
           <div className="flex gap-2 items-end">
             <input ref={fileInputRef} type="file" className="hidden" accept="image/*,.pdf" onChange={handleFileSelect} />
+
+            <Popover>
+              <PopoverTrigger
+                type="button"
+                title="工具箱"
+                className="h-9 w-9 flex items-center justify-center rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 hover:bg-stone-50 transition-colors shrink-0"
+              >
+                <LayoutGrid className="w-4 h-4" />
+              </PopoverTrigger>
+              <PopoverContent side="top" align="start" className="w-44 p-1.5 gap-0">
+                <button
+                  onClick={() => setHistoryPanelOpen(true)}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-stone-700 hover:bg-stone-100 rounded-md transition-colors"
+                >
+                  <History className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                  會話管理
+                </button>
+              </PopoverContent>
+            </Popover>
+
             <button type="button" onClick={() => fileInputRef.current?.click()}
               disabled={streaming || uploading} title="上傳附件"
               className="h-9 w-9 flex items-center justify-center rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 hover:bg-stone-50 disabled:opacity-40 transition-colors shrink-0">

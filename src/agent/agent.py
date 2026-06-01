@@ -138,8 +138,9 @@ class ChatAgent:
         # Tracks tool names called within the current user turn (for unconfirmed detection).
         # Reset in step(); carried over into answer_ask_user() so ask_user is visible.
         self._recent_tool_names: list[str] = []
-        # Per-turn LLM call counter and token accumulator; reset in step().
+        # Per-turn LLM call counter, latency, and token accumulator; reset in step().
         self._turn_llm_calls: int = 0
+        self._turn_llm_ms: float = 0.0
         self._turn_tokens: dict[str, int] = {}
 
     # ------------------------------------------------------------------
@@ -165,6 +166,7 @@ class ChatAgent:
         """Process one user turn; yield events until done."""
         self._recent_tool_names: list[str] = []   # reset per user turn
         self._turn_llm_calls = 0
+        self._turn_llm_ms = 0.0
         self._turn_tokens = {}
         if self._logger:
             self._logger.on_user_message(user_message)
@@ -176,8 +178,12 @@ class ChatAgent:
             self._memory.add({"role": "user", "content": content})
         else:
             self._memory.add({"role": "user", "content": user_message})
-        async for event in self._run_loop():
-            yield event
+        try:
+            async for event in self._run_loop():
+                yield event
+        finally:
+            if self._logger and self._logger._current_turn is not None:
+                self._logger.flush_on_error()
 
     async def answer_ask_user(self, selected: str) -> AsyncIterator[AgentEvent]:
         """Resume after the user answered an AskUser prompt."""
@@ -223,6 +229,7 @@ class ChatAgent:
                 tool_choice="auto",
             )
 
+            _t_llm = time.monotonic()
             try:
                 response = self._llm.chat.completions.create(**create_kwargs)
             except (APITimeoutError, APIConnectionError):
@@ -230,6 +237,7 @@ class ChatAgent:
                 if self._memory.history and self._memory.history[-1].get("role") == "user":
                     self._memory.history.pop()
                 raise
+            self._turn_llm_ms += (time.monotonic() - _t_llm) * 1000
 
             msg = response.choices[0].message
             self._memory.add(_message_to_dict(msg))
@@ -247,6 +255,7 @@ class ChatAgent:
                     self._logger.on_assistant_response(
                         "".join(text_buf),
                         llm_calls=self._turn_llm_calls,
+                        llm_ms=self._turn_llm_ms,
                         token_usage=self._turn_tokens or None,
                     )
                 yield DoneEvent()
