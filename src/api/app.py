@@ -238,7 +238,7 @@ def _load_attachment(path_str: str | None) -> tuple[str | None, str]:
 
 
 @app.post("/chat")
-@limiter.limit("5/minute")
+@limiter.limit("20/minute")  # Increased from 5/min to 20/min to support rapid-fire queries and tool call loops
 async def chat(request: Request, body: ChatRequest):
     agent, lock, session_id = await _resolve_agent(body.token, body.session_id)
 
@@ -266,7 +266,7 @@ async def chat(request: Request, body: ChatRequest):
 
 
 @app.post("/answer")
-@limiter.limit("5/minute")
+@limiter.limit("20/minute")  # Increased from 5/min to 20/min to support ask_user followups during tool loops
 async def answer(request: Request, body: AnswerRequest):
     agent, lock, session_id = await _resolve_agent(body.token, body.session_id)
 

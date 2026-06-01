@@ -14,6 +14,8 @@ export interface ToolRecord {
   ok: boolean | null
   data?: string
   unconfirmed?: boolean
+  /** Track retry count for failed tool calls */
+  retryCount?: number
 }
 
 export interface ThinkingBlock {

@@ -115,6 +115,13 @@ interface ChatState {
   setInputText: (text: string) => void
   setUploadedFile: (file: { path: string; name: string } | null) => void
 
+  // ── Tool retry ──
+  /**
+   * Retry a failed tool call by re-sending the user's original message.
+   * Increments retryCount and returns a new message ID for the retry.
+   */
+  retryFailedTool: (msgId: string, toolName: string) => string | null
+
   // ── Provider ──
   setProviderInfo: (info: ProviderInfo) => void
 }
@@ -320,10 +327,59 @@ export const useChatStore = create<ChatState>()((set, get) => ({
 
   setUploadedFile: (uploadedFile) => set({ uploadedFile }),
 
+  // ── Tool retry ──────────────────────────────────────────────────────────
+
+  retryFailedTool: (msgId, toolName) => {
+    const { activeSessionId, messageMap } = get()
+    if (!activeSessionId) return null
+
+    const messages = messageMap[activeSessionId]
+    if (!messages) return null
+
+    // Find the assistant message with this tool call
+    let userMsgBefore: Message | undefined
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i]
+      if (msg.id === msgId && msg.role === 'assistant') {
+        // Find the user message that preceded this assistant response
+        for (let j = i - 1; j >= 0; j--) {
+          if (messages[j].role === 'user') {
+            userMsgBefore = messages[j]
+            break
+          }
+        }
+        break
+      }
+    }
+
+    if (!userMsgBefore || userMsgBefore.role !== 'user') return null
+
+    // Create a new user message with retry context
+    const newUserMsgId = uid()
+    const newMsg: UserMessage = {
+      id: newUserMsgId,
+      role: 'user',
+      content: `[重試] ${userMsgBefore.content}`,
+      attachment: userMsgBefore.attachment,
+      status: 'sent',
+      createdAt: Date.now(),
+    }
+
+    // Append new user message to conversation
+    set({
+      messageMap: {
+        ...messageMap,
+        [activeSessionId]: [...messages, newMsg],
+      },
+    })
+
+    return newUserMsgId
+  },
+
   // ── Provider ────────────────────────────────────────────────────────────
 
   setProviderInfo: (providerInfo) => set({ providerInfo }),
-}))
+})
 
 // ─── Selectors ───────────────────────────────────────────────────────────────
 
