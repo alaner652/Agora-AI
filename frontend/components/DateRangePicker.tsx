@@ -16,7 +16,7 @@ interface DateRangePickerProps {
   onQuickApply?: (start: string, end: string) => void
 }
 
-const quickCls = 'text-xs text-indigo-500 hover:text-indigo-600 hover:underline transition-colors'
+const quickCls = 'text-xs text-primary hover:text-primary hover:underline transition-colors'
 
 function parseInputDate(s: string): Date | undefined {
   if (!s) return undefined
@@ -63,16 +63,16 @@ export function DateRangePicker({
   return (
     <div>
       <div className="flex items-center gap-1.5 mb-1.5">
-        <label className="text-xs text-stone-500">日期範圍</label>
+        <label className="text-xs text-muted-foreground">日期範圍</label>
         <button type="button" onClick={() => applyQuick(todayRange())} className={quickCls}>今天</button>
-        <span className="text-stone-300 text-xs">|</span>
+        <span className="text-muted-foreground/50 text-xs">|</span>
         <button type="button" onClick={() => applyQuick(thisMonthRange())} className={quickCls}>本月</button>
-        <span className="text-stone-300 text-xs">|</span>
+        <span className="text-muted-foreground/50 text-xs">|</span>
         <button type="button" onClick={() => applyQuick(lastMonthRange())} className={quickCls}>上個月</button>
       </div>
       <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger className="flex items-center gap-2 rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm text-stone-900 hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-indigo-400/50 transition-colors">
-          <CalendarIcon className="w-4 h-4 text-stone-400 shrink-0" />
+        <PopoverTrigger className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm text-foreground hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors">
+          <CalendarIcon className="w-4 h-4 text-muted-foreground/70 shrink-0" />
           <span>{formatDisplay(start, end)}</span>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start" side="bottom" sideOffset={6}>

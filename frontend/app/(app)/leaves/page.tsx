@@ -50,7 +50,7 @@ function getWorkdays(startStr: string, endStr: string): Date[] {
 
 function toCEInputFromDate(d: Date) { return d.toISOString().slice(0, 10) }
 
-const dateCls = 'bg-white border border-stone-200 text-stone-900 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400/50 w-full'
+const dateCls = 'bg-card border border-border text-foreground rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 w-full'
 
 function StatusBadge({ label }: { label: string }) {
   return (
@@ -67,18 +67,18 @@ function LeaveNotice({ onAck }: { onAck: () => void }) {
     <>
       <DialogHeader>
         <DialogTitle>學生請假注意事項</DialogTitle>
-        <p className="text-xs text-stone-400">請閱讀以下事項後，再進行請假申請。</p>
+        <p className="text-xs text-muted-foreground/70">請閱讀以下事項後，再進行請假申請。</p>
       </DialogHeader>
       <div className="space-y-3 max-h-80 overflow-y-auto pr-1 -mx-1 px-1">
         {LEAVE_NOTICE_ITEMS.map((item, i) => (
           <div key={i} className="flex gap-3">
-            <span className="text-indigo-500 text-xs font-medium shrink-0 mt-0.5 w-24">{item.label}</span>
-            <div className="text-xs text-stone-600 leading-relaxed">
+            <span className="text-primary text-xs font-medium shrink-0 mt-0.5 w-24">{item.label}</span>
+            <div className="text-xs text-muted-foreground leading-relaxed">
               {item.steps ? (
                 <ol className="space-y-1">
                   {item.steps.map((s, j) => (
                     <li key={j} className="flex gap-1.5">
-                      <span className="text-stone-400 shrink-0">{j + 1}.</span>
+                      <span className="text-muted-foreground/70 shrink-0">{j + 1}.</span>
                       <span>{s}</span>
                     </li>
                   ))}
@@ -88,9 +88,9 @@ function LeaveNotice({ onAck }: { onAck: () => void }) {
           </div>
         ))}
       </div>
-      <div className="pt-3 border-t border-stone-100 flex items-center justify-between gap-3">
-        <p className="text-xs text-indigo-500 font-medium flex-1">請假經核准後送生活輔導組登錄，未經登錄視同曠課。</p>
-        <Button onClick={onAck} className="bg-indigo-500 hover:bg-indigo-600 text-white shrink-0">
+      <div className="pt-3 border-t border-border/60 flex items-center justify-between gap-3">
+        <p className="text-xs text-primary font-medium flex-1">請假經核准後送生活輔導組登錄，未經登錄視同曠課。</p>
+        <Button onClick={onAck} className="bg-primary hover:bg-primary/90 text-white shrink-0">
           我已閱讀，開始申請
         </Button>
       </div>
@@ -188,7 +188,7 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
     return (
       <div className="py-8 text-center">
         <p className="text-emerald-600 font-medium text-lg">✓ 假單申請成功！</p>
-        {workdays.length > 1 && <p className="text-stone-400 text-sm mt-1">共 {workdays.length} 天</p>}
+        {workdays.length > 1 && <p className="text-muted-foreground/70 text-sm mt-1">共 {workdays.length} 天</p>}
       </div>
     )
   }
@@ -202,17 +202,17 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
       {/* 請假日期 */}
       <div>
         <div className="flex items-center gap-2 mb-1.5">
-          <label className="text-xs font-medium text-stone-600">請假日期</label>
-          <span className="text-stone-200 text-xs">|</span>
+          <label className="text-xs font-medium text-muted-foreground">請假日期</label>
+          <span className="text-muted-foreground/30 text-xs">|</span>
           {[['今天', 0], ['明天', 1]].map(([label, offset]) => (
             <button key={label} type="button"
               onClick={() => setQuickDate(offset as number)}
-              className="text-xs text-indigo-500 hover:text-indigo-600 hover:underline transition-colors">
+              className="text-xs text-primary hover:text-primary hover:underline transition-colors">
               {label}
             </button>
           ))}
           <button type="button" onClick={setThisWeek}
-            className="text-xs text-indigo-500 hover:text-indigo-600 hover:underline transition-colors">
+            className="text-xs text-primary hover:text-primary hover:underline transition-colors">
             本週
           </button>
         </div>
@@ -220,13 +220,13 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
           <input type="date" value={formStart}
             onChange={e => { setFormStart(e.target.value); setPeriods(new Set()) }}
             className={dateCls} />
-          <span className="text-stone-300 text-sm shrink-0">—</span>
+          <span className="text-muted-foreground/50 text-sm shrink-0">—</span>
           <input type="date" value={formEnd} min={formStart}
             onChange={e => setFormEnd(e.target.value)} className={dateCls} />
         </div>
         {workdays.length > 0 && (
-          <p className="mt-1 text-xs text-stone-400">
-            共 <span className="text-indigo-500 font-medium">{workdays.length}</span> 個工作日
+          <p className="mt-1 text-xs text-muted-foreground/70">
+            共 <span className="text-primary font-medium">{workdays.length}</span> 個工作日
             {workdays.length > 1 && '（已排除週六日）'}
           </p>
         )}
@@ -238,15 +238,15 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
       {/* 假別 + 原因 */}
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-stone-600 mb-1">假別</label>
+          <label className="block text-xs font-medium text-muted-foreground mb-1">假別</label>
           {!rocStartDate ? (
             <Select disabled>
               <SelectTrigger className="w-full"><SelectValue placeholder="請先選擇日期" /></SelectTrigger>
               <SelectContent />
             </Select>
           ) : formLoading ? (
-            <div className="flex items-center gap-2 h-8 text-xs text-stone-400">
-              <div className="border-2 border-stone-200 border-t-indigo-500 rounded-full animate-spin w-3.5 h-3.5" />
+            <div className="flex items-center gap-2 h-8 text-xs text-muted-foreground/70">
+              <div className="border-2 border-border border-t-primary rounded-full animate-spin w-3.5 h-3.5" />
               載入中...
             </div>
           ) : (
@@ -263,7 +263,7 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
           )}
         </div>
         <div>
-          <label className="block text-xs font-medium text-stone-600 mb-1">原因</label>
+          <label className="block text-xs font-medium text-muted-foreground mb-1">原因</label>
           <Input value={reason} onChange={e => setReason(e.target.value)} placeholder="請假原因" />
         </div>
       </div>
@@ -272,11 +272,11 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
       {rocStartDate && (
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <label className="text-xs font-medium text-stone-600">節次</label>
-            {isMultiDay && <span className="text-xs text-stone-400">（以起始日為準）</span>}
+            <label className="text-xs font-medium text-muted-foreground">節次</label>
+            {isMultiDay && <span className="text-xs text-muted-foreground/70">（以起始日為準）</span>}
           </div>
           {formLoading ? (
-            <p className="text-xs text-stone-400">載入節次中...</p>
+            <p className="text-xs text-muted-foreground/70">載入節次中...</p>
           ) : formData?.period_order && formData.period_order.length > 0 ? (
             <>
               <div className="flex flex-wrap gap-1.5">
@@ -287,40 +287,40 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
                     <button key={p} type="button" onClick={() => togglePeriod(p)}
                       className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
                         selected
-                          ? 'bg-indigo-500 text-white border-indigo-500'
+                          ? 'bg-primary text-white border-primary'
                           : hasClass
-                            ? 'bg-indigo-50 text-indigo-600 border-indigo-200 hover:bg-indigo-100'
-                            : 'bg-white text-stone-500 border-stone-200 hover:bg-stone-50'
+                            ? 'bg-accent text-primary border-primary/40 hover:bg-accent'
+                            : 'bg-card text-muted-foreground border-border hover:bg-accent/50'
                       }`}
                     >{p}</button>
                   )
                 })}
               </div>
-              <p className="mt-1 text-xs text-stone-400">藍色為有課節次</p>
+              <p className="mt-1 text-xs text-muted-foreground/70">藍色為有課節次</p>
             </>
           ) : (
-            <p className="text-xs text-stone-400">無法取得節次資訊</p>
+            <p className="text-xs text-muted-foreground/70">無法取得節次資訊</p>
           )}
         </div>
       )}
 
       {/* 附件 */}
       <div>
-        <label className="block text-xs font-medium text-stone-600 mb-1">
+        <label className="block text-xs font-medium text-muted-foreground mb-1">
           附件{isPublicLeave && <span className="text-red-500 ml-0.5">*</span>}
-          <span className="text-stone-400 ml-1 font-normal">（JPEG / PDF，最大 3MB）</span>
+          <span className="text-muted-foreground/70 ml-1 font-normal">（JPEG / PDF，最大 3MB）</span>
         </label>
         {file ? (
           <div className="flex items-center gap-2">
-            <span className="text-sm text-stone-700 truncate">{file.name}</span>
+            <span className="text-sm text-foreground/80 truncate">{file.name}</span>
             <button type="button" onClick={() => setFile(null)}
-              className="text-stone-400 hover:text-red-500 transition-colors shrink-0">
+              className="text-muted-foreground/70 hover:text-red-500 transition-colors shrink-0">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
         ) : (
           <input type="file" accept=".jpg,.jpeg,.pdf" onChange={handleFileChange}
-            className="text-sm text-stone-500 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border file:border-stone-200 file:text-xs file:text-stone-700 file:bg-stone-50 hover:file:bg-stone-100 transition-colors" />
+            className="text-sm text-muted-foreground file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border file:border-border file:text-xs file:text-foreground/80 file:bg-muted/30 hover:file:bg-muted transition-colors" />
         )}
         {fileError && <p className="mt-1 text-xs text-red-600">{fileError}</p>}
       </div>
@@ -329,16 +329,16 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
 
       {/* Progress */}
       {progress && (
-        <div className="bg-stone-50 border border-stone-200 rounded-lg px-4 py-3">
+        <div className="bg-muted/30 border border-border rounded-lg px-4 py-3">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-stone-600">送出中 {progress.current} / {progress.total}</span>
-            <div className="border-2 border-stone-200 border-t-indigo-500 rounded-full animate-spin w-4 h-4" />
+            <span className="text-xs text-muted-foreground">送出中 {progress.current} / {progress.total}</span>
+            <div className="border-2 border-border border-t-primary rounded-full animate-spin w-4 h-4" />
           </div>
           <div className="w-full bg-stone-200 rounded-full h-1.5">
-            <div className="bg-indigo-500 h-1.5 rounded-full transition-all"
+            <div className="bg-primary h-1.5 rounded-full transition-all"
               style={{ width: `${(progress.current / progress.total) * 100}%` }} />
           </div>
-          <p className="text-xs text-stone-400 mt-1.5">{progress.day}</p>
+          <p className="text-xs text-muted-foreground/70 mt-1.5">{progress.day}</p>
         </div>
       )}
 
@@ -358,7 +358,7 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
               {workdays.map(d => {
                 const s = toCEInputFromDate(d)
                 return (
-                  <span key={s} className="text-[10px] bg-white text-stone-500 border border-stone-200 rounded px-1.5 py-0.5">
+                  <span key={s} className="text-[10px] bg-card text-muted-foreground border border-border rounded px-1.5 py-0.5">
                     {s}
                   </span>
                 )
@@ -367,7 +367,7 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
           )}
           <div className="flex gap-2 mt-3">
             <Button onClick={handleBatchSubmit} disabled={!!progress}
-              className="bg-indigo-500 hover:bg-indigo-600 text-white h-8 text-xs">
+              className="bg-primary hover:bg-primary/90 text-white h-8 text-xs">
               確認送出
             </Button>
             <Button variant="outline" onClick={() => setConfirm(false)} className="h-8 text-xs">
@@ -376,11 +376,11 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
           </div>
         </div>
       ) : !progress && (
-        <div className="flex justify-end gap-2 pt-1 border-t border-stone-100 -mx-4 -mb-4 px-4 pb-4 bg-muted/30 rounded-b-xl">
+        <div className="flex justify-end gap-2 pt-1 border-t border-border/60 -mx-4 -mb-4 px-4 pb-4 bg-muted/30 rounded-b-xl">
           <Button variant="ghost" onClick={onClose} className="h-8 text-xs">取消</Button>
           <Button onClick={() => { setSubmitMsg(''); setConfirm(true) }}
             disabled={!canSubmit}
-            className="bg-indigo-500 hover:bg-indigo-600 text-white h-8 text-xs">
+            className="bg-primary hover:bg-primary/90 text-white h-8 text-xs">
             確認申請
           </Button>
         </div>
@@ -417,15 +417,15 @@ function DeleteButton({ leave, onDeleted }: { leave: LeaveItem; onDeleted: () =>
           className="text-xs text-red-600 hover:text-red-700 font-medium disabled:opacity-50 transition-colors">
           {mutation.isPending ? '刪除中...' : '確認'}
         </button>
-        <span className="text-stone-200 text-xs">|</span>
-        <button onClick={() => setConfirm(false)} className="text-xs text-stone-400 hover:text-stone-600 transition-colors">取消</button>
+        <span className="text-muted-foreground/30 text-xs">|</span>
+        <button onClick={() => setConfirm(false)} className="text-xs text-muted-foreground/70 hover:text-foreground transition-colors">取消</button>
       </div>
     )
   }
 
   return (
     <button onClick={() => setConfirm(true)}
-      className="text-stone-300 hover:text-red-400 transition-colors shrink-0 p-1 rounded-md hover:bg-red-50">
+      className="text-muted-foreground/50 hover:text-red-400 transition-colors shrink-0 p-1 rounded-md hover:bg-red-500/15">
       <Trash2 className="w-3.5 h-3.5" />
     </button>
   )
@@ -525,7 +525,7 @@ export default function LeavesPage() {
           查詢
         </Button>
         <Button onClick={handleApplyClick}
-          className="bg-indigo-500 hover:bg-indigo-600 text-white ml-auto self-end">
+          className="bg-primary hover:bg-primary/90 text-white ml-auto self-end">
           <Plus className="w-4 h-4" />
           申請假單
         </Button>
@@ -534,39 +534,39 @@ export default function LeavesPage() {
       {/* Table */}
       <PageLayout.Table loading={isLoading}>
         {leaves && (leaves.length === 0 ? (
-          <p className="text-stone-400 text-sm text-center py-10">此區間無假單</p>
+          <p className="text-muted-foreground/70 text-sm text-center py-10">此區間無假單</p>
         ) : (
           <>
             {/* Desktop */}
             <div className="hidden md:block">
               <table className="w-full text-sm table-fixed">
                 <thead>
-                  <tr className="bg-stone-50 border-b border-stone-200">
-                    <th className="text-left px-4 py-2.5 font-medium text-stone-500">事由 / 假單號</th>
-                    <th className="text-left px-4 py-2.5 font-medium text-stone-500 w-36">請假日期</th>
-                    <th className="text-left px-4 py-2.5 font-medium text-stone-500 w-24">申請日</th>
-                    <th className="text-center px-4 py-2.5 font-medium text-stone-500 w-24">導師</th>
-                    <th className="text-center px-4 py-2.5 font-medium text-stone-500 w-24">教務</th>
+                  <tr className="bg-muted/30 border-b border-border">
+                    <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">事由 / 假單號</th>
+                    <th className="text-left px-4 py-2.5 font-medium text-muted-foreground w-36">請假日期</th>
+                    <th className="text-left px-4 py-2.5 font-medium text-muted-foreground w-24">申請日</th>
+                    <th className="text-center px-4 py-2.5 font-medium text-muted-foreground w-24">導師</th>
+                    <th className="text-center px-4 py-2.5 font-medium text-muted-foreground w-24">教務</th>
                     <th className="w-12" />
                   </tr>
                 </thead>
                 <tbody>
                   {leaves.map((l, i) => (
-                    <tr key={i} className="border-b border-stone-100 last:border-0 align-top hover:bg-stone-50/80 transition-colors">
+                    <tr key={i} className="border-b border-border/60 last:border-0 align-top hover:bg-accent/40 transition-colors">
                       <td className="px-4 py-3">
-                        <p className="font-medium text-stone-800 truncate">{l.reason || '（無事由）'}</p>
-                        <p className="text-xs text-stone-400 mt-0.5 tabular-nums">#{l.barcode || l.index}</p>
+                        <p className="font-medium text-foreground truncate">{l.reason || '（無事由）'}</p>
+                        <p className="text-xs text-muted-foreground/70 mt-0.5 tabular-nums">#{l.barcode || l.index}</p>
                         {l.teacher_note && l.teacher_note !== '/' && (
-                          <p className="text-xs text-stone-400 mt-0.5 truncate">導師：{l.teacher_note}</p>
+                          <p className="text-xs text-muted-foreground/70 mt-0.5 truncate">導師：{l.teacher_note}</p>
                         )}
                         {l.officer_note && l.officer_note !== '/' && (
-                          <p className="text-xs text-stone-400 truncate">教務：{l.officer_note}</p>
+                          <p className="text-xs text-muted-foreground/70 truncate">教務：{l.officer_note}</p>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-stone-500 tabular-nums text-xs">
+                      <td className="px-4 py-3 text-muted-foreground tabular-nums text-xs">
                         {l.start_date === l.end_date ? l.start_date : `${l.start_date} — ${l.end_date}`}
                       </td>
-                      <td className="px-4 py-3 text-stone-400 tabular-nums text-xs">{l.apply_date}</td>
+                      <td className="px-4 py-3 text-muted-foreground/70 tabular-nums text-xs">{l.apply_date}</td>
                       <td className="px-4 py-3 text-center"><StatusBadge label={l.teacher_status} /></td>
                       <td className="px-4 py-3 text-center"><StatusBadge label={l.officer_status} /></td>
                       <td className="px-4 py-3 text-center">
@@ -579,23 +579,23 @@ export default function LeavesPage() {
             </div>
 
             {/* Mobile */}
-            <div className="md:hidden divide-y divide-stone-100">
+            <div className="md:hidden divide-y divide-border/60">
               {leaves.map((l, i) => (
                 <div key={i} className="px-4 py-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="font-medium text-stone-800 truncate">{l.reason || '（無事由）'}</p>
-                      <p className="text-xs text-stone-400 tabular-nums">#{l.barcode || l.index}</p>
+                      <p className="font-medium text-foreground truncate">{l.reason || '（無事由）'}</p>
+                      <p className="text-xs text-muted-foreground/70 tabular-nums">#{l.barcode || l.index}</p>
                     </div>
                     {l.can_delete && <DeleteButton leave={l} onDeleted={handleDeleted} />}
                   </div>
-                  <p className="mt-2 text-xs text-stone-500 tabular-nums">
+                  <p className="mt-2 text-xs text-muted-foreground tabular-nums">
                     {l.start_date === l.end_date ? l.start_date : `${l.start_date} — ${l.end_date}`}
                   </p>
-                  <p className="text-xs text-stone-400">申請：{l.apply_date}</p>
+                  <p className="text-xs text-muted-foreground/70">申請：{l.apply_date}</p>
                   <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <span className="text-xs text-stone-400">導師</span><StatusBadge label={l.teacher_status} />
-                    <span className="text-xs text-stone-400">教務</span><StatusBadge label={l.officer_status} />
+                    <span className="text-xs text-muted-foreground/70">導師</span><StatusBadge label={l.teacher_status} />
+                    <span className="text-xs text-muted-foreground/70">教務</span><StatusBadge label={l.officer_status} />
                   </div>
                 </div>
               ))}

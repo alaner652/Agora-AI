@@ -21,7 +21,7 @@ from actions.fetch_grades.index import get_grades as _grades
 from actions.fetch_leaves.index import get_leaves as _leaves
 from actions.apply_leave.index import apply_leave as _apply_leave, get_leave_form as _get_leave_form, LEAVE_TYPES
 from actions.delete_leave.index import delete_leave as _delete_leave
-from storage import save_history, load_history, clear_history, get_llm_config, set_llm_config, delete_llm_config, list_sessions, get_session_messages_slim, delete_session
+from storage import save_history, load_history, clear_history, get_llm_config, set_llm_config, delete_llm_config, list_sessions, get_session_messages_slim, delete_session, insert_file, get_file, get_conversation_messages
 
 from .models import LLMConfigRequest, LLMConfigResponse, LLMModelsRequest
 from .state import AgentRegistry
@@ -106,6 +106,25 @@ async def schedule(semester: str, jsessionid: str = Depends(_resolve_session)):
 async def absence_options(jsessionid: str = Depends(_resolve_session)):
     try:
         return await _abs_opts(jsessionid)
+    except Exception as e:
+        raise _handle_exc(e)
+
+
+@router.get("/absence/summary")
+async def absence_summary(jsessionid: str = Depends(_resolve_session)):
+    """Return count of unexcused absences (缺曠) for the current semester."""
+    try:
+        opts = await _abs_opts(jsessionid)
+        semesters = opts.get("semesters", [])
+        current = next((s["value"] for s in semesters if s.get("selected")), None)
+        if not current and semesters:
+            current = semesters[0]["value"]
+        if not current:
+            return {"total": 0, "semester": ""}
+        entries = await _absence(jsessionid, current, leave="00")
+        # Count only truancy (缺曠) entries
+        truancy = [e for e in entries if e.get("type") == "缺曠"]
+        return {"total": len(truancy), "semester": current}
     except Exception as e:
         raise _handle_exc(e)
 
@@ -325,6 +344,14 @@ async def switch_session_endpoint(
     return {"messages": messages}
 
 
+@router.get("/sessions/{session_id}/messages")
+async def get_session_messages_detail(session_id: str, uid: str = Depends(_resolve_uid)):
+    messages = get_conversation_messages(session_id, uid)
+    if messages is None:
+        raise HTTPException(status_code=404, detail={"error": "Session 不存在", "error_code": "NOT_FOUND"})
+    return {"messages": messages}
+
+
 @router.delete("/sessions/{session_id}")
 async def delete_session_endpoint(session_id: str, uid: str = Depends(_resolve_uid)):
     ok = delete_session(session_id, uid)
@@ -411,4 +438,16 @@ async def upload_file(
     dest = dest_dir / safe_name
     dest.write_bytes(content)
 
-    return {"path": str(dest), "name": safe_name}
+    file_id = insert_file(uid, safe_name, str(dest), len(content))
+    return {"file_id": file_id, "filename": safe_name}
+
+
+@router.get("/files/{file_id}")
+async def serve_file(file_id: str, uid: str = Depends(_resolve_uid)):
+    meta = get_file(file_id, uid)
+    if meta is None:
+        raise HTTPException(status_code=403, detail={"error": "檔案不存在或無權限", "error_code": "FORBIDDEN"})
+    p = pathlib.Path(meta["storage_path"])
+    if not p.exists():
+        raise HTTPException(status_code=404, detail={"error": "檔案已刪除", "error_code": "NOT_FOUND"})
+    return FileResponse(p, media_type=meta["mime_type"], filename=meta["filename"])

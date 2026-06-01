@@ -232,6 +232,17 @@ class ConversationLogger:
         )
         if self._persist_fn and self._session.turns:
             t = self._session.turns[-1]
+            tool_calls_data = [
+                {
+                    "name": tc.name,
+                    "input": tc.args,
+                    "output": tc.result,
+                    "ok": tc.ok,
+                    "latency_ms": tc.latency_ms,
+                    "error_code": tc.error_code,
+                }
+                for tc in t.tool_calls
+            ]
             self._persist_fn(
                 self._session.session_id,
                 self._uid,
@@ -242,4 +253,5 @@ class ConversationLogger:
                 t.turn_id,
                 t.user,
                 t.assistant,
+                tool_calls_data,
             )

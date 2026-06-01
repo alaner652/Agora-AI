@@ -8,7 +8,7 @@ import { Bot, Paperclip, Send, Square, ChevronRight, History, LayoutGrid } from 
 import { getCookie, deleteCookie } from '@/lib/cookie'
 import { SessionHistoryPanel } from '@/components/SessionHistoryPanel'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import type { ToolRecord, TextMessage } from '@/lib/data'
+import type { ToolRecord, TextMessage, Attachment } from '@/lib/data'
 import { newSession } from '@/lib/data'
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
@@ -89,11 +89,17 @@ async function* streamSse(url: string, body: object, signal: AbortSignal): Async
 }
 
 const TOOL_LABELS: Record<string, string> = {
-  get_semester_options: '取得學期清單', get_schedule: '查詢課表',
-  get_absence: '查詢缺曠', get_absence_options: '取得缺曠選項',
-  get_grades: '查詢成績', get_leaves: '查詢假單',
-  apply_leave: '申請假單', delete_leave: '刪除假單',
-  render_image: '產生圖表', ask_user: '詢問使用者',
+  get_current_date: '取得目前時間',
+  get_semester_options: '取得學期清單',
+  fetch_schedule: '查詢課表',
+  fetch_absence: '查詢缺曠',
+  fetch_grades: '查詢成績',
+  get_leaves: '查詢假單',
+  get_leave_form: '取得假單選項',
+  apply_leave: '申請假單',
+  delete_leave: '刪除假單',
+  render_image: '產生圖表',
+  ask_user: '詢問使用者',
 }
 
 const SUGGESTIONS = [
@@ -107,7 +113,7 @@ function ThinkingDots() {
   return (
     <div className="flex items-center gap-1.5 py-2 px-1">
       {[0, 150, 300].map(d => (
-        <span key={d} className="w-2 h-2 rounded-full bg-stone-300 animate-bounce"
+        <span key={d} className="w-2 h-2 rounded-full bg-muted-foreground/40 animate-bounce"
           style={{ animationDelay: `${d}ms` }} />
       ))}
     </div>
@@ -118,15 +124,15 @@ function LiveToolPanel({ calls }: { calls: ToolRecord[] }) {
   return (
     <div className="space-y-1.5 py-1">
       {calls.map((tc, i) => (
-        <div key={i} className="flex items-center gap-2 text-xs text-stone-400">
+        <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground">
           {tc.ok === null ? (
-            <div className="border-2 border-stone-200 border-t-indigo-500 rounded-full animate-spin w-3 h-3 shrink-0" />
+            <div className="border-2 border-border border-t-primary rounded-full animate-spin w-3 h-3 shrink-0" />
           ) : tc.ok ? (
-            <span className="text-emerald-500 shrink-0">✓</span>
+            <span className="text-emerald-400 shrink-0">✓</span>
           ) : (
-            <span className="text-red-500 shrink-0">✗</span>
+            <span className="text-red-400 shrink-0">✗</span>
           )}
-          <span className={!tc.ok && tc.ok !== null ? 'text-red-500' : ''}>
+          <span className={!tc.ok && tc.ok !== null ? 'text-red-400' : ''}>
             {TOOL_LABELS[tc.name] ?? tc.name}
           </span>
         </div>
@@ -141,14 +147,14 @@ function DoneToolPanel({ calls }: { calls: ToolRecord[] }) {
   return (
     <div className="mt-2 text-xs">
       <button onClick={() => setOpen(v => !v)}
-        className="text-stone-400 hover:text-stone-600 flex items-center gap-1.5 transition-colors">
+        className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 transition-colors">
         <ChevronRight className={`w-3 h-3 transition-transform ${open ? 'rotate-90' : ''}`} />
         已使用 {calls.length} 個工具
       </button>
       {open && (
-        <div className="mt-1.5 space-y-1 pl-4 border-l border-stone-100">
+        <div className="mt-1.5 space-y-1 pl-4 border-l border-border">
           {calls.map((tc, i) => (
-            <div key={i} className="flex items-center gap-2 text-stone-400">
+            <div key={i} className="flex items-center gap-2 text-muted-foreground">
               <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${tc.ok ? 'bg-emerald-400' : 'bg-red-400'}`} />
               {TOOL_LABELS[tc.name] ?? tc.name}
               {!tc.ok && <span className="text-red-400 ml-auto">失敗</span>}
@@ -169,17 +175,17 @@ const mdComponents = {
     <ol className="list-decimal pl-4 mb-2 space-y-0.5">{children}</ol>,
   li: ({ children }: { children?: React.ReactNode }) => <li>{children}</li>,
   strong: ({ children }: { children?: React.ReactNode }) =>
-    <strong className="font-semibold text-stone-900">{children}</strong>,
+    <strong className="font-semibold text-foreground">{children}</strong>,
   h1: ({ children }: { children?: React.ReactNode }) =>
-    <h1 className="font-semibold text-base mb-1.5 mt-3 text-stone-900">{children}</h1>,
+    <h1 className="font-semibold text-base mb-1.5 mt-3 text-foreground">{children}</h1>,
   h2: ({ children }: { children?: React.ReactNode }) =>
-    <h2 className="font-semibold mb-1 mt-2.5 text-stone-900">{children}</h2>,
+    <h2 className="font-semibold mb-1 mt-2.5 text-foreground">{children}</h2>,
   h3: ({ children }: { children?: React.ReactNode }) =>
-    <h3 className="font-semibold mb-1 mt-2 text-stone-800">{children}</h3>,
+    <h3 className="font-semibold mb-1 mt-2 text-foreground">{children}</h3>,
   code: ({ inline, children }: { inline?: boolean; children?: React.ReactNode }) =>
     inline
-      ? <code className="bg-stone-100 px-1.5 py-0.5 rounded text-xs font-mono text-indigo-600">{children}</code>
-      : <code className="block bg-stone-100 border border-stone-200 rounded-lg p-3 overflow-x-auto text-xs font-mono mb-2 whitespace-pre text-stone-700">{children}</code>,
+      ? <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono text-primary">{children}</code>
+      : <code className="block bg-muted border border-border rounded-lg p-3 overflow-x-auto text-xs font-mono mb-2 whitespace-pre text-foreground">{children}</code>,
   pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
   img: ({ src, alt }: { src?: string; alt?: string }) =>
     src ? <img src={src} alt={alt ?? ''} className="max-w-full rounded-lg mt-2" /> : null,
@@ -189,10 +195,10 @@ const mdComponents = {
     </div>
   ),
   th: ({ children }: { children?: React.ReactNode }) => (
-    <th className="border border-stone-200 bg-stone-100 px-2 py-1.5 text-left font-medium text-stone-500">{children}</th>
+    <th className="border border-border bg-muted px-2 py-1.5 text-left font-medium text-muted-foreground">{children}</th>
   ),
   td: ({ children }: { children?: React.ReactNode }) => (
-    <td className="border border-stone-200 px-2 py-1.5 text-stone-700">{children}</td>
+    <td className="border border-border px-2 py-1.5 text-foreground">{children}</td>
   ),
 }
 
@@ -205,7 +211,8 @@ export default function ChatPage() {
   const [askUser, setAskUser] = useState<AskUserState | null>(null)
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [editText, setEditText] = useState('')
-  const [uploadedFile, setUploadedFile] = useState<{ path: string; name: string; previewUrl?: string } | null>(null)
+  const [uploadedFile, setUploadedFile] = useState<{ fileId: string; filename: string; previewUrl?: string } | null>(null)
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [historyPanelOpen, setHistoryPanelOpen] = useState(false)
   const [viewingSessionId, setViewingSessionId] = useState<string | null>(null)
@@ -345,7 +352,7 @@ export default function ChatPage() {
       })
       if (res.ok) {
         const data = await res.json()
-        setUploadedFile({ path: data.path, name: data.name, previewUrl })
+        setUploadedFile({ fileId: data.file_id, filename: data.filename, previewUrl })
       } else {
         if (previewUrl) URL.revokeObjectURL(previewUrl)
       }
@@ -363,17 +370,25 @@ export default function ChatPage() {
     const token = getCookie('token')
     if (!token) { router.push('/login'); return }
     const userMsg = input.trim()
-    const attachmentPath = uploadedFile?.path ?? null
+    const pendingFile = uploadedFile
     setInput('')
     setUploadedFile(null)
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
     }
+    const attachments: Attachment[] = pendingFile ? [{
+      id: pendingFile.fileId,
+      filename: pendingFile.filename,
+      mimeType: pendingFile.filename.match(/\.(png|jpg|jpeg|gif|webp)$/i) ? 'image/' + pendingFile.filename.split('.').pop()!.toLowerCase() : 'application/octet-stream',
+      url: `${BASE}/api/files/${pendingFile.fileId}`,
+    }] : []
     setMessages(prev => [...prev, {
       role: 'user',
-      content: uploadedFile ? `${userMsg}\n📎 ${uploadedFile.name}` : userMsg,
+      content: userMsg,
+      attachments,
+      attachmentPreview: pendingFile?.previewUrl,
     }])
-    await runStream(`${BASE}/chat`, { token, message: userMsg, attachment_path: attachmentPath })
+    await runStream(`${BASE}/chat`, { token, message: userMsg, file_id: pendingFile?.fileId ?? null })
   }
 
   function sendSuggestion(text: string) {
@@ -442,11 +457,11 @@ export default function ChatPage() {
       />
 
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto bg-stone-50 relative">
+      <div className="flex-1 overflow-y-auto bg-background relative">
         {/* Loading history */}
         {!historyLoaded && (
-          <div className="flex items-center justify-center h-full gap-2 text-stone-400 text-sm">
-            <div className="border-2 border-stone-200 border-t-indigo-500 rounded-full animate-spin w-4 h-4" />
+          <div className="flex items-center justify-center h-full gap-2 text-muted-foreground text-sm">
+            <div className="border-2 border-border border-t-primary rounded-full animate-spin w-4 h-4" />
             載入中...
           </div>
         )}
@@ -455,20 +470,20 @@ export default function ChatPage() {
         {isEmpty && (
           <div className="flex flex-col items-center justify-center h-full px-6 pb-8 gap-6">
             <div className="flex flex-col items-center gap-3 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center">
-                <Bot className="w-7 h-7 text-indigo-500" />
+              <div className="w-14 h-14 rounded-2xl bg-accent flex items-center justify-center">
+                <Bot className="w-7 h-7 text-primary" />
               </div>
               <div>
-                <p className="text-sm font-medium text-stone-700 mb-1">需要什麼協助？</p>
-                <p className="text-xs text-stone-400">詢問課表、成績、缺曠、假單等問題</p>
+                <p className="text-sm font-medium text-foreground mb-1">需要什麼協助？</p>
+                <p className="text-xs text-muted-foreground">詢問課表、成績、缺曠、假單等問題</p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 w-full max-w-sm">
               {SUGGESTIONS.map(s => (
                 <button key={s.text} onClick={() => sendSuggestion(s.text)}
-                  className="text-left bg-white hover:bg-indigo-50 border border-stone-200 hover:border-indigo-200 rounded-xl px-3 py-2.5 transition-colors group">
-                  <p className="text-xs font-medium text-stone-700 group-hover:text-indigo-700 leading-snug">{s.text}</p>
-                  <p className="text-[10px] text-stone-400 mt-0.5 group-hover:text-indigo-400">{s.sub}</p>
+                  className="text-left bg-card hover:bg-accent border border-border hover:border-primary/40 rounded-xl px-3 py-2.5 transition-colors group">
+                  <p className="text-xs font-medium text-foreground group-hover:text-primary leading-snug">{s.text}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{s.sub}</p>
                 </button>
               ))}
             </div>
@@ -481,8 +496,8 @@ export default function ChatPage() {
             {messages.map((m, i) => (
               <div key={i} className={`flex gap-3 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 {m.role === 'assistant' && (
-                  <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center shrink-0 mt-0.5">
-                    <Bot className="w-4 h-4 text-indigo-500" />
+                  <div className="w-7 h-7 rounded-full bg-accent flex items-center justify-center shrink-0 mt-0.5">
+                    <Bot className="w-4 h-4 text-primary" />
                   </div>
                 )}
                 <div className={`${m.role === 'user' ? 'max-w-[75%]' : 'flex-1 min-w-0'}`}>
@@ -495,15 +510,15 @@ export default function ChatPage() {
                             if (e.key === 'Escape') cancelEdit()
                           }}
                           rows={3}
-                          className="w-full bg-white border border-stone-300 text-stone-900 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400/50"
+                          className="w-full bg-card border border-border text-foreground rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
                         />
                         <div className="flex justify-end gap-2">
                           <button onClick={cancelEdit}
-                            className="text-xs text-stone-500 hover:text-stone-700 px-3 py-1.5 rounded-lg border border-stone-300 hover:bg-stone-50 transition-colors">
+                            className="text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-lg border border-border hover:bg-accent transition-colors">
                             取消
                           </button>
                           <button onClick={submitEdit} disabled={!editText.trim()}
-                            className="text-xs bg-indigo-500 hover:bg-indigo-600 disabled:opacity-40 text-white px-3 py-1.5 rounded-lg transition-colors">
+                            className="text-xs bg-primary hover:bg-primary/80 disabled:opacity-40 text-primary-foreground px-3 py-1.5 rounded-lg transition-colors">
                             重新送出
                           </button>
                         </div>
@@ -520,9 +535,30 @@ export default function ChatPage() {
                             </svg>
                           </button>
                         )}
-                        <div className="bg-indigo-500 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap">
+                        <div className="bg-primary text-primary-foreground rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap">
                           {m.content}
                         </div>
+                        {(m.attachments ?? []).length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-1.5 justify-end">
+                            {m.attachments!.map(att => (
+                              att.mimeType.startsWith('image/') && m.attachmentPreview ? (
+                                <img
+                                  key={att.id}
+                                  src={m.attachmentPreview}
+                                  alt={att.filename}
+                                  title={att.filename}
+                                  className="h-20 w-20 object-cover rounded-lg border border-white/20 cursor-pointer hover:opacity-90 transition-opacity"
+                                  onClick={() => setLightboxSrc(m.attachmentPreview!)}
+                                />
+                              ) : (
+                                <span key={att.id} className="inline-flex items-center gap-1.5 text-xs bg-white/20 rounded-lg px-2.5 py-1" title={att.filename}>
+                                  <Paperclip className="w-3 h-3" />
+                                  {att.filename}
+                                </span>
+                              )
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )
                   ) : (
@@ -536,7 +572,7 @@ export default function ChatPage() {
                           <div className="mb-2"><LiveToolPanel calls={m.toolCalls!} /></div>
                         )}
                         {m.content && (
-                          <div className="text-sm leading-relaxed text-stone-700">
+                          <div className="text-sm leading-relaxed text-foreground">
                             <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents as never}>
                               {m.content}
                             </ReactMarkdown>
@@ -558,15 +594,15 @@ export default function ChatPage() {
 
             {askUser && (
               <div className="flex gap-3 justify-start">
-                <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center shrink-0 mt-0.5">
-                  <Bot className="w-4 h-4 text-indigo-500" />
+                <div className="w-7 h-7 rounded-full bg-accent flex items-center justify-center shrink-0 mt-0.5">
+                  <Bot className="w-4 h-4 text-primary" />
                 </div>
-                <div className="bg-white border border-stone-200 rounded-2xl rounded-tl-sm px-4 py-3 max-w-sm shadow-sm">
-                  <p className="text-sm text-stone-800 mb-3">{askUser.question}</p>
+                <div className="bg-card border border-border rounded-2xl rounded-tl-sm px-4 py-3 max-w-sm shadow-sm">
+                  <p className="text-sm text-foreground mb-3">{askUser.question}</p>
                   <div className="space-y-1.5">
                     {askUser.options.map(opt => (
                       <button key={opt} onClick={() => handleAnswer(opt)}
-                        className="w-full text-left text-sm bg-stone-50 hover:bg-indigo-50 border border-stone-200 hover:border-indigo-200 text-stone-700 hover:text-indigo-700 rounded-lg px-3 py-2 transition-colors">
+                        className="w-full text-left text-sm bg-background hover:bg-accent border border-border hover:border-primary/40 text-foreground hover:text-primary rounded-lg px-3 py-2 transition-colors">
                         {opt}
                       </button>
                     ))}
@@ -580,17 +616,51 @@ export default function ChatPage() {
         )}
       </div>
 
+      {/* Lightbox */}
+      {lightboxSrc && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setLightboxSrc(null)}
+        >
+          <img
+            src={lightboxSrc}
+            alt="附件預覽"
+            className="max-w-full max-h-full rounded-xl object-contain"
+            onClick={e => e.stopPropagation()}
+          />
+          <button
+            onClick={() => setLightboxSrc(null)}
+            className="absolute top-4 right-4 text-white/80 hover:text-white text-2xl leading-none"
+          >✕</button>
+        </div>
+      )}
+
       {/* Input area */}
-      <div className="shrink-0 border-t border-stone-200 bg-white">
+      <div className="shrink-0 border-t border-border bg-card">
         <div className="max-w-3xl mx-auto px-4 py-3">
           {uploadedFile && (
             <div className="flex items-center gap-2 mb-2">
-              <span className="inline-flex items-center gap-1.5 text-xs text-stone-700 bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-1">
-                <Paperclip className="w-3.5 h-3.5 text-stone-400" />
-                {uploadedFile.name}
-                <button onClick={() => setUploadedFile(null)}
-                  className="text-stone-400 hover:text-stone-600 ml-0.5 transition-colors">✕</button>
-              </span>
+              {uploadedFile.previewUrl ? (
+                <div className="relative group">
+                  <img
+                    src={uploadedFile.previewUrl}
+                    alt={uploadedFile.filename}
+                    className="h-14 w-14 object-cover rounded-lg border border-border cursor-pointer"
+                    onClick={() => setLightboxSrc(uploadedFile.previewUrl!)}
+                  />
+                  <button
+                    onClick={() => setUploadedFile(null)}
+                    className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-foreground/80 text-background rounded-full text-[10px] flex items-center justify-center leading-none opacity-0 group-hover:opacity-100 transition-opacity"
+                  >✕</button>
+                </div>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-xs text-foreground bg-muted border border-border rounded-lg px-2.5 py-1">
+                  <Paperclip className="w-3.5 h-3.5 text-muted-foreground" />
+                  {uploadedFile.filename}
+                  <button onClick={() => setUploadedFile(null)}
+                    className="text-muted-foreground hover:text-foreground ml-0.5 transition-colors">✕</button>
+                </span>
+              )}
             </div>
           )}
 
@@ -601,7 +671,7 @@ export default function ChatPage() {
               <PopoverTrigger
                 type="button"
                 title="工具箱"
-                className="h-9 w-9 flex items-center justify-center rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 hover:bg-stone-50 transition-colors shrink-0"
+                className="h-9 w-9 flex items-center justify-center rounded-lg border border-border text-muted-foreground hover:text-foreground hover:border-border hover:bg-accent transition-colors shrink-0"
               >
                 <LayoutGrid className="w-4 h-4" />
               </PopoverTrigger>
@@ -618,9 +688,9 @@ export default function ChatPage() {
 
             <button type="button" onClick={() => fileInputRef.current?.click()}
               disabled={streaming || uploading} title="上傳附件"
-              className="h-9 w-9 flex items-center justify-center rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 hover:bg-stone-50 disabled:opacity-40 transition-colors shrink-0">
+              className="h-9 w-9 flex items-center justify-center rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-40 transition-colors shrink-0">
               {uploading
-                ? <div className="border-2 border-stone-200 border-t-indigo-500 rounded-full animate-spin w-4 h-4" />
+                ? <div className="border-2 border-border border-t-primary rounded-full animate-spin w-4 h-4" />
                 : <Paperclip className="w-4 h-4" />
               }
             </button>
@@ -638,23 +708,23 @@ export default function ChatPage() {
               placeholder="輸入訊息… (Shift+Enter 換行)"
               rows={1}
               disabled={streaming || !!askUser || editingIndex !== null}
-              className="flex-1 min-h-9 max-h-40 bg-stone-50 border border-stone-200 text-stone-900 placeholder:text-stone-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400/50 disabled:opacity-50 resize-none overflow-y-auto leading-5"
+              className="flex-1 min-h-9 max-h-40 bg-muted border border-border text-foreground placeholder:text-muted-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 resize-none overflow-y-auto leading-5"
             />
 
             {streaming ? (
               <button type="button" onClick={() => abortRef.current?.abort()}
-                className="h-9 w-9 flex items-center justify-center bg-stone-100 hover:bg-stone-200 border border-stone-200 text-stone-600 rounded-lg transition-colors shrink-0">
+                className="h-9 w-9 flex items-center justify-center bg-muted hover:bg-accent border border-border text-muted-foreground rounded-lg transition-colors shrink-0">
                 <Square className="w-3.5 h-3.5" />
               </button>
             ) : (
               <button type="button" onClick={() => handleSend()}
                 disabled={!input.trim() || !!askUser || editingIndex !== null}
-                className="h-9 w-9 flex items-center justify-center bg-indigo-500 hover:bg-indigo-600 disabled:opacity-40 text-white rounded-lg transition-colors shrink-0">
+                className="h-9 w-9 flex items-center justify-center bg-primary hover:bg-primary/80 disabled:opacity-40 text-primary-foreground rounded-lg transition-colors shrink-0">
                 <Send className="w-4 h-4" />
               </button>
             )}
           </div>
-          <p className="text-[10px] text-stone-300 mt-1.5 text-center">AI 可能會出錯，重要事項請自行確認</p>
+          <p className="text-[10px] text-muted-foreground/50 mt-1.5 text-center">AI 可能會出錯，重要事項請自行確認</p>
         </div>
       </div>
     </div>

@@ -49,7 +49,7 @@ export function GradesView({ entries, allCredits, allPassed, allAvg }: GradesVie
 
       <PageLayout.Toolbar>
         <div>
-          <label className="block text-xs text-stone-500 mb-1">學期</label>
+          <label className="block text-xs text-muted-foreground mb-1">學期</label>
           <Select value={selected} onValueChange={v => v != null && setSelected(v)}>
             <SelectTrigger className="w-52">
               <SelectValue displayValue={selected} />
@@ -65,28 +65,28 @@ export function GradesView({ entries, allCredits, allPassed, allAvg }: GradesVie
 
       <PageLayout.Table>
         {rows.length === 0 ? (
-          <p className="text-stone-400 text-sm text-center py-8">此學期無成績資料</p>
+          <p className="text-muted-foreground/70 text-sm text-center py-8">此學期無成績資料</p>
         ) : (
           <table className="w-full text-sm table-fixed">
             <thead>
-              <tr className="bg-stone-50 border-b border-stone-200">
-                <th className="text-left px-4 py-2.5 font-medium text-stone-500">課程</th>
-                <th className="text-center px-4 py-2.5 font-medium text-stone-500 w-20">性質</th>
-                <th className="text-right px-4 py-2.5 font-medium text-stone-500 w-16">學分</th>
-                <th className="text-right px-4 py-2.5 font-medium text-stone-500 w-20">成績</th>
+              <tr className="bg-muted/30 border-b border-border">
+                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">課程</th>
+                <th className="text-center px-4 py-2.5 font-medium text-muted-foreground w-20">性質</th>
+                <th className="text-right px-4 py-2.5 font-medium text-muted-foreground w-16">學分</th>
+                <th className="text-right px-4 py-2.5 font-medium text-muted-foreground w-20">成績</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((e, i) => {
                 const failing = !e.passed && e.score !== ''
                 return (
-                  <tr key={i} className={`border-b border-stone-100 last:border-0 ${failing ? 'bg-red-50' : ''}`}>
-                    <td className={`px-4 py-2.5 truncate ${failing ? 'text-red-600' : 'text-stone-800'}`}>
+                  <tr key={i} className={`border-b border-border/60 last:border-0 ${failing ? 'bg-red-500/8' : ''}`}>
+                    <td className={`px-4 py-2.5 truncate ${failing ? 'text-red-400' : 'text-foreground'}`}>
                       {e.course}
                     </td>
-                    <td className="px-4 py-2.5 text-center text-stone-400 text-xs">{e.type}</td>
-                    <td className="px-4 py-2.5 text-right text-stone-500">{e.credits}</td>
-                    <td className={`px-4 py-2.5 text-right font-medium ${failing ? 'text-red-600' : 'text-stone-800'}`}>
+                    <td className="px-4 py-2.5 text-center text-muted-foreground/70 text-xs">{e.type}</td>
+                    <td className="px-4 py-2.5 text-right text-muted-foreground">{e.credits}</td>
+                    <td className={`px-4 py-2.5 text-right font-semibold ${failing ? 'text-red-400' : 'text-foreground'}`}>
                       {e.score !== '' ? e.score : '—'}
                     </td>
                   </tr>
@@ -94,14 +94,14 @@ export function GradesView({ entries, allCredits, allPassed, allAvg }: GradesVie
               })}
             </tbody>
             <tfoot>
-              <tr className="border-t border-stone-100 bg-stone-50">
-                <td colSpan={4} className="px-4 py-2 text-xs text-stone-400">
+              <tr className="border-t border-border/60 bg-muted/30">
+                <td colSpan={4} className="px-4 py-2 text-xs text-muted-foreground/70">
                   修習 {totalCredits} 學分
                   {passedCredits < totalCredits && (
-                    <span>・通過 <span className="text-emerald-600">{passedCredits}</span> 學分</span>
+                    <span>・通過 <span className="text-emerald-400">{passedCredits}</span> 學分</span>
                   )}
                   {avg !== null && (
-                    <span>・平均 <span className="text-stone-700 font-medium">{avg.toFixed(1)}</span></span>
+                    <span>・平均 <span className="text-foreground/80 font-medium">{avg.toFixed(1)}</span></span>
                   )}
                 </td>
               </tr>

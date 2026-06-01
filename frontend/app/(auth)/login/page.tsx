@@ -44,17 +44,17 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 bg-stone-50">
+    <div className="min-h-screen flex items-center justify-center px-4 bg-background">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-semibold text-indigo-500 tracking-wide">TPCU.me</h1>
-          <p className="text-sm text-stone-400 mt-1">台北城市科技大學學生入口</p>
+          <h1 className="text-2xl font-semibold text-primary tracking-wide">TPCU.me</h1>
+          <p className="text-sm text-muted-foreground/70 mt-1">台北城市科技大學學生入口</p>
         </div>
 
-        <div className="bg-white border border-stone-200 rounded-xl p-8 shadow-sm">
+        <div className="bg-card border border-border rounded-xl p-8 shadow-sm">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1.5">學號</label>
+              <label className="block text-sm font-medium text-foreground/80 mb-1.5">學號</label>
               <Input
                 type="text"
                 value={uid}
@@ -67,7 +67,7 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1.5">密碼</label>
+              <label className="block text-sm font-medium text-foreground/80 mb-1.5">密碼</label>
               <Input
                 type="password"
                 value={pwd}
@@ -86,13 +86,13 @@ export default function LoginPage() {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full justify-center py-2 mt-2 bg-indigo-500 hover:bg-indigo-600 text-white"
+              className="w-full justify-center py-2 mt-2 bg-primary hover:bg-primary/90 text-white"
             >
               {loading ? '登入中...' : '登入'}
             </Button>
           </form>
 
-          <p className="text-xs text-stone-400 text-center mt-6">
+          <p className="text-xs text-muted-foreground/70 text-center mt-6">
             密碼僅用於取得學校 Session，不儲存在伺服器
           </p>
         </div>

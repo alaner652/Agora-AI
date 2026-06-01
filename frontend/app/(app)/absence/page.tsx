@@ -21,7 +21,7 @@ import {
 import { PageLayout } from '@/components/PageLayout'
 import { ALL_PERIODS, ABSENCE_TYPE_CLS } from '@/lib/constants'
 
-function typeCls(t: string) { return ABSENCE_TYPE_CLS[t] ?? 'bg-stone-100 text-stone-500' }
+function typeCls(t: string) { return ABSENCE_TYPE_CLS[t] ?? 'bg-muted text-muted-foreground' }
 
 function mostCommonType(entries: AbsenceEntry[]): string {
   if (!entries.length) return '—'
@@ -105,7 +105,7 @@ export default function AbsencePage() {
 
       <PageLayout.Toolbar>
         <div>
-          <label className="block text-xs text-stone-500 mb-1">學期</label>
+          <label className="block text-xs text-muted-foreground mb-1">學期</label>
           <Select value={semester} onValueChange={v => v != null && setSemester(v)}>
             <SelectTrigger className="w-40">
               <SelectValue
@@ -122,7 +122,7 @@ export default function AbsencePage() {
         </div>
 
         <div>
-          <label className="block text-xs text-stone-500 mb-1">假別</label>
+          <label className="block text-xs text-muted-foreground mb-1">假別</label>
           <Select value={leaveType} onValueChange={v => v != null && setLeaveType(v)}>
             <SelectTrigger className="w-28">
               <SelectValue displayValue={opts?.leave_types.find(t => t.value === leaveType)?.label} />
@@ -148,7 +148,7 @@ export default function AbsencePage() {
         <Button
           onClick={handleSearch}
           disabled={!semester}
-          className="bg-indigo-500 hover:bg-indigo-600 text-white self-end"
+          className="bg-primary hover:bg-primary/90 text-white self-end"
         >
           查詢
         </Button>
@@ -156,24 +156,24 @@ export default function AbsencePage() {
 
       <PageLayout.Table loading={isLoading}>
         {pivot.length === 0 ? (
-          <p className="text-stone-400 text-sm text-center py-8">此區間無記錄</p>
+          <p className="text-muted-foreground/70 text-sm text-center py-8">此區間無記錄</p>
         ) : (
           <table className="text-xs border-collapse w-full whitespace-nowrap">
             <thead>
-              <tr className="bg-stone-50 border-b border-stone-200">
-                <th className="px-3 py-2 text-left font-medium text-stone-500 sticky left-0 bg-stone-50 z-10 border-r border-stone-200 w-8">項次</th>
-                <th className="px-3 py-2 text-left font-medium text-stone-500 sticky left-8 bg-stone-50 z-10 border-r border-stone-200 min-w-32">日期</th>
+              <tr className="bg-muted/30 border-b border-border">
+                <th className="px-3 py-2 text-left font-medium text-muted-foreground sticky left-0 bg-card z-10 border-r border-border w-8">項次</th>
+                <th className="px-3 py-2 text-left font-medium text-muted-foreground sticky left-8 bg-card z-10 border-r border-border min-w-32">日期</th>
                 {activePeriods.map(p => (
-                  <th key={p} className="px-2 py-2 text-center font-medium text-stone-500 min-w-11">{p}</th>
+                  <th key={p} className="px-2 py-2 text-center font-medium text-muted-foreground min-w-11">{p}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {pivot.map(([date, { weekday, cells }], idx) => (
-                <tr key={date} className="border-b border-stone-100 last:border-0 hover:bg-stone-50">
-                  <td className="px-3 py-2 text-stone-400 tabular-nums text-center sticky left-0 bg-white border-r border-stone-200">{idx + 1}</td>
-                  <td className="px-3 py-2 text-stone-700 tabular-nums sticky left-8 bg-white border-r border-stone-200">
-                    {date}<span className="text-stone-400 ml-1.5">（{weekday}）</span>
+                <tr key={date} className="border-b border-border/60 last:border-0 hover:bg-accent/30 transition-colors">
+                  <td className="px-3 py-2 text-muted-foreground/70 tabular-nums text-center sticky left-0 bg-card border-r border-border">{idx + 1}</td>
+                  <td className="px-3 py-2 text-foreground/80 tabular-nums sticky left-8 bg-card border-r border-border">
+                    {date}<span className="text-muted-foreground/70 ml-1.5">（{weekday}）</span>
                   </td>
                   {activePeriods.map(p => (
                     <td key={p} className="px-1.5 py-2 text-center">
@@ -188,8 +188,8 @@ export default function AbsencePage() {
               ))}
             </tbody>
             <tfoot>
-              <tr className="border-t border-stone-100 bg-stone-50">
-                <td colSpan={2 + activePeriods.length} className="px-3 py-2 text-xs text-stone-400">
+              <tr className="border-t border-border/60 bg-muted/30">
+                <td colSpan={2 + activePeriods.length} className="px-3 py-2 text-xs text-muted-foreground/70">
                   共 {pivot.length} 天・{entries!.length} 節次
                 </td>
               </tr>

@@ -32,7 +32,7 @@ from session import refresh_api as _fresh_login
 from .models import AnswerRequest, ChatRequest, LoginRequest, LoginResponse
 from .routes import router as data_router
 from .state import AgentRegistry
-from storage import init_db, init_user_settings_db, init_sessions_db, get_llm_config
+from storage import init_db, init_user_settings_db, init_sessions_db, init_files_db, init_messages_db, get_file, get_llm_config
 
 load_dotenv()
 
@@ -49,6 +49,8 @@ async def lifespan(app: FastAPI):
     init_db()
     init_user_settings_db()
     init_sessions_db()
+    init_files_db()
+    init_messages_db()
     llm = OpenAI(api_key=_LLM_API_KEY, base_url=_LLM_BASE_URL)
     _registry = AgentRegistry(llm=llm, model=_LLM_MODEL)
     app.state.registry = _registry
@@ -146,22 +148,20 @@ async def login(request: Request, body: LoginRequest):
     return LoginResponse(token=token)
 
 
-_UPLOAD_ROOT = Path(__file__).parent.parent.parent / "uploads"
+def _load_attachment(file_id: str | None, uid: str) -> tuple[str | None, str]:
+    """Return (base64_data, mime_type) or (None, '') if not usable.
 
-
-def _load_attachment(path_str: str | None) -> tuple[str | None, str]:
-    """Return (base64_data, mime_type) or (None, '') if not usable."""
-    if not path_str:
+    Validates file ownership via DB — no path is ever exposed to callers.
+    """
+    if not file_id or not uid:
         return None, ''
-    p = Path(path_str).resolve()
-    try:
-        _UPLOAD_ROOT.resolve()
-        p.relative_to(_UPLOAD_ROOT.resolve())
-    except ValueError:
+    meta = get_file(file_id, uid)
+    if meta is None:
         return None, ''
+    p = Path(meta["storage_path"])
     if not p.exists() or not p.is_file():
         return None, ''
-    mime = mimetypes.guess_type(str(p))[0] or 'application/octet-stream'
+    mime = meta["mime_type"] or mimetypes.guess_type(str(p))[0] or 'application/octet-stream'
     if not mime.startswith('image/'):
         return None, ''
     return base64.b64encode(p.read_bytes()).decode(), mime
@@ -171,11 +171,12 @@ def _load_attachment(path_str: str | None) -> tuple[str | None, str]:
 @limiter.limit("5/minute")
 async def chat(request: Request, body: ChatRequest):
     agent, lock = await _get_agent_or_401(body.token)
+    uid = _get_registry().get_uid(body.token) or ''
 
     if lock.locked():
         raise HTTPException(status_code=429, detail="上一個請求仍在處理中")
 
-    image_b64, image_mime = _load_attachment(body.attachment_path)
+    image_b64, image_mime = _load_attachment(body.file_id, uid)
 
     async def generate():
         async with lock:

@@ -5,11 +5,11 @@ export const ALL_PERIODS = [
 ]
 
 export const ABSENCE_TYPE_CLS: Record<string, string> = {
-  '缺曠': 'bg-red-50 text-red-600',
-  '病假': 'bg-indigo-50 text-indigo-600',
-  '事假': 'bg-amber-50 text-amber-700',
-  '公假': 'bg-sky-50 text-sky-600',
-  '喪假': 'bg-purple-50 text-purple-600',
+  '缺曠': 'bg-red-500/20 text-red-400',
+  '病假': 'bg-primary/15 text-primary',
+  '事假': 'bg-amber-500/20 text-amber-400',
+  '公假': 'bg-sky-500/20 text-sky-400',
+  '喪假': 'bg-purple-500/20 text-purple-400',
 }
 
 // ── 假單 ──────────────────────────────────────────────────────────────────────
@@ -19,11 +19,11 @@ export const PUBLIC_LEAVE_ID = '23'
 export const LEAVE_NOTICE_ACK_KEY = 'leave_notice_ack'
 
 export function leaveStatusCls(label: string): string {
-  if (label === '已核准' || label === '核准') return 'text-emerald-700 bg-emerald-50'
-  if (['待審核', '送出', '待核准', '待審'].includes(label)) return 'text-amber-700 bg-amber-50'
-  if (label === '退件' || label === '不核准') return 'text-red-600 bg-red-50'
-  if (label === '作廢' || label === '已刪除') return 'text-stone-400 bg-stone-100 line-through'
-  return 'text-stone-500 bg-stone-100'
+  if (label === '已核准' || label === '核准') return 'text-emerald-400 bg-emerald-500/15'
+  if (['待審核', '送出', '待核准', '待審'].includes(label)) return 'text-amber-400 bg-amber-500/15'
+  if (label === '退件' || label === '不核准') return 'text-red-400 bg-red-500/15'
+  if (label === '作廢' || label === '已刪除') return 'text-muted-foreground/50 bg-muted line-through'
+  return 'text-muted-foreground bg-muted'
 }
 
 export const LEAVE_NOTICE_ITEMS: Array<{

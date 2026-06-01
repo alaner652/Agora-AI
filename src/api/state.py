@@ -9,16 +9,23 @@ from dataclasses import dataclass, field
 from openai import OpenAI
 
 from agent import ChatAgent, ChatMemory, ConversationLogger
+import time as _time
 from storage.sessions import upsert_session_meta, insert_session_turn
+from storage.messages import upsert_conversation_turn
 
 _LOG_DIR_BASE = __import__("pathlib").Path("logs/api")
 _EVICT_AFTER = 2 * 3600  # seconds of inactivity before eviction
 
 
 def _make_persist_fn(uid: str):
-    def _persist(sid, _uid, started, ended, count, title, turn_id, user, assistant):
+    def _persist(sid, _uid, started, ended, count, title, turn_id, user, assistant, tool_calls=None):
         upsert_session_meta(sid, uid, started, ended, count, title)
         insert_session_turn(sid, turn_id, user, assistant)
+        upsert_conversation_turn(
+            sid, turn_id, user, assistant,
+            tool_calls or [],
+            _time.time(),
+        )
     return _persist
 
 

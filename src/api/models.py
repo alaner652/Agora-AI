@@ -15,7 +15,7 @@ class LoginResponse(BaseModel):
 class ChatRequest(BaseModel):
     token: str = Field(..., min_length=1)
     message: str = Field(..., min_length=1)
-    attachment_path: str | None = None
+    file_id: str | None = None
 
 
 class AnswerRequest(BaseModel):

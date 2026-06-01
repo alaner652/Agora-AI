@@ -2,14 +2,21 @@ import { apiClient } from './api-client'
 
 export interface ToolRecord { name: string; ok: boolean | null }
 
+export interface Attachment {
+  id: string       // opaque file_id from server
+  filename: string
+  mimeType: string
+  url: string      // /api/files/{id} — never a local path
+}
+
 export interface TextMessage {
   role: 'user' | 'assistant'
   content: string
   toolCalls?: ToolRecord[]
   images?: string[]
   aborted?: boolean
-  attachmentName?: string
-  attachmentPreview?: string  // blob URL, not persisted to history
+  attachments?: Attachment[]
+  attachmentPreview?: string  // blob URL for local preview only, not persisted
 }
 
 export interface SessionMeta {
