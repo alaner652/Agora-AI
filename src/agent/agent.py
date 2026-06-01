@@ -127,6 +127,8 @@ class ChatAgent:
         self._model = model
         self._memory = memory
         self._logger = logger
+        if self._logger:
+            self._logger.set_model(model)
         # Called when session expires: async (uid) -> new_jsessionid.
         # None in API mode — callers must re-login via /login instead.
         self._refresh_fn = refresh_fn
@@ -136,6 +138,9 @@ class ChatAgent:
         # Tracks tool names called within the current user turn (for unconfirmed detection).
         # Reset in step(); carried over into answer_ask_user() so ask_user is visible.
         self._recent_tool_names: list[str] = []
+        # Per-turn LLM call counter and token accumulator; reset in step().
+        self._turn_llm_calls: int = 0
+        self._turn_tokens: dict[str, int] = {}
 
     # ------------------------------------------------------------------
     # Public interface
@@ -159,6 +164,8 @@ class ChatAgent:
     ) -> AsyncIterator[AgentEvent]:
         """Process one user turn; yield events until done."""
         self._recent_tool_names: list[str] = []   # reset per user turn
+        self._turn_llm_calls = 0
+        self._turn_tokens = {}
         if self._logger:
             self._logger.on_user_message(user_message)
         if image_b64:
@@ -202,6 +209,7 @@ class ChatAgent:
                 yield DoneEvent()
                 return
             llm_call_count += 1
+            self._turn_llm_calls += 1
 
             messages = (
                 [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -225,6 +233,9 @@ class ChatAgent:
 
             msg = response.choices[0].message
             self._memory.add(_message_to_dict(msg))
+            if response.usage:
+                self._turn_tokens["prompt"] = self._turn_tokens.get("prompt", 0) + (getattr(response.usage, "prompt_tokens", 0) or 0)
+                self._turn_tokens["completion"] = self._turn_tokens.get("completion", 0) + (getattr(response.usage, "completion_tokens", 0) or 0)
 
             # --- No tool calls: final text response ---
             if not msg.tool_calls:
@@ -233,7 +244,11 @@ class ChatAgent:
                     yield TextDeltaEvent(text=char)
                     text_buf.append(char)
                 if self._logger:
-                    self._logger.on_assistant_response("".join(text_buf))
+                    self._logger.on_assistant_response(
+                        "".join(text_buf),
+                        llm_calls=self._turn_llm_calls,
+                        token_usage=self._turn_tokens or None,
+                    )
                 yield DoneEvent()
                 return
 

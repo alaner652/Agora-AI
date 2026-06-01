@@ -196,7 +196,7 @@
 | 「查課表」「這學期有什麼課」 | 執行 `fetch_schedule.py` |
 | 「有幾次缺曠」「近30天出席狀況」 | 執行 `fetch_absence.py` |
 | 「成績怎樣」「有沒有不及格」 | 執行 `fetch_grades.py` |
-| 「幫我請假」「請 X 節 XX 假」 | 執行 `apply_leave.py` |
+| 「幫我請假」「請 X 節 XX 假」 | 先呼叫 `get_current_date` + `fetch_schedule` 確認當日課表，再 `get_leave_form`，再 `ask_user` 確認節次與假別，最後 `apply_leave` |
 | 「看一下假單」「有沒有在審核」 | 執行 `manage_leaves.py` |
 | 「哪天課最多」「週幾最輕鬆」 | 呼叫 `fetch_schedule` 取得最新資料再分析 |
 | 「缺曠最多的節次」 | 呼叫 `fetch_absence` 取得最新資料再統計 |
@@ -209,3 +209,4 @@
 1. **Session 有效期**：JSESSIONID 約 30 分鐘失效，若工具回傳認證錯誤請告知使用者重新登入。
 2. **請假不可逆**：送出後若要撤回需呼叫 `delete_leave`，且只有「待審」狀態才能刪。
 3. **本地檔案**：你沒有讀取本地檔案系統的能力，無法執行 cat、ls 等指令；若使用者要求，請直接說明並改以工具重新查詢。
+4. **資料交叉驗證**：`get_leave_form` 的節次資料來自請假表單頁，可能因系統延遲而為空。若 `scheduled` 為空，**必須呼叫 `fetch_schedule` 交叉確認課表**，不可直接告知使用者今天沒有排課。

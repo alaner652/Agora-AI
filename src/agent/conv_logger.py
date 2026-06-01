@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
@@ -28,6 +29,9 @@ class TurnLog:
     tool_calls: list[ToolCallLog] = field(default_factory=list)
     assistant: str = ""
     confidence: dict | None = None
+    latency_ms: float = 0.0
+    llm_calls: int = 0
+    token_usage: dict | None = None
 
 
 @dataclass
@@ -35,6 +39,7 @@ class SessionLog:
     session_id: str
     started_at: str
     ended_at: str = ""
+    model: str = ""
     turns: list[TurnLog] = field(default_factory=list)
 
 
@@ -56,15 +61,18 @@ class ConversationLogger:
         log_dir: pathlib.Path,
         keep: int = 30,
         uid: str = "",
+        model: str = "",
         persist_fn: Callable[[str, str, str, str, int, str, int, str, str], None] | None = None,
     ) -> None:
         log_dir.mkdir(parents=True, exist_ok=True)
         self._dir = log_dir
         self._uid = uid
+        self._model = model
         self._persist_fn = persist_fn
         self._title = ""
         self._session = self._new_session()
         self._current_turn: TurnLog | None = None
+        self._turn_start: float = 0.0
         self._rotate(keep)
 
     # ------------------------------------------------------------------
@@ -74,6 +82,7 @@ class ConversationLogger:
     def on_user_message(self, text: str) -> None:
         turn_id = len(self._session.turns) + 1
         self._current_turn = TurnLog(turn_id=turn_id, user=text)
+        self._turn_start = time.monotonic()
         if not self._title:
             self._title = text[:30]
 
@@ -111,10 +120,19 @@ class ConversationLogger:
             )
         )
 
-    def on_assistant_response(self, text: str) -> None:
+    def on_assistant_response(
+        self,
+        text: str,
+        *,
+        llm_calls: int = 0,
+        token_usage: dict | None = None,
+    ) -> None:
         if self._current_turn is None:
             return
         self._current_turn.assistant = text
+        self._current_turn.latency_ms = round((time.monotonic() - self._turn_start) * 1000, 1)
+        self._current_turn.llm_calls = llm_calls
+        self._current_turn.token_usage = token_usage
         self._current_turn.confidence = self._compute_confidence(self._current_turn)
         self._session.turns.append(self._current_turn)
         self._current_turn = None
@@ -156,6 +174,10 @@ class ConversationLogger:
             },
         }
 
+    def set_model(self, model: str) -> None:
+        self._model = model
+        self._session.model = model
+
     def start_new_session(self) -> None:
         if self._current_turn is not None:
             self._session.turns.append(self._current_turn)
@@ -180,6 +202,7 @@ class ConversationLogger:
         return SessionLog(
             session_id=f"{date_str}-session-{idx:02d}",
             started_at=now.isoformat(timespec="milliseconds"),
+            model=self._model,
         )
 
     def _rotate(self, keep: int) -> None:

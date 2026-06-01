@@ -51,7 +51,8 @@ class AgentRegistry:
         """
         async with self._meta_lock:
             log_dir = _LOG_DIR_BASE / uid
-            logger = ConversationLogger(log_dir, uid=uid, persist_fn=_make_persist_fn(uid))
+            effective_model = model if model is not None else self._model
+            logger = ConversationLogger(log_dir, uid=uid, model=effective_model, persist_fn=_make_persist_fn(uid))
             memory = ChatMemory()
             memory.remember("uid", uid)
             agent = ChatAgent(
