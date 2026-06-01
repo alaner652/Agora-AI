@@ -9,9 +9,17 @@ from dataclasses import dataclass, field
 from openai import OpenAI
 
 from agent import ChatAgent, ChatMemory, ConversationLogger
+from storage.sessions import upsert_session_meta, insert_session_turn
 
 _LOG_DIR_BASE = __import__("pathlib").Path("logs/api")
 _EVICT_AFTER = 2 * 3600  # seconds of inactivity before eviction
+
+
+def _make_persist_fn(uid: str):
+    def _persist(sid, _uid, started, ended, count, title, turn_id, user, assistant):
+        upsert_session_meta(sid, uid, started, ended, count, title)
+        insert_session_turn(sid, turn_id, user, assistant)
+    return _persist
 
 
 @dataclass
@@ -43,7 +51,7 @@ class AgentRegistry:
         """
         async with self._meta_lock:
             log_dir = _LOG_DIR_BASE / uid
-            logger = ConversationLogger(log_dir)
+            logger = ConversationLogger(log_dir, uid=uid, persist_fn=_make_persist_fn(uid))
             memory = ChatMemory()
             memory.remember("uid", uid)
             agent = ChatAgent(
@@ -78,6 +86,24 @@ class AgentRegistry:
         state = self._store.get(token)
         if state:
             state.agent.update_session(jsessionid)
+
+    def get_current_session_id(self, token: str) -> str | None:
+        state = self._store.get(token)
+        if state and state.agent._logger:
+            return state.agent._logger._session.session_id
+        return None
+
+    async def restore_session(self, token: str, messages: list[dict]) -> None:
+        async with self._meta_lock:
+            state = self._store.get(token)
+            if state:
+                state.agent._memory.load(messages)
+
+    async def new_session(self, token: str) -> None:
+        async with self._meta_lock:
+            state = self._store.get(token)
+            if state:
+                state.agent.new_session()
 
     def _evict(self) -> None:
         now = time.monotonic()

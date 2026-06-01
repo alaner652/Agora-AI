@@ -1,60 +1,114 @@
 # tpcu-llm
 
-（TPCU）學生資訊系統的 Python 爬蟲與 AI 助理工具集。
-支援課表、缺曠、成績查詢、請假管理，並提供 CLI 與 REST API 兩種使用方式。
+（TPCU）學生資訊系統的 AI 助理。
+支援課表、缺曠、成績查詢、請假管理，以及對話歷史管理。
+後端 FastAPI + Python，前端 Next.js。
 
-## 環境設定
+## 快速啟動
+
+### 後端
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-pip install -e .          # editable install（讓 src/ 進 Python path）
+pip install -e .
+python3 scripts/serve.py        # http://localhost:8000
 ```
 
-`.env` 放在專案根目錄：
+`.env`（專案根目錄）：
 ```
-TPCU_UID=你的學號
-TPCU_PWD=你的密碼
-LLM_API_KEY=...          # chatbot / API server 用
-LLM_BASE_URL=...         # 選填，預設 Google Gemini OpenAI-compatible endpoint
-LLM_MODEL=...            # 選填，預設 gpt-4o-mini
-LOG_LEVEL=DEBUG          # 選填，預設 WARNING；設 DEBUG 可看 action 細節
-API_HOST=0.0.0.0         # 選填，預設 0.0.0.0
-API_PORT=8000            # 選填，預設 8000
+LLM_API_KEY=...
+LLM_BASE_URL=...      # 選填，預設 OpenAI
+LLM_MODEL=...         # 選填，預設 gpt-4o-mini
+LOG_LEVEL=WARNING     # 選填
+API_HOST=0.0.0.0      # 選填
+API_PORT=8000         # 選填
 ```
 
-## 執行
+### 前端
 
 ```bash
-python3 main.py                     # 主選單，整合所有功能
-
-# 個別腳本
-python3 scripts/fetch_schedule.py   # 登入 → 選學期 → 查課表 → 輸出圖片
-python3 scripts/fetch_absence.py    # 登入 → 選學期 → 選日期範圍 → 查缺曠 → 輸出圖片
-python3 scripts/fetch_grades.py     # 登入 → 查歷年成績 → 選學期 → 輸出圖片
-python3 scripts/apply_leave.py      # 登入 → 互動式請假申請
-python3 scripts/manage_leaves.py    # 登入 → 查假單 → 選擇性刪除
-python3 scripts/chatbot.py          # AI 聊天機器人（CLI）
-python3 scripts/serve.py            # 啟動 REST API 伺服器（port 8000）
+cd frontend
+npm install
+cp .env.local.example .env.local   # 設定 NEXT_PUBLIC_API_URL
+npm run dev                         # http://localhost:3000
 ```
 
-圖片輸出至 `output/` 目錄（2× 像素密度）。
+## 功能
+
+| 功能 | 說明 |
+|------|------|
+| AI 對話 | SSE 串流、工具呼叫、ask_user 確認、訊息編輯 |
+| 課表查詢 | 依學期查詢，可產生圖表 |
+| 缺曠查詢 | 依學期 + 日期範圍（自動取得正確民國年份） |
+| 成績查詢 | 歷年所有學期，可產生圖表 |
+| 假單管理 | 查詢 / 申請（支援圖片附件）/ 刪除 |
+| 圖表產生 | 課表、缺曠、成績視覺化 PNG |
+| 自訂 LLM | 設定自己的 base_url / api_key / model |
+| 會話管理 | 歷史對話列表、切換、接續、新建、刪除 |
+| 對話記錄 | 結構化 JSON log（含 confidence score，自動 rotation） |
 
 ## REST API
 
 啟動後可用以下 endpoint：
 
+### 認證
+
 | Method | Path | 說明 |
 |--------|------|------|
-| `GET` | `/health` | 服務狀態 |
-| `POST` | `/login` | 登入，回傳不可預測 token（`secrets.token_urlsafe`） |
-| `POST` | `/chat` | 送出訊息，SSE 串流回傳 AgentEvent |
-| `POST` | `/answer` | 回答 ask_user 提示，繼續串流 |
+| `POST` | `/login` | 登入，回傳 token |
+
+### AI 對話
+
+| Method | Path | 說明 |
+|--------|------|------|
+| `POST` | `/chat` | 送出訊息（SSE 串流） |
+| `POST` | `/answer` | 回答 ask_user 提示 |
+
+### 資料查詢
+
+| Method | Path | 說明 |
+|--------|------|------|
+| `GET` | `/api/semester-options` | 可用學期清單 |
+| `GET` | `/api/schedule` | 課表 |
+| `GET` | `/api/absence/options` | 缺曠查詢選項 |
+| `GET` | `/api/absence` | 缺曠記錄 |
+| `GET` | `/api/grades` | 成績 |
+| `GET` | `/api/leaves` | 假單列表 |
+| `POST` | `/api/apply-leave` | 申請假單（multipart） |
+| `POST` | `/api/delete-leave` | 刪除假單 |
+| `GET` | `/api/image/{type}` | 產出圖表（schedule/absence/grades） |
+
+### 對話歷史
+
+| Method | Path | 說明 |
+|--------|------|------|
+| `GET` | `/api/history` | 目前 session 訊息 |
+| `POST` | `/api/history` | 儲存目前 session 訊息 |
+| `DELETE` | `/api/history` | 清除目前 session 訊息 |
+
+### 會話管理
+
+| Method | Path | 說明 |
+|--------|------|------|
+| `GET` | `/api/sessions` | 列出所有歷史會話（含 current_session_id） |
+| `POST` | `/api/sessions/new` | 開新會話（重置記憶） |
+| `POST` | `/api/sessions/{id}/switch` | 切換至歷史會話（還原 ChatMemory） |
+| `DELETE` | `/api/sessions/{id}` | 刪除會話 |
+
+### 設定
+
+| Method | Path | 說明 |
+|--------|------|------|
+| `GET/PUT/DELETE` | `/api/settings/llm` | 自訂 LLM 設定 |
+| `POST` | `/api/settings/llm/test` | 測試 LLM 連線 |
+| `POST` | `/api/settings/llm/models` | 列出可用模型 |
+| `POST` | `/api/upload` | 上傳附件（10MB 上限） |
 
 **Rate limit**：`/login` 10次/分、`/chat` `/answer` 5次/分（per IP）
 
-**SSE 事件格式（JSON line）：**
+**SSE 事件格式：**
 ```
 data: {"type": "text_delta", "text": "..."}
 data: {"type": "tool_call", "name": "...", "args": {...}}
@@ -63,90 +117,94 @@ data: {"type": "ask_user", "question": "...", "options": [...], "tool_call_id": 
 data: {"type": "done"}
 ```
 
-Session 過期時，`tool_result` 的 `data` 會包含 `"error_code": "NET_002"`，client 應重新呼叫 `/login`。
+Session 過期時 `tool_result.data` 包含 `"error_code": "NET_002"`，client 應重新呼叫 `/login`。
 
 ## 專案結構
 
 ```
 tpcu-llm/
-├── main.py                         # 主選單（CLI 整合入口）
 ├── scripts/
-│   ├── fetch_schedule.py           # 課表查詢流程
-│   ├── fetch_absence.py            # 缺曠查詢流程
-│   ├── fetch_grades.py             # 成績查詢流程
-│   ├── apply_leave.py              # 請假申請流程
-│   ├── manage_leaves.py            # 假單管理（查詢 + 刪除）
-│   ├── chatbot.py                  # AI 聊天機器人（CLI）
-│   └── serve.py                    # REST API 伺服器入口（uvicorn）
+│   ├── serve.py                    # 啟動 API 伺服器（uvicorn）
+│   ├── chatbot.py                  # CLI chatbot
+│   ├── fetch_schedule.py           # CLI：課表
+│   ├── fetch_absence.py            # CLI：缺曠
+│   ├── fetch_grades.py             # CLI：成績
+│   ├── apply_leave.py              # CLI：請假
+│   └── manage_leaves.py            # CLI：假單管理
 ├── src/
-│   ├── client.py                   # 通用 HTTP 層（login / activate_feature / post_data / get_page / post_multipart）
-│   ├── session.py                  # Session 快取（CLI: .cache/session.json，API: .cache/sessions/{uid}.json）
-│   ├── log.py                      # Logging 設定（get_logger / setup_logging）
+│   ├── client.py                   # HTTP 層（login / post_data / get_page）
+│   ├── session.py                  # Session 快取
+│   ├── log.py                      # Logging 設定
 │   ├── agent/
-│   │   ├── agent.py                # ChatAgent + AgentEvent 型別（I/O-free，事件驅動）
-│   │   ├── memory.py               # ChatMemory（history + cache + prefs）
-│   │   ├── tools.py                # TOOLS 定義 + dispatch() + AskUserError
+│   │   ├── agent.py                # ChatAgent（I/O-free，AsyncIterator 事件架構）
+│   │   ├── memory.py               # ChatMemory（history / cache / prefs）
+│   │   ├── tools.py                # 工具定義 + dispatch()（含 get_current_date）
+│   │   ├── conv_logger.py          # 對話記錄（JSON，confidence score，append-only）
+│   │   ├── reflection.py           # 工具結果後處理
 │   │   ├── tool_meta.py            # ToolMeta（danger_level / preconditions）
-│   │   ├── errors.py               # ErrorCode StrEnum（NET/BIZ/TOOL 分類）
-│   │   ├── reflection.py           # reflect()（工具結果後處理）
-│   │   └── conv_logger.py          # 對話記錄（JSON，含 confidence score，自動 rotation）
+│   │   └── errors.py               # ErrorCode
 │   ├── api/
-│   │   ├── app.py                  # FastAPI routes（/login /chat /answer /health）
-│   │   ├── state.py                # AgentRegistry（per-user agent + lock，2h 閒置驅逐）
-│   │   └── models.py               # Pydantic request/response models
-│   ├── actions/
-│   │   ├── auth/index.py           # action：登入
-│   │   ├── fetch_schedule/index.py # action：取得學期清單 + 查詢課表
-│   │   ├── fetch_absence/index.py  # action：取得選項 + 查詢缺曠
-│   │   ├── fetch_grades/index.py   # action：查詢歷年成績
-│   │   ├── fetch_leaves/index.py   # action：查詢假單列表
-│   │   ├── apply_leave/index.py    # action：取得請假表單 + 送出申請
-│   │   └── delete_leave/index.py   # action：刪除假單
-│   ├── parsers/                    # HTML 解析套件（各功能獨立子模組）
-│   └── utils/                      # 渲染工具（Pillow，課表 / 缺曠 / 成績）
+│   │   ├── app.py                  # FastAPI app（/login /chat /answer /health）
+│   │   ├── routes.py               # 資料 + 會話 + 設定 endpoints
+│   │   ├── state.py                # AgentRegistry（per-user agent，2h 閒置驅逐）
+│   │   └── models.py               # Pydantic models
+│   ├── storage/
+│   │   ├── history.py              # chat_history（目前 session 快取）
+│   │   ├── sessions.py             # chat_sessions + chat_session_turns（歷史對話）
+│   │   └── user_settings.py        # user_llm_config（自訂 LLM）
+│   ├── actions/                    # 各功能 action（fetch_schedule / absence / grades / leaves / apply_leave / delete_leave）
+│   ├── parsers/                    # HTML 解析
+│   └── utils/                      # 渲染工具（Pillow）
+├── frontend/                       # Next.js 前端
+│   ├── app/(app)/
+│   │   ├── chat/                   # AI 對話頁
+│   │   ├── schedule/               # 課表頁
+│   │   ├── grades/                 # 成績頁
+│   │   ├── absence/                # 缺曠頁
+│   │   ├── leaves/                 # 假單頁
+│   │   └── settings/               # LLM 設定頁
+│   ├── components/
+│   │   ├── NavLayout.tsx           # 導覽列
+│   │   └── SessionHistoryPanel.tsx # 會話管理 drawer
+│   └── lib/
+│       ├── data.ts                 # API client 函式
+│       └── api-client.ts           # axios 實例
+├── data/
+│   └── history.db                  # SQLite（chat_history / chat_sessions / chat_session_turns / user_llm_config）
+├── logs/api/{uid}/                 # 結構化對話記錄（JSON，per session）
+├── output/                         # 產出圖表（gitignore）
 ├── docs/
-│   ├── AI_GUIDE.md                 # AI chatbot 操作指引（嵌入 SYSTEM_PROMPT）
-│   ├── rag_design.md               # RAG 架構設計草稿（未實作）
-│   └── CONTRIBUTING.md             # 開發規範（架構、命名、Code Style）
-├── output/                         # 產出檔案（gitignore）
-├── logs/                           # 對話記錄（gitignore）
-│   ├── conversations/              # CLI chatbot 記錄
-│   └── api/                        # API 記錄（per user）
-├── pyproject.toml
+│   ├── AI_GUIDE.md                 # 嵌入 SYSTEM_PROMPT 的操作指引
+│   └── CONTRIBUTING.md             # 開發規範
 └── requirements.txt
 ```
 
-## 架構模式
+## 資料庫結構
 
-模組依賴方向（單向，不得逆向）：`scripts/api → agent/actions → parsers / client`
+```sql
+-- 目前 session 訊息（前端跨 refresh 保持對話連續性）
+chat_history(uid PK, messages_json, updated_at)
+
+-- 歷史會話 metadata
+chat_sessions(session_id PK, uid, started_at, ended_at, turn_count, title, updated_at)
+
+-- 歷史會話內容（append-only，每輪一筆）
+chat_session_turns(session_id, turn_id, user, assistant)
+
+-- 自訂 LLM 設定
+user_llm_config(uid PK, base_url, api_key, model, updated_at)
+```
+
+## 架構原則
+
+模組依賴方向（單向）：`api → agent/actions → parsers/client`
 
 - `client.py`：只管 HTTP，零業務邏輯
-- `parsers/`：只管 HTML 解析，不 import actions 或 client
-- `agent/`：無 I/O，所有輸出以 `AgentEvent` 型別串流給呼叫端
-- `api/`：薄殼，只做 HTTP ↔ AgentEvent 的轉換
+- `parsers/`：只管 HTML 解析
+- `agent/`：無 I/O，所有輸出以 `AgentEvent` 串流
+- `api/`：薄殼，HTTP ↔ AgentEvent 轉換
 
 **安全機制：**
-- Token：`secrets.token_urlsafe(32)`，不可預測，與 uid 完全分離
-- 危險工具（`danger_level >= 1`）必須先 `ask_user` 確認，否則拒絕執行
-- Session 過期時 API 回傳 `NET_002`，不在伺服器端儲存密碼
-
-## 已完成
-
-- [x] 登入取得 JSESSIONID（session 快取 + 自動驗證）
-- [x] 課表查詢 + 渲染成 PNG
-- [x] 缺曠查詢 + 渲染成 PNG
-- [x] 成績查詢 + 渲染成 PNG
-- [x] 請假申請（互動式 + 公假附件上傳）
-- [x] 假單查詢 + 刪除
-- [x] AI chatbot（CLI，支援 OpenAI-compatible API）
-- [x] ChatAgent 重構（I/O-free，AsyncIterator 事件架構）
-- [x] 工具安全層（danger_level、ErrorCode、ask_user 強制確認）
-- [x] 對話記錄（JSON，confidence score，log rotation）
-- [x] REST API（FastAPI，SSE 串流，rate limiting，多用戶隔離）
-- [x] 主選單整合（main.py）
-
-## 待辦 / 下一步
-
-- [ ] scripts/* 功能遷移為 API endpoints（/schedule、/absence、/grades 等）
-- [ ] HTTPS / 反向代理設定（Nginx / Caddy）
-- [ ] RAG 整合（見 docs/rag_design.md）
+- Token：`secrets.token_urlsafe(32)`，與 uid 完全分離
+- 危險工具（`danger_level >= 1`）必須先 `ask_user` 確認
+- Session 過期回傳 `NET_002`，不在伺服器端儲存密碼

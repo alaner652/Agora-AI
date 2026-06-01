@@ -49,6 +49,19 @@ TOOLS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "get_current_date",
+            "description": (
+                "取得今天的實際日期（西元與民國格式）。"
+                "當使用者提到「今天」「本月」「本週」「最近」等相對時間，"
+                "或需要填寫日期範圍時，必須先呼叫此工具確認正確日期，"
+                "不得自行推算民國年份。"
+            ),
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_semester_options",
             "description": "取得系統可用的學期清單。查詢課表或缺曠前若不知道學期代碼，先呼叫此工具。",
             "parameters": {"type": "object", "properties": {}, "required": []},
@@ -75,7 +88,7 @@ TOOLS: list[dict] = [
         "type": "function",
         "function": {
             "name": "fetch_absence",
-            "description": "查詢指定學期和日期範圍的缺曠記錄。",
+            "description": "查詢指定學期和日期範圍的缺曠記錄。若未明確指定日期，或涉及相對時間（本月/本週/今天），必須先呼叫 get_current_date 取得正確日期。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -197,7 +210,19 @@ async def dispatch(name: str, args: dict, jsessionid: str, memory: ChatMemory) -
     Raises ValueError with "Session 過期" when the session has expired.
     """
     try:
-        if name == "get_semester_options":
+        if name == "get_current_date":
+            from datetime import date as _date
+            today = _date.today()
+            roc = today_roc()
+            return json.dumps({
+                "date_ad": today.isoformat(),
+                "date_roc": roc,
+                "roc_year": int(roc[:3]),
+                "roc_month": int(roc[3:5]),
+                "roc_day": int(roc[5:7]),
+            }, ensure_ascii=False)
+
+        elif name == "get_semester_options":
             result = await _sched_options(jsessionid)
             if not result.get("semesters"):
                 abs_result = await _abs_options(jsessionid)
@@ -250,7 +275,6 @@ async def dispatch(name: str, args: dict, jsessionid: str, memory: ChatMemory) -
                 date=args["date"],
                 periods=args["periods"],
                 leave_id=args["leave_id"],
-                leave_name=args["leave_name"],
                 reason=args["reason"],
                 image_path=args.get("image_path"),
             )

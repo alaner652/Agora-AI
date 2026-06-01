@@ -21,7 +21,7 @@ from actions.fetch_grades.index import get_grades as _grades
 from actions.fetch_leaves.index import get_leaves as _leaves
 from actions.apply_leave.index import apply_leave as _apply_leave, get_leave_form as _get_leave_form, LEAVE_TYPES
 from actions.delete_leave.index import delete_leave as _delete_leave
-from storage import save_history, load_history, clear_history, get_llm_config, set_llm_config, delete_llm_config
+from storage import save_history, load_history, clear_history, get_llm_config, set_llm_config, delete_llm_config, list_sessions, get_session_messages_slim, delete_session
 
 from .models import LLMConfigRequest, LLMConfigResponse, LLMModelsRequest
 from .state import AgentRegistry
@@ -271,6 +271,65 @@ async def post_history(body: SaveHistoryBody, uid: str = Depends(_resolve_uid)):
 @router.delete("/history")
 async def delete_history(uid: str = Depends(_resolve_uid)):
     clear_history(uid)
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Session history
+# ---------------------------------------------------------------------------
+
+@router.post("/sessions/new")
+async def new_session_endpoint(
+    creds: HTTPAuthorizationCredentials = Depends(_bearer),
+    request: Request = None,
+):
+    reg = _get_registry(request)
+    uid = reg.get_uid(creds.credentials)
+    if uid is None:
+        raise HTTPException(status_code=401, detail={"error": "Token 無效", "error_code": "AUTH_002"})
+    await reg.new_session(creds.credentials)
+    clear_history(uid)
+    return {"ok": True}
+
+
+@router.get("/sessions")
+async def get_sessions(
+    creds: HTTPAuthorizationCredentials = Depends(_bearer),
+    request: Request = None,
+):
+    reg = _get_registry(request)
+    uid = reg.get_uid(creds.credentials)
+    if uid is None:
+        raise HTTPException(status_code=401, detail={"error": "Token 無效", "error_code": "AUTH_002"})
+    return {
+        "sessions": list_sessions(uid),
+        "current_session_id": reg.get_current_session_id(creds.credentials),
+    }
+
+
+@router.post("/sessions/{session_id}/switch")
+async def switch_session_endpoint(
+    session_id: str,
+    creds: HTTPAuthorizationCredentials = Depends(_bearer),
+    request: Request = None,
+):
+    reg = _get_registry(request)
+    uid = reg.get_uid(creds.credentials)
+    if uid is None:
+        raise HTTPException(status_code=401, detail={"error": "Token 無效", "error_code": "AUTH_002"})
+    messages = get_session_messages_slim(session_id, uid)
+    if messages is None:
+        raise HTTPException(status_code=404, detail={"error": "Session 不存在", "error_code": "NOT_FOUND"})
+    await reg.restore_session(creds.credentials, messages)
+    save_history(uid, messages)
+    return {"messages": messages}
+
+
+@router.delete("/sessions/{session_id}")
+async def delete_session_endpoint(session_id: str, uid: str = Depends(_resolve_uid)):
+    ok = delete_session(session_id, uid)
+    if not ok:
+        raise HTTPException(status_code=404, detail={"error": "Session 不存在", "error_code": "NOT_FOUND"})
     return {"ok": True}
 
 

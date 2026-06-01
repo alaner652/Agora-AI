@@ -4,20 +4,13 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Bot, Paperclip, Trash2, Send, Square, ChevronRight } from 'lucide-react'
+import { Bot, Paperclip, Send, Square, ChevronRight, History } from 'lucide-react'
 import { getCookie, deleteCookie } from '@/lib/cookie'
+import { SessionHistoryPanel } from '@/components/SessionHistoryPanel'
+import type { ToolRecord, TextMessage } from '@/lib/data'
+import { newSession } from '@/lib/data'
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
-
-interface ToolRecord { name: string; ok: boolean | null }
-
-interface TextMessage {
-  role: 'user' | 'assistant'
-  content: string
-  toolCalls?: ToolRecord[]
-  images?: string[]
-  aborted?: boolean
-}
 
 interface AskUserState {
   question: string
@@ -32,9 +25,10 @@ function slimMessages(messages: TextMessage[]): object[] {
   }))
 }
 
-async function loadHistoryFromServer(token: string): Promise<TextMessage[]> {
+async function loadHistoryFromServer(token: string): Promise<TextMessage[] | null> {
   try {
     const res = await fetch(`${BASE}/api/history`, { headers: { Authorization: `Bearer ${token}` } })
+    if (res.status === 401) return null
     if (!res.ok) return []
     const data = await res.json()
     return (data.messages ?? []) as TextMessage[]
@@ -73,8 +67,8 @@ async function* streamSse(url: string, body: object, signal: AbortSignal): Async
     signal,
   })
   if (!res.ok || !res.body) {
-    const detail = await res.json().catch(() => ({}))
-    throw Object.assign(new Error('SSE failed'), { detail })
+    const body = await res.json().catch(() => ({}))
+    throw Object.assign(new Error('SSE failed'), { detail: body?.detail ?? body })
   }
   const reader = res.body.getReader()
   const dec = new TextDecoder()
@@ -212,6 +206,8 @@ export default function ChatPage() {
   const [editText, setEditText] = useState('')
   const [uploadedFile, setUploadedFile] = useState<{ path: string; name: string } | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [historyPanelOpen, setHistoryPanelOpen] = useState(false)
+  const [viewingSessionId, setViewingSessionId] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const editRef = useRef<HTMLTextAreaElement>(null)
@@ -222,6 +218,7 @@ export default function ChatPage() {
     const token = getCookie('token')
     if (!token) { router.push('/login'); return }
     loadHistoryFromServer(token).then(msgs => {
+      if (msgs === null) { deleteCookie('token'); router.push('/login'); return }
       setMessages(msgs)
       setHistoryLoaded(true)
     })
@@ -392,6 +389,19 @@ export default function ChatPage() {
     setMessages([])
   }
 
+  function handleSwitchSession(msgs: TextMessage[], sessionId: string) {
+    setMessages(msgs)
+    setViewingSessionId(sessionId)
+    setHistoryPanelOpen(false)
+  }
+
+  function handleNewSession() {
+    // newSession() API call is already made inside SessionHistoryPanel — don't call it again
+    setMessages([])
+    setViewingSessionId(null)
+    setHistoryPanelOpen(false)
+  }
+
   function startEdit(index: number) {
     if (streaming) return
     setEditingIndex(index)
@@ -416,19 +426,26 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-[calc(100dvh-3rem)]">
+      <SessionHistoryPanel
+        open={historyPanelOpen}
+        onClose={() => setHistoryPanelOpen(false)}
+        onSwitch={handleSwitchSession}
+        onNewSession={handleNewSession}
+        viewingSessionId={viewingSessionId}
+        disabled={streaming}
+      />
+
+      {/* Fixed 會話管理 button */}
+      <button
+        onClick={() => setHistoryPanelOpen(true)}
+        className="fixed top-14 left-4 z-20 flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg shadow-sm transition-colors"
+      >
+        <History className="w-3.5 h-3.5" />
+        會話管理
+      </button>
+
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto bg-stone-50 relative">
-        {/* Clear button — shown when messages exist */}
-        {messages.length > 0 && !streaming && (
-          <button
-            onClick={handleClearHistory}
-            title="清除對話"
-            className="absolute top-3 right-4 z-10 p-1.5 text-stone-300 hover:text-red-400 hover:bg-red-50 rounded-lg transition-colors"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        )}
-
         {/* Loading history */}
         {!historyLoaded && (
           <div className="flex items-center justify-center h-full gap-2 text-stone-400 text-sm">

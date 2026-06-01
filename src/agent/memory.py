@@ -46,3 +46,15 @@ class ChatMemory:
 
     def recall(self, key: str, default=None):
         return self.prefs.get(key, default)
+
+    def clear(self) -> None:
+        uid = self.prefs.get("uid", "")
+        self.history.clear()
+        self.cache.clear()
+        self.prefs.clear()
+        if uid:
+            self.prefs["uid"] = uid
+
+    def load(self, messages: list[dict]) -> None:
+        self.history = list(messages)
+        self.cache.clear()

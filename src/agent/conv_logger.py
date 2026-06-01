@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+from collections.abc import Callable
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from typing import Any
@@ -50,9 +51,18 @@ class ConversationLogger:
     Call close() when the session ends to stamp ended_at.
     """
 
-    def __init__(self, log_dir: pathlib.Path, keep: int = 30) -> None:
+    def __init__(
+        self,
+        log_dir: pathlib.Path,
+        keep: int = 30,
+        uid: str = "",
+        persist_fn: Callable[[str, str, str, str, int, str, int, str, str], None] | None = None,
+    ) -> None:
         log_dir.mkdir(parents=True, exist_ok=True)
         self._dir = log_dir
+        self._uid = uid
+        self._persist_fn = persist_fn
+        self._title = ""
         self._session = self._new_session()
         self._current_turn: TurnLog | None = None
         self._rotate(keep)
@@ -64,6 +74,8 @@ class ConversationLogger:
     def on_user_message(self, text: str) -> None:
         turn_id = len(self._session.turns) + 1
         self._current_turn = TurnLog(turn_id=turn_id, user=text)
+        if not self._title:
+            self._title = text[:30]
 
     def on_tool_call(
         self,
@@ -144,6 +156,14 @@ class ConversationLogger:
             },
         }
 
+    def start_new_session(self) -> None:
+        if self._current_turn is not None:
+            self._session.turns.append(self._current_turn)
+            self._current_turn = None
+        self._flush()
+        self._title = ""
+        self._session = self._new_session()
+
     def close(self) -> None:
         self._session.ended_at = datetime.now().isoformat(timespec="milliseconds")
         self._flush()
@@ -173,3 +193,16 @@ class ConversationLogger:
             json.dumps(asdict(self._session), ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+        if self._persist_fn and self._session.turns:
+            t = self._session.turns[-1]
+            self._persist_fn(
+                self._session.session_id,
+                self._uid,
+                self._session.started_at,
+                self._session.ended_at,
+                len(self._session.turns),
+                self._title,
+                t.turn_id,
+                t.user,
+                t.assistant,
+            )

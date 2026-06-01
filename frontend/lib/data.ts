@@ -1,5 +1,28 @@
 import { apiClient } from './api-client'
 
+export interface ToolRecord { name: string; ok: boolean | null }
+
+export interface TextMessage {
+  role: 'user' | 'assistant'
+  content: string
+  toolCalls?: ToolRecord[]
+  images?: string[]
+  aborted?: boolean
+}
+
+export interface SessionMeta {
+  session_id: string
+  started_at: string
+  ended_at: string
+  turn_count: number
+  title: string
+}
+
+interface SessionsResponse {
+  sessions: SessionMeta[]
+  current_session_id: string | null
+}
+
 export interface SemesterOption {
   value: string
   label: string
@@ -173,4 +196,25 @@ export async function testLLMConfig(req: LLMConfigRequest): Promise<LLMTestResul
 export async function listLLMModels(base_url: string, api_key: string): Promise<LLMModelsResult> {
   const res = await apiClient.post<LLMModelsResult>('/api/settings/llm/models', { base_url, api_key })
   return res.data
+}
+
+export async function getSessions(): Promise<SessionsResponse> {
+  const res = await apiClient.get<SessionsResponse>('/api/sessions')
+  return {
+    sessions: res.data.sessions ?? [],
+    current_session_id: res.data.current_session_id ?? null,
+  }
+}
+
+export async function switchSession(sessionId: string): Promise<TextMessage[]> {
+  const res = await apiClient.post<{ messages: TextMessage[] }>(`/api/sessions/${sessionId}/switch`)
+  return res.data.messages ?? []
+}
+
+export async function deleteSessionById(sessionId: string): Promise<void> {
+  await apiClient.delete(`/api/sessions/${sessionId}`)
+}
+
+export async function newSession(): Promise<void> {
+  await apiClient.post('/api/sessions/new')
 }
