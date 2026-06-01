@@ -8,6 +8,8 @@ export interface TextMessage {
   toolCalls?: ToolRecord[]
   images?: string[]
   aborted?: boolean
+  attachmentName?: string
+  attachmentPreview?: string  // blob URL, not persisted to history
 }
 
 export interface SessionMeta {

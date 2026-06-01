@@ -20,7 +20,7 @@ interface AskUserState {
 }
 
 function slimMessages(messages: TextMessage[]): object[] {
-  return messages.map(({ images: _, ...rest }) => ({
+  return messages.map(({ images: _, attachmentPreview: __, ...rest }) => ({
     ...rest,
     toolCalls: rest.toolCalls?.filter(t => t.ok !== null),
   }))
@@ -205,7 +205,7 @@ export default function ChatPage() {
   const [askUser, setAskUser] = useState<AskUserState | null>(null)
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [editText, setEditText] = useState('')
-  const [uploadedFile, setUploadedFile] = useState<{ path: string; name: string } | null>(null)
+  const [uploadedFile, setUploadedFile] = useState<{ path: string; name: string; previewUrl?: string } | null>(null)
   const [uploading, setUploading] = useState(false)
   const [historyPanelOpen, setHistoryPanelOpen] = useState(false)
   const [viewingSessionId, setViewingSessionId] = useState<string | null>(null)
@@ -333,6 +333,7 @@ export default function ChatPage() {
     if (!file) return
     const token = getCookie('token')
     if (!token) return
+    const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined
     setUploading(true)
     try {
       const fd = new FormData()
@@ -344,9 +345,13 @@ export default function ChatPage() {
       })
       if (res.ok) {
         const data = await res.json()
-        setUploadedFile({ path: data.path, name: data.name })
+        setUploadedFile({ path: data.path, name: data.name, previewUrl })
+      } else {
+        if (previewUrl) URL.revokeObjectURL(previewUrl)
       }
-    } catch { /* ignore */ } finally {
+    } catch {
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+    } finally {
       setUploading(false)
       e.target.value = ''
     }
