@@ -5,41 +5,35 @@ import { usePathname } from 'next/navigation'
 import type { ReactNode } from 'react'
 
 const NAV_ITEMS = [
-  { href: '/settings/general',     label: 'General' },
-  { href: '/settings/llm',         label: 'LLM' },
-  { href: '/settings/appearance',  label: 'Appearance' },
-  { href: '/settings/advanced',    label: 'Advanced' },
+  { href: '/settings/general',    label: 'General' },
+  { href: '/settings/llm',        label: 'LLM' },
+  { href: '/settings/appearance', label: 'Appearance' },
+  { href: '/settings/advanced',   label: 'Advanced' },
 ]
 
 export default function SettingsLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname()
 
   return (
-    <div className="flex flex-col gap-4 p-4 sm:p-6 h-full">
-      <h1 className="text-lg font-semibold text-foreground">設定</h1>
-      <div className="flex gap-6 flex-1 min-h-0">
-        {/* Sidebar */}
-        <nav className="w-36 shrink-0 space-y-0.5">
-          {NAV_ITEMS.map(({ href, label }) => {
-            const active = pathname === href || pathname.startsWith(href + '/')
-            return (
-              <Link
-                key={href}
-                href={href}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors
-                  ${active
-                    ? 'bg-accent text-primary font-medium border-l-2 border-primary'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                  }`}
-              >
-                {label}
-              </Link>
-            )
-          })}
-        </nav>
+    <div className="flex h-full">
+      <nav className="w-44 shrink-0 border-r border-border p-4 space-y-1">
+        {NAV_ITEMS.map(({ href, label }) => {
+          const active = pathname === href || pathname.startsWith(href + '/')
+          return (
+            <Link key={href} href={href}
+              className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
+                active
+                  ? 'bg-primary/10 text-primary font-medium'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+              }`}>
+              {label}
+            </Link>
+          )
+        })}
+      </nav>
 
-        {/* Content */}
-        <div className="flex-1 min-w-0">
+      <div className="flex-1 overflow-y-auto min-w-0">
+        <div className="p-6 max-w-lg space-y-5">
           {children}
         </div>
       </div>

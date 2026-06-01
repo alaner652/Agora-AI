@@ -1,13 +1,68 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { getFullSettings, type FullSettingsResponse } from '@/lib/data'
+import { deleteCookie } from '@/lib/cookie'
+import { Spinner } from '@/components/ui/spinner'
+import { SettingCard, InfoRow, CopyButton } from '@/components/settings/primitives'
+
 export default function GeneralSettingsPage() {
-  return (
-    <div className="max-w-lg space-y-4">
-      <div>
-        <h2 className="text-base font-semibold text-foreground">General</h2>
-        <p className="text-xs text-muted-foreground/70 mt-0.5">帳號與一般偏好設定</p>
-      </div>
-      <div className="rounded-xl border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground/70">
-        即將推出
-      </div>
+  const router = useRouter()
+  const [data, setData] = useState<FullSettingsResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    getFullSettings()
+      .then(setData)
+      .catch(e => {
+        if (e?.response?.data?.detail?.error_code === 'AUTH_002') {
+          deleteCookie('token'); router.push('/login')
+        }
+      })
+      .finally(() => setLoading(false))
+  }, [router])
+
+  if (loading) return (
+    <div className="flex items-center gap-2 text-muted-foreground text-sm py-6">
+      <Spinner /> 載入中…
     </div>
+  )
+  if (!data) return null
+
+  const { uid, llm_status, settings } = data
+  const model = llm_status.has_custom_config ? (llm_status.model || '—') : '伺服器預設'
+  const providerHost = llm_status.has_custom_config && llm_status.base_url
+    ? (() => { try { return new URL(llm_status.base_url).hostname } catch { return llm_status.base_url } })()
+    : '—'
+
+  return (
+    <>
+      <SettingCard>
+        <p className="text-sm font-medium text-foreground">帳號</p>
+        <div className="-mt-2">
+          <InfoRow label="學號" value={uid} mono action={<CopyButton value={uid} />} />
+        </div>
+      </SettingCard>
+
+      <SettingCard>
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-medium text-foreground">語言模型</p>
+          <Link href="/settings/llm" className="text-xs text-primary hover:text-primary/80 transition-colors">
+            設定 →
+          </Link>
+        </div>
+        <div className="-mt-2">
+          <InfoRow label="狀態" value={llm_status.has_custom_config ? '自訂設定' : '伺服器預設'}
+            action={<span className={`w-1.5 h-1.5 rounded-full ${llm_status.has_custom_config ? 'bg-emerald-400' : 'bg-muted-foreground/30'}`} />} />
+          <InfoRow label="模型" value={model} mono />
+          {llm_status.has_custom_config && <InfoRow label="Provider" value={providerHost} />}
+          <InfoRow label="Temperature" value={settings.llm.temperature.toFixed(1)} mono />
+          <InfoRow label="Max Tokens" value={settings.llm.max_tokens.toLocaleString()} mono />
+          <InfoRow label="Context" value={`${settings.llm.context_length} 輪`} mono />
+        </div>
+      </SettingCard>
+    </>
   )
 }

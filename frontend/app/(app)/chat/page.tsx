@@ -8,6 +8,7 @@ import { Bot, Paperclip, Send, Square, ChevronRight, History, LayoutGrid } from 
 import { getCookie, deleteCookie } from '@/lib/cookie'
 import { SessionHistoryPanel } from '@/components/SessionHistoryPanel'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Spinner } from '@/components/ui/spinner'
 import type { ToolRecord, TextMessage, Attachment } from '@/lib/data'
 import { newSession } from '@/lib/data'
 
@@ -126,7 +127,7 @@ function LiveToolPanel({ calls }: { calls: ToolRecord[] }) {
       {calls.map((tc, i) => (
         <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground">
           {tc.ok === null ? (
-            <div className="border-2 border-border border-t-primary rounded-full animate-spin w-3 h-3 shrink-0" />
+<Spinner className="w-3 h-3 shrink-0" />
           ) : tc.ok ? (
             <span className="text-emerald-400 shrink-0">✓</span>
           ) : (
@@ -329,9 +330,12 @@ export default function ChatPage() {
       }
       updateLast({ content: assistantText || '發生錯誤，請稍後再試。' })
     } finally {
-      setStreaming(false)
+      // Await the snapshot BEFORE re-enabling input. Otherwise a fire-and-forget
+      // save could land after a subsequent "新會話"/switch cleared server history,
+      // resurrecting the old messages on the next reload.
       const token = getCookie('token')
-      if (token && finalMessages.length > 0) saveHistoryToServer(token, finalMessages)
+      if (token && finalMessages.length > 0) await saveHistoryToServer(token, finalMessages)
+      setStreaming(false)
     }
   }
 
@@ -461,7 +465,7 @@ export default function ChatPage() {
         {/* Loading history */}
         {!historyLoaded && (
           <div className="flex items-center justify-center h-full gap-2 text-muted-foreground text-sm">
-            <div className="border-2 border-border border-t-primary rounded-full animate-spin w-4 h-4" />
+<Spinner />
             載入中...
           </div>
         )}
@@ -527,7 +531,7 @@ export default function ChatPage() {
                       <div className="group relative">
                         {!streaming && (
                           <button onClick={() => startEdit(i)}
-                            className="absolute -left-7 top-2 opacity-0 group-hover:opacity-100 transition-opacity text-stone-300 hover:text-stone-500 p-1"
+                            className="absolute -left-7 top-2 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground/50 hover:text-muted-foreground p-1"
                             title="編輯">
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -581,7 +585,7 @@ export default function ChatPage() {
                         {(m.images ?? []).map((uri, j) => (
                           <img key={j} src={uri} alt="圖表" className="max-w-full rounded-lg mt-2" />
                         ))}
-                        {m.aborted && <p className="text-xs text-stone-400 mt-1 italic">（已中斷）</p>}
+                        {m.aborted && <p className="text-xs text-muted-foreground mt-1 italic">（已中斷）</p>}
                         {!(streaming && i === lastIdx) && (m.toolCalls ?? []).length > 0 && (
                           <DoneToolPanel calls={m.toolCalls!} />
                         )}
@@ -678,9 +682,9 @@ export default function ChatPage() {
               <PopoverContent side="top" align="start" className="w-44 p-1.5 gap-0">
                 <button
                   onClick={() => setHistoryPanelOpen(true)}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-stone-700 hover:bg-stone-100 rounded-md transition-colors"
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-foreground/80 hover:bg-accent rounded-md transition-colors"
                 >
-                  <History className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                  <History className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                   會話管理
                 </button>
               </PopoverContent>
@@ -690,7 +694,7 @@ export default function ChatPage() {
               disabled={streaming || uploading} title="上傳附件"
               className="h-9 w-9 flex items-center justify-center rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-40 transition-colors shrink-0">
               {uploading
-                ? <div className="border-2 border-border border-t-primary rounded-full animate-spin w-4 h-4" />
+                ? <Spinner />
                 : <Paperclip className="w-4 h-4" />
               }
             </button>

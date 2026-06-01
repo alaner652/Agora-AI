@@ -2,320 +2,281 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { RefreshCw } from 'lucide-react'
 import {
-  getLLMConfig, setLLMConfig, deleteLLMConfig, testLLMConfig, listLLMModels,
-  type LLMConfigRequest,
+  getLLMConfig, setLLMConfig, deleteLLMConfig, testLLMConfig,
+  getFullSettings, patchSettings,
+  type LLMConfigRequest, type LLMBehaviourSettings,
 } from '@/lib/data'
+import { PROVIDERS, providerForBaseUrl, type ModelOption, type ProviderDef } from '@/lib/providers'
 import { deleteCookie } from '@/lib/cookie'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Spinner } from '@/components/ui/spinner'
+import { SettingCard, SettingCardHeader, FieldLabel, Slider } from '@/components/settings/primitives'
 
-const PROVIDER_PRESETS = [
-  {
-    label: 'Google Gemini',
-    base_url: 'https://generativelanguage.googleapis.com/v1beta/openai/',
-    model: 'gemini-2.0-flash-lite',
-    knownModels: ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-pro'],
-  },
-  {
-    label: 'OpenAI',
-    base_url: 'https://api.openai.com/v1',
-    model: 'gpt-4o-mini',
-    knownModels: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
-  },
-  {
-    label: 'Groq',
-    base_url: 'https://api.groq.com/openai/v1',
-    model: 'llama-3.3-70b-versatile',
-    knownModels: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768', 'gemma2-9b-it'],
-  },
-  {
-    label: 'Ollama',
-    base_url: 'http://localhost:11434/v1',
-    model: 'llama3.2',
-    knownModels: [] as string[],
-  },
-  {
-    label: '自訂',
-    base_url: '',
-    model: '',
-    knownModels: [] as string[],
-  },
-]
+const DEFAULT_BEHAVIOUR: LLMBehaviourSettings = {
+  temperature: 0.7, max_tokens: 2048, system_prompt: '', context_length: 20,
+}
 
 export default function LLMSettingsPage() {
   const router = useRouter()
-  const [currentConfig, setCurrentConfig] = useState<{ has_custom_config: boolean; base_url: string; model: string } | null>(null)
+
+  // Provider state
+  const [hasCustom, setHasCustom] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [selectedPreset, setSelectedPreset] = useState(0)
-  const [baseUrl, setBaseUrl] = useState('')
+  const [provider, setProvider] = useState<ProviderDef>(PROVIDERS[0])
+  const [baseUrl, setBaseUrl] = useState(PROVIDERS[0].baseUrl)
   const [apiKey, setApiKey] = useState('')
-  const [model, setModel] = useState('')
+  const [model, setModel] = useState(PROVIDERS[0].defaultModel)
   const [showKey, setShowKey] = useState(false)
-  const [modelOptions, setModelOptions] = useState<string[]>([])
-  const [loadingModels, setLoadingModels] = useState(false)
+  const [models, setModels] = useState<ModelOption[]>([])
+  const [modelsLoading, setModelsLoading] = useState(false)
+  const [modelsFellBack, setModelsFellBack] = useState(false)
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null)
   const [error, setError] = useState('')
 
+  // Behaviour state
+  const [behaviour, setBehaviour] = useState<LLMBehaviourSettings>(DEFAULT_BEHAVIOUR)
+  const [bSaving, setBSaving] = useState(false)
+  const [bSaved, setBSaved] = useState(false)
+
+  async function loadModels(p: ProviderDef, key: string) {
+    setModelsLoading(true)
+    setModelsFellBack(false)
+    try {
+      // Skip live fetch when a key is required but absent — show known list silently
+      if (p.canList && p.needsKey && !key) {
+        setModels(p.knownModels.map(id => ({ id, name: id })))
+        return
+      }
+      const { models, fellBack } = await p.fetchModels(key)
+      setModels(models)
+      setModelsFellBack(fellBack)
+    } finally {
+      setModelsLoading(false)
+    }
+  }
+
   useEffect(() => {
-    getLLMConfig()
-      .then(cfg => {
-        setCurrentConfig(cfg)
-        if (cfg.has_custom_config) {
-          setBaseUrl(cfg.base_url)
-          setModel(cfg.model)
-          const matched = PROVIDER_PRESETS.findIndex(p => p.base_url === cfg.base_url)
-          const idx = matched >= 0 ? matched : PROVIDER_PRESETS.length - 1
-          setSelectedPreset(idx)
-          setModelOptions(PROVIDER_PRESETS[idx].knownModels)
-        }
+    Promise.all([getLLMConfig(), getFullSettings()])
+      .then(([cfg, full]) => {
+        setHasCustom(cfg.has_custom_config)
+        const p = cfg.has_custom_config ? providerForBaseUrl(cfg.base_url) : PROVIDERS[0]
+        setProvider(p)
+        setBaseUrl(cfg.has_custom_config ? cfg.base_url : p.baseUrl)
+        setModel(cfg.has_custom_config ? cfg.model : p.defaultModel)
+        setBehaviour(full.settings.llm)
+        loadModels(p, '')   // no key on load → falls back to known list
       })
       .catch(e => {
-        const code = e?.response?.data?.detail?.error_code
-        if (code === 'AUTH_002') { deleteCookie('token'); router.push('/login') }
+        if (e?.response?.data?.detail?.error_code === 'AUTH_002') {
+          deleteCookie('token'); router.push('/login')
+        }
       })
       .finally(() => setLoading(false))
   }, [router])
 
-  function applyPreset(idx: number) {
-    setSelectedPreset(idx)
-    setTestResult(null)
-    setError('')
-    setModelOptions(PROVIDER_PRESETS[idx].knownModels)
-    const p = PROVIDER_PRESETS[idx]
-    if (p.base_url) setBaseUrl(p.base_url)
-    if (p.model) setModel(p.model)
-  }
-
-  async function handleLoadModels() {
-    if (!baseUrl) return
-    setLoadingModels(true)
-    setError('')
-    try {
-      const res = await listLLMModels(baseUrl, apiKey)
-      if (res.ok && res.models.length > 0) {
-        setModelOptions(res.models)
-        if (!res.models.includes(model)) setModel(res.models[0])
-      } else {
-        setError(res.error?.trim() || '此 Provider 不支援自動取得模型清單')
-      }
-    } catch {
-      setError('無法連線至 Provider，請確認 Base URL 與 API Key')
-    } finally {
-      setLoadingModels(false)
-    }
+  function selectProvider(p: ProviderDef) {
+    setProvider(p)
+    setError(''); setTestResult(null)
+    setBaseUrl(p.baseUrl)
+    setModel(p.defaultModel)
+    loadModels(p, apiKey)
   }
 
   async function handleSave() {
-    if (!baseUrl || !model) { setError('請填寫 Base URL 和模型名稱'); return }
-    setError('')
-    setSaving(true)
+    if (!baseUrl || !model) { setError('請選擇模型'); return }
+    setError(''); setSaving(true)
     try {
       const req: LLMConfigRequest = { base_url: baseUrl, api_key: apiKey, model }
-      const updated = await setLLMConfig(req)
-      setCurrentConfig({ ...updated })
-      setApiKey('')
-    } catch {
-      setError('儲存失敗，請重試')
-    } finally {
-      setSaving(false)
-    }
+      await setLLMConfig(req)
+      setHasCustom(true); setApiKey('')
+    } catch { setError('儲存失敗，請重試') } finally { setSaving(false) }
   }
 
   async function handleDelete() {
-    if (!confirm('確定要清除自訂設定，改用伺服器預設？')) return
     try {
       await deleteLLMConfig()
-      setCurrentConfig({ has_custom_config: false, base_url: '', model: '' })
-      setBaseUrl(''); setApiKey(''); setModel(''); setTestResult(null); setModelOptions([])
-    } catch {
-      setError('清除失敗，請重試')
-    }
+      setHasCustom(false)
+      selectProvider(PROVIDERS[0])
+      setApiKey(''); setTestResult(null)
+    } catch { setError('清除失敗') }
   }
 
   async function handleTest() {
-    if (!baseUrl || !model) { setError('請先填寫 Base URL 和模型名稱'); return }
-    setError('')
-    setTesting(true)
-    setTestResult(null)
+    if (!baseUrl || !model) { setError('請先選擇模型'); return }
+    setError(''); setTesting(true); setTestResult(null)
     try {
       const res = await testLLMConfig({ base_url: baseUrl, api_key: apiKey, model })
-      setTestResult({ ok: res.ok, msg: res.ok ? `回應：${res.reply}` : (res.error ?? '未知錯誤') })
-    } catch {
-      setTestResult({ ok: false, msg: '請求失敗' })
-    } finally {
-      setTesting(false)
-    }
+      setTestResult({ ok: res.ok, msg: res.ok ? (res.reply || '成功') : (res.error ?? '失敗') })
+    } catch { setTestResult({ ok: false, msg: '請求失敗' }) } finally { setTesting(false) }
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center gap-2 text-muted-foreground/70 text-sm py-8">
-        <div className="border-2 border-border border-t-primary rounded-full animate-spin w-4 h-4" />
-        載入中…
-      </div>
-    )
+  async function handleSaveBehaviour() {
+    setBSaving(true)
+    try {
+      const updated = await patchSettings({ llm: behaviour })
+      setBehaviour(updated.llm); setBSaved(true)
+      setTimeout(() => setBSaved(false), 2000)
+    } catch { /* silent */ } finally { setBSaving(false) }
   }
+
+  if (loading) return (
+    <div className="flex items-center gap-2 text-muted-foreground text-sm py-6">
+      <Spinner />
+      載入中…
+    </div>
+  )
 
   return (
-    <div className="max-w-lg space-y-5">
-      <div>
-        <h2 className="text-base font-semibold text-foreground">LLM 設定</h2>
-        <p className="text-xs text-muted-foreground/70 mt-0.5">自訂語言模型 Provider、API Key 與模型名稱</p>
-      </div>
+    <>
+      {/* ── Card 1: Provider ──────────────────────────────────────────── */}
+      <SettingCard>
+        <SettingCardHeader
+          title="Provider"
+          status={
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className={`w-1.5 h-1.5 rounded-full ${hasCustom ? 'bg-emerald-400' : 'bg-muted-foreground/40'}`} />
+              {hasCustom ? '使用自訂設定' : '使用伺服器預設'}
+            </span>
+          }
+        />
 
-      {/* Current config status */}
-      <div className={`rounded-xl border px-4 py-3 text-sm ${
-        currentConfig?.has_custom_config
-          ? 'bg-emerald-500/10 border-emerald-500/30'
-          : 'bg-muted/30 border-border'
-      }`}>
-        {currentConfig?.has_custom_config ? (
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-              <span className="font-medium text-emerald-400">使用自訂設定</span>
-            </div>
-            <div className="text-muted-foreground pl-4 text-xs space-y-0.5">
-              <div>URL：{currentConfig.base_url}</div>
-              <div>模型：{currentConfig.model}</div>
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <span className="w-2 h-2 rounded-full bg-muted-foreground/50 inline-block" />
-            使用伺服器預設設定
-          </div>
-        )}
-      </div>
-
-      {/* Provider selector */}
-      <div>
-        <label className="block text-sm font-medium text-foreground/80 mb-2">Provider</label>
-        <div className="flex flex-wrap gap-2">
-          {PROVIDER_PRESETS.map((p, i) => (
-            <button key={p.label} onClick={() => applyPreset(i)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                selectedPreset === i
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'bg-card text-muted-foreground border-border hover:border-primary/40 hover:text-primary'
+        {/* Provider buttons */}
+        <div className="flex flex-wrap gap-1.5">
+          {PROVIDERS.map(p => (
+            <button key={p.id} onClick={() => selectProvider(p)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                provider.id === p.id
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
               }`}>
               {p.label}
             </button>
           ))}
         </div>
-      </div>
 
-      {/* Base URL */}
-      <div>
-        <label className="block text-sm font-medium text-foreground/80 mb-1">Base URL</label>
-        <Input
-          type="text"
-          value={baseUrl}
-          onChange={e => { setBaseUrl(e.target.value); setSelectedPreset(PROVIDER_PRESETS.length - 1) }}
-          placeholder="https://api.openai.com/v1"
-          className="py-2"
-        />
-      </div>
-
-      {/* API Key */}
-      <div>
-        <label className="block text-sm font-medium text-foreground/80 mb-1">
-          API Key
-          <span className="ml-1.5 text-xs text-muted-foreground/70 font-normal">
-            {currentConfig?.has_custom_config ? '（留空表示不更改）' : '（自架 Ollama 可留空）'}
-          </span>
-        </label>
-        <div className="relative">
-          <Input
-            type={showKey ? 'text' : 'password'}
-            value={apiKey}
-            onChange={e => setApiKey(e.target.value)}
-            placeholder="sk-..."
-            className="pr-14 py-2"
-          />
-          <button type="button" onClick={() => setShowKey(v => !v)}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/70 hover:text-muted-foreground text-xs px-1 transition-colors">
-            {showKey ? '隱藏' : '顯示'}
-          </button>
-        </div>
-      </div>
-
-      {/* Model */}
-      <div>
-        <div className="flex items-center justify-between mb-1">
-          <label className="text-sm font-medium text-foreground/80">模型</label>
-          <button type="button" onClick={handleLoadModels} disabled={!baseUrl || loadingModels}
-            className="flex items-center gap-1 text-xs text-muted-foreground/70 hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-            {loadingModels
-              ? <div className="border-2 border-border border-t-primary rounded-full animate-spin w-3 h-3" />
-              : <RefreshCw className="w-3 h-3" />
-            }
-            {loadingModels ? '載入中…' : '載入清單'}
-          </button>
-        </div>
-        {modelOptions.length > 0 ? (
-          <Select value={model} onValueChange={v => v != null && setModel(v)}>
-            <SelectTrigger>
-              <SelectValue displayValue={model} placeholder="選擇模型" />
-            </SelectTrigger>
-            <SelectContent>
-              {modelOptions.map(m => (
-                <SelectItem key={m} value={m}>{m}</SelectItem>
+        {/* Model selection */}
+        <div>
+          <FieldLabel>模型</FieldLabel>
+          {modelsLoading ? (
+            <div className="grid grid-cols-2 gap-1.5">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="h-9 rounded-lg border border-border bg-muted/20 animate-pulse" />
               ))}
-            </SelectContent>
-          </Select>
-        ) : (
-          <Input
-            type="text"
-            value={model}
-            onChange={e => setModel(e.target.value)}
-            placeholder="gemini-2.0-flash-lite"
-            className="py-2"
-          />
-        )}
-      </div>
+            </div>
+          ) : models.length > 0 ? (
+            <div className="grid grid-cols-2 gap-1.5">
+              {models.map(m => (
+                <button key={m.id} onClick={() => setModel(m.id)}
+                  className={`text-left px-3 py-2 rounded-lg border text-xs font-mono truncate transition-colors ${
+                    model === m.id
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border text-muted-foreground hover:text-foreground hover:border-foreground/20'
+                  }`}>
+                  {m.name}
+                </button>
+              ))}
+            </div>
+          ) : null}
 
-      {error && <p className="text-red-600 text-sm">{error}</p>}
+          {modelsFellBack && (
+            <p className="text-[11px] text-muted-foreground/60 mt-1.5">
+              無法取得模型列表，已使用預設模型
+            </p>
+          )}
 
-      {testResult && (
-        <div className={`text-sm px-3 py-2 rounded-lg border ${
-          testResult.ok
-            ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-            : 'bg-red-50 border-red-200 text-red-600'
-        }`}>
-          {testResult.ok ? '✓ 連線成功 — ' : '✗ 連線失敗 — '}
-          {testResult.msg}
+          {/* Free-form input — always available */}
+          <Input value={model} onChange={e => setModel(e.target.value)}
+            placeholder="model-name" className="font-mono text-sm mt-2" />
         </div>
-      )}
 
-      <div className="flex gap-3 flex-wrap pt-1">
-        <Button variant="outline" onClick={handleTest} disabled={testing}>
-          {testing ? '測試中…' : '測試連線'}
-        </Button>
-        <Button onClick={handleSave} disabled={saving}
-          className="bg-primary hover:bg-primary/80 text-primary-foreground">
-          {saving ? '儲存中…' : '儲存設定'}
-        </Button>
-        {currentConfig?.has_custom_config && (
-          <Button variant="ghost" onClick={handleDelete}
-            className="text-red-500 hover:text-red-600 hover:bg-red-50">
-            清除自訂
-          </Button>
+        {/* API Key */}
+        <div>
+          <FieldLabel>API Key</FieldLabel>
+          <div className="relative">
+            <Input type={showKey ? 'text' : 'password'} value={apiKey}
+              onChange={e => setApiKey(e.target.value)}
+              placeholder={hasCustom ? '留空則不更改' : (provider.needsKey ? 'sk-…' : '可留空')}
+              className="pr-12 text-sm" />
+            <button type="button" onClick={() => setShowKey(v => !v)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground transition-colors">
+              {showKey ? '隱藏' : '顯示'}
+            </button>
+          </div>
+        </div>
+
+        {/* Base URL */}
+        <div>
+          <FieldLabel>Base URL</FieldLabel>
+          <Input value={baseUrl}
+            onChange={e => { setBaseUrl(e.target.value); setProvider(PROVIDERS[PROVIDERS.length - 1]) }}
+            placeholder="https://api.openai.com/v1" className="font-mono text-sm" />
+        </div>
+
+        {/* Feedback */}
+        {error && <p className="text-xs text-red-400">{error}</p>}
+        {testResult && (
+          <p className={`text-xs ${testResult.ok ? 'text-emerald-400' : 'text-red-400'}`}>
+            {testResult.ok ? '✓ ' : '✗ '}{testResult.msg}
+          </p>
         )}
-      </div>
 
-      <p className="text-xs text-muted-foreground/70">儲存後需重新登入，新的 LLM 設定才會生效。</p>
-    </div>
+        {/* Actions */}
+        <div className="flex items-center gap-2 flex-wrap pt-1">
+          <Button size="sm" variant="outline" onClick={handleTest} disabled={testing} className="text-xs">
+            {testing ? '測試中…' : '測試連線'}
+          </Button>
+          <Button size="sm" onClick={handleSave} disabled={saving}
+            className="text-xs bg-primary hover:bg-primary/80 text-primary-foreground">
+            {saving ? '儲存中…' : '儲存'}
+          </Button>
+          {hasCustom && (
+            <button onClick={handleDelete}
+              className="text-xs text-muted-foreground hover:text-red-400 transition-colors ml-auto">
+              清除自訂
+            </button>
+          )}
+        </div>
+        <p className="text-[11px] text-muted-foreground/50">儲存後需重新登入才會生效</p>
+      </SettingCard>
+
+      {/* ── Card 2: Behaviour ─────────────────────────────────────────── */}
+      <SettingCard>
+        <SettingCardHeader title="行為設定" />
+
+        <Slider label="Temperature" value={behaviour.temperature}
+          min={0} max={2} step={0.1} format={v => v.toFixed(1)}
+          onChange={v => setBehaviour(p => ({ ...p, temperature: v }))} />
+
+        <Slider label="Max Tokens" value={behaviour.max_tokens}
+          min={256} max={16384} step={256} format={v => v.toLocaleString()}
+          onChange={v => setBehaviour(p => ({ ...p, max_tokens: v }))} />
+
+        <Slider label="Context Length" value={behaviour.context_length}
+          min={1} max={50} step={1} format={v => `${v} 輪`}
+          onChange={v => setBehaviour(p => ({ ...p, context_length: Math.round(v) }))} />
+
+        <div>
+          <FieldLabel>System Prompt</FieldLabel>
+          <textarea rows={3} value={behaviour.system_prompt}
+            onChange={e => setBehaviour(p => ({ ...p, system_prompt: e.target.value }))}
+            placeholder="附加至預設指令之後的個人化提示…"
+            className="w-full bg-transparent border border-border rounded-lg px-3 py-2 text-sm
+              text-foreground placeholder:text-muted-foreground/40 resize-none
+              focus:outline-none focus:ring-1 focus:ring-primary/50" />
+        </div>
+
+        <div className="flex items-center gap-3 pt-1">
+          <Button size="sm" onClick={handleSaveBehaviour} disabled={bSaving}
+            className="text-xs bg-primary hover:bg-primary/80 text-primary-foreground">
+            {bSaving ? '儲存中…' : '儲存'}
+          </Button>
+          {bSaved && <span className="text-xs text-emerald-400">✓ 已儲存</span>}
+        </div>
+      </SettingCard>
+    </>
   )
 }

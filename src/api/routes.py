@@ -21,9 +21,9 @@ from actions.fetch_grades.index import get_grades as _grades
 from actions.fetch_leaves.index import get_leaves as _leaves
 from actions.apply_leave.index import apply_leave as _apply_leave, get_leave_form as _get_leave_form, LEAVE_TYPES
 from actions.delete_leave.index import delete_leave as _delete_leave
-from storage import save_history, load_history, clear_history, get_llm_config, set_llm_config, delete_llm_config, list_sessions, get_session_messages_slim, delete_session, insert_file, get_file, get_conversation_messages
+from storage import save_history, load_history, clear_history, get_llm_config, set_llm_config, delete_llm_config, list_sessions, get_session_messages_slim, delete_session, delete_all_sessions, insert_file, get_file, get_conversation_messages, get_settings, patch_settings
 
-from .models import LLMConfigRequest, LLMConfigResponse, LLMModelsRequest
+from .models import LLMConfigRequest, LLMConfigResponse, LLMModelsRequest, SettingsPatch, FullSettingsResponse, UserSettings, LLMBehaviourSettings
 from .state import AgentRegistry
 
 _IMAGE_DIR = pathlib.Path(__file__).parent.parent.parent / "output"
@@ -366,6 +366,53 @@ async def delete_session_endpoint(session_id: str, uid: str = Depends(_resolve_u
 
 _UPLOAD_DIR = pathlib.Path(__file__).parent.parent.parent / "uploads"
 _MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
+
+
+# ---------------------------------------------------------------------------
+# Unified user settings (non-sensitive JSON)
+# ---------------------------------------------------------------------------
+
+def _to_user_settings(raw: dict) -> UserSettings:
+    llm = raw.get("llm", {})
+    return UserSettings(llm=LLMBehaviourSettings(
+        temperature=llm.get("temperature", 0.7),
+        max_tokens=llm.get("max_tokens", 2048),
+        system_prompt=llm.get("system_prompt", ""),
+        context_length=llm.get("context_length", 20),
+    ))
+
+
+@router.get("/settings", response_model=FullSettingsResponse)
+async def get_full_settings(uid: str = Depends(_resolve_uid)):
+    cfg = get_llm_config(uid)
+    return FullSettingsResponse(
+        uid=uid,
+        settings=_to_user_settings(get_settings(uid)),
+        llm_status=LLMConfigResponse(
+            has_custom_config=cfg is not None,
+            base_url=cfg.base_url if cfg else "",
+            model=cfg.model if cfg else "",
+        ),
+    )
+
+
+@router.patch("/settings", response_model=UserSettings)
+async def patch_user_settings(body: SettingsPatch, uid: str = Depends(_resolve_uid)):
+    patch: dict = {}
+    if body.llm is not None:
+        patch["llm"] = {k: v for k, v in body.llm.model_dump().items() if v is not None}
+    return _to_user_settings(patch_settings(uid, patch))
+
+
+@router.delete("/settings/history")
+async def delete_history_settings(uid: str = Depends(_resolve_uid)):
+    clear_history(uid)
+    return {"ok": True}
+
+
+@router.delete("/settings/sessions")
+async def delete_all_sessions_settings(uid: str = Depends(_resolve_uid)):
+    return {"deleted": delete_all_sessions(uid)}
 
 
 # ---------------------------------------------------------------------------

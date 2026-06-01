@@ -158,3 +158,21 @@ def delete_session(session_id: str, uid: str) -> bool:
             )
             return True
     return False
+
+
+def delete_all_sessions(uid: str) -> int:
+    """Delete every session owned by uid. Returns the count removed."""
+    with sqlite3.connect(_DB) as conn:
+        ids = [r[0] for r in conn.execute(
+            "SELECT session_id FROM chat_sessions WHERE uid = ?", (uid,)
+        ).fetchall()]
+        if not ids:
+            return 0
+        ph = ",".join("?" * len(ids))
+        conn.execute(f"DELETE FROM chat_session_turns WHERE session_id IN ({ph})", ids)
+        try:
+            conn.execute(f"DELETE FROM conversation_messages WHERE session_id IN ({ph})", ids)
+        except sqlite3.OperationalError:
+            pass
+        conn.execute("DELETE FROM chat_sessions WHERE uid = ?", (uid,))
+        return len(ids)

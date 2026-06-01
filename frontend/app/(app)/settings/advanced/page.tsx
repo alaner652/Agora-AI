@@ -1,13 +1,26 @@
+'use client'
+
+import { clearChatHistory, clearAllSessions } from '@/lib/data'
+import { SettingCard, DangerRow } from '@/components/settings/primitives'
+
 export default function AdvancedSettingsPage() {
   return (
-    <div className="max-w-lg space-y-4">
-      <div>
-        <h2 className="text-base font-semibold text-foreground">Advanced</h2>
-        <p className="text-xs text-muted-foreground/70 mt-0.5">進階選項與開發者功能</p>
+    <SettingCard>
+      <p className="text-sm font-medium text-foreground">資料管理</p>
+      <div className="-mt-1">
+        <DangerRow
+          title="清除當前對話"
+          description="僅清除目前的聊天記錄，歷史 Session 不受影響"
+          action="清除"
+          onConfirm={clearChatHistory}
+        />
+        <DangerRow
+          title="清除所有會話"
+          description="永久刪除所有歷史對話，此操作無法復原"
+          action="清除所有"
+          onConfirm={() => clearAllSessions().then(() => void 0)}
+        />
       </div>
-      <div className="rounded-xl border border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground/70">
-        即將推出
-      </div>
-    </div>
+    </SettingCard>
   )
 }

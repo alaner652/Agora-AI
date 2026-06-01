@@ -32,7 +32,7 @@ from session import refresh_api as _fresh_login
 from .models import AnswerRequest, ChatRequest, LoginRequest, LoginResponse
 from .routes import router as data_router
 from .state import AgentRegistry
-from storage import init_db, init_user_settings_db, init_sessions_db, init_files_db, init_messages_db, get_file, get_llm_config
+from storage import init_db, init_user_settings_db, init_sessions_db, init_files_db, init_messages_db, init_settings_db, get_file, get_llm_config
 
 load_dotenv()
 
@@ -51,6 +51,7 @@ async def lifespan(app: FastAPI):
     init_sessions_db()
     init_files_db()
     init_messages_db()
+    init_settings_db()
     llm = OpenAI(api_key=_LLM_API_KEY, base_url=_LLM_BASE_URL)
     _registry = AgentRegistry(llm=llm, model=_LLM_MODEL)
     app.state.registry = _registry

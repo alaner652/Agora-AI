@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { MessageSquarePlus, Trash2 } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Spinner } from '@/components/ui/spinner'
 import { getSessions, switchSession, deleteSessionById, newSession, type SessionMeta, type TextMessage } from '@/lib/data'
 
 interface Props {
@@ -44,6 +45,16 @@ export function SessionHistoryPanel({ open, onClose, onSwitch, onNewSession, vie
 
   // Which session to highlight: prefer frontend-tracked viewingSessionId, fall back to logger's session
   const activeSessionId = viewingSessionId ?? loggerSessionId
+
+  // A freshly-created session has no turns yet, so it isn't persisted/returned by
+  // getSessions(). When the active session isn't in the list, show a synthetic
+  // "current conversation" row so the marker never disappears and the new
+  // conversation is visible immediately (instead of only after the first turn).
+  const showSyntheticCurrent =
+    !loading &&
+    viewingSessionId === null &&
+    !!loggerSessionId &&
+    !sessions.some(s => s.session_id === loggerSessionId)
 
   async function handleNewSession() {
     if (disabled || startingNew) return
@@ -97,20 +108,33 @@ export function SessionHistoryPanel({ open, onClose, onSwitch, onNewSession, vie
         <div className="flex-1 overflow-y-auto">
           {loading && (
             <div className="flex items-center justify-center py-12 gap-2 text-muted-foreground/70 text-xs">
-              <div className="border-2 border-border border-t-primary rounded-full animate-spin w-4 h-4" />
+              <Spinner />
               載入中...
             </div>
           )}
 
-          {!loading && sessions.length === 0 && (
+          {!loading && sessions.length === 0 && !showSyntheticCurrent && (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground/70 text-xs gap-2">
               <MessageSquarePlus className="w-6 h-6 opacity-30" />
               尚無歷史對話
             </div>
           )}
 
-          {!loading && sessions.length > 0 && (
+          {!loading && (sessions.length > 0 || showSyntheticCurrent) && (
             <ul className="divide-y divide-border/60">
+              {showSyntheticCurrent && (
+                <li className="flex items-stretch">
+                  <div className="flex-1 text-left px-4 py-3 bg-accent/60">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-xs font-medium text-primary truncate">新對話</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full shrink-0 bg-accent/60 text-primary">
+                        目前對話
+                      </span>
+                    </div>
+                    <div className="mt-0.5 text-[10px] text-muted-foreground/70">尚未送出訊息</div>
+                  </div>
+                </li>
+              )}
               {sessions.map(s => {
                 const isCurrent = s.session_id === activeSessionId
                 return (
@@ -137,7 +161,7 @@ export function SessionHistoryPanel({ open, onClose, onSwitch, onNewSession, vie
                           {formatDate(s.started_at)} · {s.turn_count} 輪
                         </span>
                         {switchingId === s.session_id && (
-                          <div className="border border-border border-t-primary rounded-full animate-spin w-3 h-3" />
+                          <Spinner className="border w-3 h-3" />
                         )}
                       </div>
                     </button>
@@ -150,7 +174,7 @@ export function SessionHistoryPanel({ open, onClose, onSwitch, onNewSession, vie
                         className="px-3 opacity-0 group-hover:opacity-100 text-muted-foreground/50 hover:text-red-400 hover:bg-red-500/15 disabled:opacity-30 transition-all"
                       >
                         {deletingId === s.session_id
-                          ? <div className="border border-border border-t-red-400 rounded-full animate-spin w-3.5 h-3.5" />
+                          ? <Spinner className="border border-t-red-400 w-3.5 h-3.5" />
                           : <Trash2 className="w-3.5 h-3.5" />
                         }
                       </button>
@@ -170,7 +194,7 @@ export function SessionHistoryPanel({ open, onClose, onSwitch, onNewSession, vie
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-primary bg-accent hover:bg-accent border border-primary/40 rounded-lg disabled:opacity-40 transition-colors"
           >
             {startingNew
-              ? <div className="border-2 border-primary/40 border-t-primary rounded-full animate-spin w-3 h-3" />
+              ? <Spinner className="border-primary/40 w-3 h-3" />
               : <MessageSquarePlus className="w-3.5 h-3.5" />
             }
             新會話

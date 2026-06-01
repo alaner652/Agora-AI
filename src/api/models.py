@@ -38,3 +38,31 @@ class LLMConfigResponse(BaseModel):
     has_custom_config: bool
     base_url: str = ""
     model: str = ""
+
+
+class LLMBehaviourPatch(BaseModel):
+    temperature: float | None = None
+    max_tokens: int | None = None
+    system_prompt: str | None = None
+    context_length: int | None = None
+
+
+class SettingsPatch(BaseModel):
+    llm: LLMBehaviourPatch | None = None
+
+
+class LLMBehaviourSettings(BaseModel):
+    temperature: float = 0.7
+    max_tokens: int = 2048
+    system_prompt: str = ""
+    context_length: int = 20
+
+
+class UserSettings(BaseModel):
+    llm: LLMBehaviourSettings = LLMBehaviourSettings()
+
+
+class FullSettingsResponse(BaseModel):
+    uid: str
+    settings: UserSettings
+    llm_status: LLMConfigResponse

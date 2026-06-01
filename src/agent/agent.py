@@ -168,6 +168,19 @@ class ChatAgent:
         self._turn_llm_calls = 0
         self._turn_llm_ms = 0.0
         self._turn_tokens = {}
+
+        # Load per-user LLM behaviour settings fresh each turn
+        uid = self._memory.recall("uid", "")
+        try:
+            from storage.settings import get_settings as _get_settings
+            _llm = _get_settings(uid).get("llm", {}) if uid else {}
+        except Exception:
+            _llm = {}
+        self._cfg_temperature = float(_llm.get("temperature", 0.7))
+        self._cfg_max_tokens = int(_llm.get("max_tokens", 2048))
+        self._cfg_system_prompt = str(_llm.get("system_prompt", "") or "")
+        self._cfg_context_length = int(_llm.get("context_length", 20))
+
         if self._logger:
             self._logger.on_user_message(user_message)
         if image_b64:
@@ -209,6 +222,15 @@ class ChatAgent:
         max_llm_calls = 20
         llm_call_count = 0
 
+        # Per-user behaviour (set in step(); fall back to defaults)
+        sys_content = SYSTEM_PROMPT
+        user_sys = getattr(self, "_cfg_system_prompt", "")
+        if user_sys:
+            sys_content = f"{sys_content}\n\n{user_sys}"
+        temperature = getattr(self, "_cfg_temperature", 0.7)
+        max_tokens = getattr(self, "_cfg_max_tokens", 2048)
+        context_length = getattr(self, "_cfg_context_length", 20)
+
         while True:
             if llm_call_count >= max_llm_calls:
                 yield TextDeltaEvent(text="\n\n（已達最大請求次數）")
@@ -218,8 +240,8 @@ class ChatAgent:
             self._turn_llm_calls += 1
 
             messages = (
-                [{"role": "system", "content": SYSTEM_PROMPT}]
-                + self._memory.get_context()
+                [{"role": "system", "content": sys_content}]
+                + self._memory.get_context(max_msgs=context_length * 4)
             )
 
             create_kwargs: dict = dict(
@@ -227,6 +249,8 @@ class ChatAgent:
                 messages=messages,
                 tools=TOOLS,
                 tool_choice="auto",
+                temperature=temperature,
+                max_tokens=max_tokens,
             )
 
             _t_llm = time.monotonic()

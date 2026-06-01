@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 import { useTheme } from 'next-themes'
 import {
   CalendarDays, GraduationCap, Clock, FileText,
-  Bot, Settings, LogOut, School, Sun, Moon,
+  Bot, Settings, LogOut, School, Sun, Moon, Monitor,
 } from 'lucide-react'
 import { deleteCookie, getCookie } from '@/lib/cookie'
 import {
@@ -112,7 +112,7 @@ function AppSidebar() {
                 <School className="size-4" />
               </div>
               <div className="flex flex-col gap-0.5 leading-none group-data-[collapsible=icon]:hidden">
-                <span className="font-semibold text-orange-400 text-sm">TPCU.me</span>
+                <span className="font-semibold text-primary text-sm">TPCU.me</span>
                 <span className="text-xs text-muted-foreground">學生入口</span>
               </div>
             </SidebarMenuButton>
@@ -165,20 +165,29 @@ function AppSidebar() {
   )
 }
 
+const THEME_CYCLE = [
+  { value: 'system', icon: Monitor, label: '系統' },
+  { value: 'light',  icon: Sun,     label: '淺色' },
+  { value: 'dark',   icon: Moon,    label: '深色' },
+]
+
 function ThemeToggle() {
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
   if (!mounted) return <div className="w-8 h-8" />
 
-  const isDark = theme === 'dark'
+  const idx = Math.max(0, THEME_CYCLE.findIndex(t => t.value === (theme ?? 'system')))
+  const current = THEME_CYCLE[idx]
+  const next = THEME_CYCLE[(idx + 1) % THEME_CYCLE.length]
+  const Icon = current.icon
   return (
     <button
-      onClick={() => setTheme(isDark ? 'light' : 'dark')}
-      title={isDark ? '切換淺色模式' : '切換深色模式'}
+      onClick={() => setTheme(next.value)}
+      title={`目前：${current.label} · 點擊切換為${next.label}`}
       className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
     >
-      {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+      <Icon className="w-4 h-4" />
     </button>
   )
 }

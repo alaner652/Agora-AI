@@ -138,6 +138,30 @@ export interface LLMModelsResult {
   error?: string
 }
 
+export interface LLMBehaviourSettings {
+  temperature: number
+  max_tokens: number
+  system_prompt: string
+  context_length: number
+}
+
+export interface UserSettings {
+  llm: LLMBehaviourSettings
+}
+
+export interface FullSettingsResponse {
+  uid: string
+  settings: UserSettings
+  llm_status: LLMConfigResponse
+}
+
+export interface LLMBehaviourPatch {
+  temperature?: number
+  max_tokens?: number
+  system_prompt?: string
+  context_length?: number
+}
+
 export async function getSemesterOptions(): Promise<SemesterOption[]> {
   const res = await apiClient.get<{ semesters: SemesterOption[] }>('/api/semester-options')
   return res.data.semesters ?? []
@@ -226,4 +250,25 @@ export async function deleteSessionById(sessionId: string): Promise<void> {
 
 export async function newSession(): Promise<void> {
   await apiClient.post('/api/sessions/new')
+}
+
+// ── Unified user settings ─────────────────────────────────────────────────────
+
+export async function getFullSettings(): Promise<FullSettingsResponse> {
+  const res = await apiClient.get<FullSettingsResponse>('/api/settings')
+  return res.data
+}
+
+export async function patchSettings(patch: { llm?: LLMBehaviourPatch }): Promise<UserSettings> {
+  const res = await apiClient.patch<UserSettings>('/api/settings', patch)
+  return res.data
+}
+
+export async function clearChatHistory(): Promise<void> {
+  await apiClient.delete('/api/settings/history')
+}
+
+export async function clearAllSessions(): Promise<{ deleted: number }> {
+  const res = await apiClient.delete<{ deleted: number }>('/api/settings/sessions')
+  return res.data
 }

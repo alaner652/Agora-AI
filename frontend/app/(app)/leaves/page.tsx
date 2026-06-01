@@ -14,6 +14,7 @@ import { deleteCookie } from '@/lib/cookie'
 import { PageLayout } from '@/components/PageLayout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Spinner } from '@/components/ui/spinner'
 import {
   Select,
   SelectContent,
@@ -246,7 +247,7 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
             </Select>
           ) : formLoading ? (
             <div className="flex items-center gap-2 h-8 text-xs text-muted-foreground/70">
-              <div className="border-2 border-border border-t-primary rounded-full animate-spin w-3.5 h-3.5" />
+              <Spinner className="w-3.5 h-3.5" />
               載入中...
             </div>
           ) : (
@@ -332,9 +333,9 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
         <div className="bg-muted/30 border border-border rounded-lg px-4 py-3">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs text-muted-foreground">送出中 {progress.current} / {progress.total}</span>
-            <div className="border-2 border-border border-t-primary rounded-full animate-spin w-4 h-4" />
+            <Spinner />
           </div>
-          <div className="w-full bg-stone-200 rounded-full h-1.5">
+          <div className="w-full bg-muted rounded-full h-1.5">
             <div className="bg-primary h-1.5 rounded-full transition-all"
               style={{ width: `${(progress.current / progress.total) * 100}%` }} />
           </div>
