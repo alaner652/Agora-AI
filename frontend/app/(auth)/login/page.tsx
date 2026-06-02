@@ -47,8 +47,8 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center px-4 bg-background">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-semibold text-primary tracking-wide">TPCU.me</h1>
-          <p className="text-sm text-muted-foreground/70 mt-1">台北城市科技大學學生入口</p>
+          <h1 className="text-2xl font-semibold text-primary tracking-wide">Agora AI</h1>
+          <p className="text-sm text-muted-foreground/70 mt-1">學生入口</p>
         </div>
 
         <div className="bg-card border border-border rounded-xl p-8 shadow-sm">

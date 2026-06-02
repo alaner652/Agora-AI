@@ -4,7 +4,7 @@ import { Providers } from './providers'
 import { Toaster } from '@/components/ui/sonner'
 
 export const metadata: Metadata = {
-  title: 'TPCU.me',
+  title: 'Agora AI - 學生入口',
   description: '台北城市科技大學學生入口',
 }
 

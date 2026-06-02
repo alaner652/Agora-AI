@@ -112,7 +112,7 @@ function AppSidebar() {
                 <School className="size-4" />
               </div>
               <div className="flex flex-col gap-0.5 leading-none group-data-[collapsible=icon]:hidden">
-                <span className="font-semibold text-primary text-sm">TPCU.me</span>
+                <span className="font-semibold text-primary text-sm">Agora AI</span>
                 <span className="text-xs text-muted-foreground">學生入口</span>
               </div>
             </SidebarMenuButton>
