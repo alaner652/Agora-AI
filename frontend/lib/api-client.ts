@@ -11,11 +11,15 @@ apiClient.interceptors.request.use(cfg => {
   return cfg
 })
 
-export function handleAuthError(err: unknown, redirectFn: () => void) {
-  const code = (err as { response?: { data?: { detail?: { error_code?: string } } } })
-    ?.response?.data?.detail?.error_code
-  if (code === 'AUTH_002' || code === 'NET_002') {
-    deleteCookie('token')
-    redirectFn()
+apiClient.interceptors.response.use(
+  res => res,
+  err => {
+    const code = (err as { response?: { data?: { detail?: { error_code?: string } } } })
+      ?.response?.data?.detail?.error_code
+    if (code === 'AUTH_002' || code === 'NET_002') {
+      deleteCookie('token')
+      window.location.href = '/login'
+    }
+    return Promise.reject(err)
   }
-}
+)

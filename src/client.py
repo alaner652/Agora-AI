@@ -110,7 +110,10 @@ async def post_multipart(
     return resp.text
 
 
+_SESSION_EXPIRED_MARKERS = ("重新登入", "Please Logon", "Please Login")
+
+
 def _check_session(text: str) -> None:
-    if "重新登入" in text:
+    if any(m in text for m in _SESSION_EXPIRED_MARKERS):
         _log.warning("upstream_session_expired")
         raise ValueError("Session 過期，請重新登入")

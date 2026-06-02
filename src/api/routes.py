@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from openai import OpenAI
 
+from session import _validate as _validate_session
 from actions.fetch_schedule.index import get_options as _sched_opts, get_schedule as _sched
 from actions.fetch_absence.index import get_options as _abs_opts, get_absence as _absence
 from actions.fetch_grades.index import get_grades as _grades
@@ -41,33 +42,35 @@ def _get_registry(request: Request) -> AgentRegistry:
     return reg
 
 
-def _resolve_session(
+async def _resolve_session(
     creds: HTTPAuthorizationCredentials = Depends(_bearer),
     request: Request = None,
 ) -> str:
     reg = _get_registry(request)
-    jsessionid = reg.get_jsessionid(creds.credentials)
+    jsessionid = await reg.get_jsessionid_checked(creds.credentials)
     if jsessionid is None:
         raise HTTPException(status_code=401, detail={"error": "Token 無效或已過期，請重新呼叫 /login", "error_code": "AUTH_002"})
     return jsessionid
 
 
-def _resolve_uid(
+async def _resolve_uid(
     creds: HTTPAuthorizationCredentials = Depends(_bearer),
     request: Request = None,
 ) -> str:
     reg = _get_registry(request)
-    uid = reg.get_uid(creds.credentials)
+    uid = await reg.get_uid_checked(creds.credentials)
     if uid is None:
         raise HTTPException(status_code=401, detail={"error": "Token 無效或已過期", "error_code": "AUTH_002"})
     return uid
 
 
-def _handle_exc(e: Exception) -> HTTPException:
+async def _handle_exc(e: Exception, jsessionid: str | None = None) -> HTTPException:
     msg = str(e)
     if "Session 過期" in msg:
         return HTTPException(status_code=401, detail={"error": msg, "error_code": "NET_002"})
     if isinstance(e, httpx.TimeoutException):
+        if jsessionid and not await _validate_session(jsessionid):
+            return HTTPException(status_code=401, detail={"error": "Session 已過期（連線逾時），請重新登入", "error_code": "NET_002"})
         return HTTPException(status_code=504, detail={"error": "學校系統連線逾時", "error_code": "NET_001"})
     if isinstance(e, httpx.NetworkError):
         return HTTPException(status_code=502, detail={"error": "學校系統連線失敗", "error_code": "NET_003"})
@@ -83,7 +86,7 @@ async def semester_options(jsessionid: str = Depends(_resolve_session)):
     try:
         return await _sched_opts(jsessionid)
     except Exception as e:
-        raise _handle_exc(e)
+        raise await _handle_exc(e, jsessionid)
 
 
 @router.get("/schedule")
@@ -92,7 +95,7 @@ async def schedule(semester: str, jsessionid: str = Depends(_resolve_session)):
         entries = await _sched(jsessionid, semester)
         return {"entries": entries}
     except Exception as e:
-        raise _handle_exc(e)
+        raise await _handle_exc(e, jsessionid)
 
 
 # ---------------------------------------------------------------------------
@@ -104,7 +107,7 @@ async def absence_options(jsessionid: str = Depends(_resolve_session)):
     try:
         return await _abs_opts(jsessionid)
     except Exception as e:
-        raise _handle_exc(e)
+        raise await _handle_exc(e, jsessionid)
 
 
 @router.get("/absence/summary")
@@ -123,7 +126,7 @@ async def absence_summary(jsessionid: str = Depends(_resolve_session)):
         truancy = [e for e in entries if e.get("type") == "缺曠"]
         return {"total": len(truancy), "semester": current}
     except Exception as e:
-        raise _handle_exc(e)
+        raise await _handle_exc(e, jsessionid)
 
 
 @router.get("/absence")
@@ -140,7 +143,7 @@ async def absence(
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
-        raise _handle_exc(e)
+        raise await _handle_exc(e, jsessionid)
 
 
 # ---------------------------------------------------------------------------
@@ -153,7 +156,7 @@ async def grades(jsessionid: str = Depends(_resolve_session)):
         entries = await _grades(jsessionid)
         return {"entries": entries}
     except Exception as e:
-        raise _handle_exc(e)
+        raise await _handle_exc(e, jsessionid)
 
 
 # ---------------------------------------------------------------------------
@@ -172,7 +175,7 @@ async def leaves(
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
-        raise _handle_exc(e)
+        raise await _handle_exc(e, jsessionid)
 
 
 # ---------------------------------------------------------------------------
@@ -186,7 +189,7 @@ async def leave_form(date: str = "", jsessionid: str = Depends(_resolve_session)
         result["leave_types"] = LEAVE_TYPES
         return result
     except Exception as e:
-        raise _handle_exc(e)
+        raise await _handle_exc(e, jsessionid)
 
 
 @router.post("/apply-leave")
@@ -217,7 +220,7 @@ async def apply_leave_endpoint(
         )
         return result
     except Exception as e:
-        raise _handle_exc(e)
+        raise await _handle_exc(e, jsessionid)
     finally:
         if image_path:
             os.unlink(image_path)
@@ -245,7 +248,7 @@ async def delete_leave_endpoint(
         )
         return result
     except Exception as e:
-        raise _handle_exc(e)
+        raise await _handle_exc(e, jsessionid)
 
 
 # ---------------------------------------------------------------------------

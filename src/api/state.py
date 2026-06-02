@@ -90,6 +90,26 @@ class AgentRegistry:
         state = self._store.get(token)
         return state.uid if state else None
 
+    async def get_jsessionid_checked(self, token: str) -> str | None:
+        """Eviction-aware variant — triggers _evict() and updates last_active."""
+        async with self._meta_lock:
+            self._evict()
+            state = self._store.get(token)
+            if state is None:
+                return None
+            state.last_active = time.monotonic()
+            return state.agent._session
+
+    async def get_uid_checked(self, token: str) -> str | None:
+        """Eviction-aware variant — triggers _evict() and updates last_active."""
+        async with self._meta_lock:
+            self._evict()
+            state = self._store.get(token)
+            if state is None:
+                return None
+            state.last_active = time.monotonic()
+            return state.uid
+
     def update_session(self, token: str, jsessionid: str) -> None:
         state = self._store.get(token)
         if state:
