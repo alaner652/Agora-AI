@@ -1,18 +1,33 @@
+import os
+import pathlib
+import ssl
 import time
 
+import certifi
 import httpx
 
 from log import get_logger
 
-BASE_URL = "https://siw.tpcu.edu.tw"
+# 學校系統端點。預設公網網域；之後若改走內網，建議用 split-DNS 讓內部
+# DNS 把 siw.tpcu.edu.tw 指向內網 IP（沿用網域名，憑證驗證照舊有效），
+# 或在此以環境變數覆寫。改設定即可，不必動程式。
+BASE_URL = os.getenv("SCHOOL_BASE_URL", "https://siw.tpcu.edu.tw")
 
 _log = get_logger("client")
+
+# 學校伺服器只送出 leaf 憑證、漏掉中繼憑證（TWCA Secure SSL CA），
+# 導致 OpenSSL 無法建鏈而驗證失敗——但憑證本身是公信 CA（TWCA）簽發的。
+# 解法：以 certifi 為信任根，補上隨附的中繼憑證讓鏈完整，即可正常驗證
+# leaf + 主機名（解除 verify=False 的 MITM 風險），且憑證續期不受影響。
+_INTERMEDIATE = pathlib.Path(__file__).parent / "certs" / "tpcu_intermediate.pem"
+_ssl_ctx = ssl.create_default_context(cafile=certifi.where())
+_ssl_ctx.load_verify_locations(cafile=str(_INTERMEDIATE))
 
 
 def _client() -> httpx.AsyncClient:
     return httpx.AsyncClient(
         base_url=BASE_URL,
-        verify=False,
+        verify=_ssl_ctx,
         follow_redirects=True,
         timeout=30.0,
     )
