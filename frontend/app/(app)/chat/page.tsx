@@ -227,6 +227,17 @@ export default function ChatPage() {
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, streaming])
   useEffect(() => { if (editingIndex !== null) editRef.current?.focus() }, [editingIndex])
 
+  const messagesRef = useRef<TextMessage[]>([])
+  useEffect(() => { messagesRef.current = messages }, [messages])
+  useEffect(() => {
+    return () => {
+      const token = getCookie('token')
+      if (token && messagesRef.current.length > 0) {
+        saveHistoryToServer(token, messagesRef.current)
+      }
+    }
+  }, [])
+
   const autoResize = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return
     el.style.height = 'auto'
@@ -239,7 +250,7 @@ export default function ChatPage() {
     setTimeout(() => router.push('/login'), 1500)
   }
 
-  async function runStream(url: string, body: object) {
+  async function runStream(url: string, body: object, contextMessages: TextMessage[]) {
     const ac = new AbortController()
     abortRef.current = ac
     setStreaming(true)
@@ -248,18 +259,14 @@ export default function ChatPage() {
     let assistantText = ''
     const toolCalls: ToolRecord[] = []
     let pendingToolName = ''
+    let currentAssistantMsg: TextMessage = { role: 'assistant', content: '', toolCalls: [], images: [] }
 
-    setMessages(prev => [...prev, { role: 'assistant', content: '', toolCalls: [], images: [] }])
+    setMessages([...contextMessages, currentAssistantMsg])
 
     function updateLast(patch: Partial<TextMessage>) {
-      setMessages(prev => {
-        const next = [...prev]
-        next[next.length - 1] = { ...next[next.length - 1], ...patch }
-        return next
-      })
+      currentAssistantMsg = { ...currentAssistantMsg, ...patch }
+      setMessages([...contextMessages, currentAssistantMsg])
     }
-
-    let finalMessages: TextMessage[] = []
 
     try {
       for await (const event of streamSse(url, body, ac.signal)) {
@@ -293,7 +300,6 @@ export default function ChatPage() {
           })
         }
       }
-      setMessages(prev => { finalMessages = prev; return prev })
     } catch (err: unknown) {
       if ((err as DOMException).name === 'AbortError') {
         if (pendingToolName) {
@@ -309,11 +315,10 @@ export default function ChatPage() {
       }
       updateLast({ content: assistantText || '發生錯誤，請稍後再試。' })
     } finally {
-      // Await the snapshot BEFORE re-enabling input. Otherwise a fire-and-forget
-      // save could land after a subsequent "新會話"/switch cleared server history,
-      // resurrecting the old messages on the next reload.
       const token = getCookie('token')
-      if (token && finalMessages.length > 0) await saveHistoryToServer(token, finalMessages)
+      const msgsToSave = [...contextMessages, currentAssistantMsg]
+      setMessages(msgsToSave)
+      if (token && msgsToSave.length > 0) await saveHistoryToServer(token, msgsToSave)
       setStreaming(false)
     }
   }
@@ -365,13 +370,15 @@ export default function ChatPage() {
       mimeType: pendingFile.filename.match(/\.(png|jpg|jpeg|gif|webp)$/i) ? 'image/' + pendingFile.filename.split('.').pop()!.toLowerCase() : 'application/octet-stream',
       url: `${BASE}/api/files/${pendingFile.fileId}`,
     }] : []
-    setMessages(prev => [...prev, {
+    const userMsgObj: TextMessage = {
       role: 'user',
       content: userMsg,
       attachments,
       attachmentPreview: pendingFile?.previewUrl,
-    }])
-    await runStream(`${BASE}/chat`, { token, message: userMsg, file_id: pendingFile?.fileId ?? null })
+    }
+    setMessages(prev => [...prev, userMsgObj])
+    const contextMessages = [...messages, userMsgObj]
+    await runStream(`${BASE}/chat`, { token, message: userMsg, file_id: pendingFile?.fileId ?? null }, contextMessages)
   }
 
   function sendSuggestion(text: string) {
@@ -382,9 +389,11 @@ export default function ChatPage() {
   async function handleAnswer(selected: string) {
     const token = getCookie('token')
     if (!token) { router.push('/login'); return }
+    const answerMsg: TextMessage = { role: 'user', content: `▶ ${selected}` }
     setAskUser(null)
-    setMessages(prev => [...prev, { role: 'user', content: `▶ ${selected}` }])
-    await runStream(`${BASE}/answer`, { token, selected })
+    setMessages(prev => [...prev, answerMsg])
+    const contextMessages = [...messages, answerMsg]
+    await runStream(`${BASE}/answer`, { token, selected }, contextMessages)
   }
 
   async function handleClearHistory() {
@@ -419,10 +428,12 @@ export default function ChatPage() {
     const token = getCookie('token')
     if (!token) { router.push('/login'); return }
     const newMsg = editText.trim()
-    setMessages(prev => [...prev.slice(0, editingIndex), { role: 'user', content: newMsg }])
+    const editedMsg: TextMessage = { role: 'user', content: newMsg }
+    setMessages(prev => [...prev.slice(0, editingIndex), editedMsg])
+    const contextMessages = [...messages.slice(0, editingIndex!), editedMsg]
     setEditingIndex(null)
     setEditText('')
-    await runStream(`${BASE}/chat`, { token, message: newMsg })
+    await runStream(`${BASE}/chat`, { token, message: newMsg }, contextMessages)
   }
 
   const lastIdx = messages.length - 1
