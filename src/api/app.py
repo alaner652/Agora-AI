@@ -7,6 +7,7 @@ import json
 import mimetypes
 import os
 import secrets
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -28,6 +29,7 @@ from agent import (
     ToolResultEvent,
 )
 from session import refresh_api as _fresh_login
+from log import get_logger, bind_request, bind_uid, clear_request
 
 from .models import AnswerRequest, ChatRequest, LoginRequest, LoginResponse
 from .routes import router as data_router
@@ -41,6 +43,8 @@ _LLM_BASE_URL = os.getenv("LLM_BASE_URL")
 _LLM_MODEL    = os.getenv("LLM_MODEL", "")
 
 _registry: AgentRegistry | None = None
+
+_log = get_logger("api")
 
 
 @asynccontextmanager
@@ -83,6 +87,57 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class RequestContextMiddleware:
+    """純 ASGI middleware：產生/沿用 request_id，記 access log，並把 request_id
+    綁進 contextvars 貫穿整條鏈路。刻意不用 BaseHTTPMiddleware，以免緩衝 SSE 串流。
+    """
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        headers = dict(scope.get("headers") or [])
+        incoming = headers.get(b"x-request-id")
+        request_id = incoming.decode("latin-1") if incoming else secrets.token_hex(8)
+        client = scope.get("client")
+        client_ip = client[0] if client else ""
+        method = scope.get("method", "")
+        path = scope.get("path", "")
+
+        bind_request(request_id)
+        start = time.monotonic()
+        status_holder = {"code": 500}
+
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start":
+                status_holder["code"] = message["status"]
+                message.setdefault("headers", []).append(
+                    (b"x-request-id", request_id.encode("latin-1"))
+                )
+            await send(message)
+
+        try:
+            await self.app(scope, receive, send_wrapper)
+        finally:
+            duration_ms = round((time.monotonic() - start) * 1000, 1)
+            _log.info(
+                "http_request",
+                method=method,
+                path=path,
+                status=status_holder["code"],
+                duration_ms=duration_ms,
+                client_ip=client_ip,
+            )
+            clear_request()
+
+
+app.add_middleware(RequestContextMiddleware)
 app.include_router(data_router, prefix="/api")
 
 
@@ -136,10 +191,13 @@ async def health():
 @app.post("/login", response_model=LoginResponse)
 @limiter.limit("10/minute")
 async def login(request: Request, body: LoginRequest):
+    client_ip = request.client.host if request.client else ""
     try:
         jsessionid = await _fresh_login(body.uid, body.pwd)
     except Exception as e:
+        _log.warning("auth_login", uid=body.uid, ok=False, client_ip=client_ip, reason=str(e))
         raise HTTPException(status_code=401, detail={"error": f"登入失敗：{e}", "error_code": "AUTH_001"})
+    _log.info("auth_login", uid=body.uid, ok=True, client_ip=client_ip)
 
     user_cfg = get_llm_config(body.uid)
     if user_cfg:
@@ -178,6 +236,7 @@ def _load_attachment(file_id: str | None, uid: str) -> tuple[str | None, str]:
 async def chat(request: Request, body: ChatRequest):
     agent, lock = await _get_agent_or_401(body.token)
     uid = _get_registry().get_uid(body.token) or ''
+    bind_uid(uid)
 
     if lock.locked():
         raise HTTPException(status_code=429, detail="上一個請求仍在處理中")
