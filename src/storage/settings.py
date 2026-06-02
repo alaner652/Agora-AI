@@ -7,11 +7,9 @@ Sensitive values (API keys) stay in user_llm_config with Fernet encryption.
 from __future__ import annotations
 
 import json
-import pathlib
-import sqlite3
 import time
 
-_DB = pathlib.Path("data/history.db")
+from ._db import connect
 
 _DEFAULTS: dict = {
     "llm": {
@@ -24,8 +22,7 @@ _DEFAULTS: dict = {
 
 
 def init_settings_db() -> None:
-    _DB.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(_DB) as conn:
+    with connect() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS user_settings (
                 uid           TEXT PRIMARY KEY,
@@ -37,7 +34,7 @@ def init_settings_db() -> None:
 
 def get_settings(uid: str) -> dict:
     """Return defaults deep-merged with the user's stored overrides."""
-    with sqlite3.connect(_DB) as conn:
+    with connect() as conn:
         row = conn.execute(
             "SELECT settings_json FROM user_settings WHERE uid = ?", (uid,)
         ).fetchone()
@@ -48,7 +45,7 @@ def get_settings(uid: str) -> dict:
 def patch_settings(uid: str, patch: dict) -> dict:
     """Deep-merge `patch` into stored settings, persist, return full settings."""
     merged = _deep_merge(get_settings(uid), patch)
-    with sqlite3.connect(_DB) as conn:
+    with connect() as conn:
         conn.execute(
             """
             INSERT INTO user_settings (uid, settings_json, updated_at)

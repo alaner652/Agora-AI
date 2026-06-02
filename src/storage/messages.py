@@ -9,16 +9,13 @@ Complements chat_session_turns (kept for backward compat) with richer data.
 from __future__ import annotations
 
 import json
-import pathlib
-import sqlite3
 import uuid
 
-_DB = pathlib.Path("data/history.db")
+from ._db import connect
 
 
 def init_messages_db() -> None:
-    _DB.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(_DB) as conn:
+    with connect() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS conversation_messages (
                 id          TEXT PRIMARY KEY,
@@ -55,7 +52,7 @@ def upsert_conversation_turn(
     Replaces any prior rows for (session_id, turn_id) so retries are safe.
     Rows inserted in logical order: user → tool_calls → assistant.
     """
-    with sqlite3.connect(_DB) as conn:
+    with connect() as conn:
         conn.execute(
             "DELETE FROM conversation_messages WHERE session_id = ? AND turn_id = ?",
             (session_id, turn_id),
@@ -109,7 +106,7 @@ def get_session_display_messages(session_id: str, uid: str) -> list[dict] | None
     Returns None if the session is not found or has no conversation_messages rows
     (caller should fall back to slim messages in that case).
     """
-    with sqlite3.connect(_DB) as conn:
+    with connect() as conn:
         owner = conn.execute(
             "SELECT 1 FROM chat_sessions WHERE session_id = ? AND uid = ?",
             (session_id, uid),
@@ -158,7 +155,7 @@ def get_session_display_messages(session_id: str, uid: str) -> list[dict] | None
 
 def get_conversation_messages(session_id: str, uid: str) -> list[dict] | None:
     """Return all rich messages for a session, or None if session not found / wrong owner."""
-    with sqlite3.connect(_DB) as conn:
+    with connect() as conn:
         owner = conn.execute(
             "SELECT 1 FROM chat_sessions WHERE session_id = ? AND uid = ?",
             (session_id, uid),

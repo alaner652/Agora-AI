@@ -7,17 +7,14 @@ Prevents path traversal and IDOR by verifying uid on every read.
 from __future__ import annotations
 
 import mimetypes
-import pathlib
 import secrets
-import sqlite3
 import time
 
-_DB = pathlib.Path("data/history.db")
+from ._db import connect
 
 
 def init_files_db() -> None:
-    _DB.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(_DB) as conn:
+    with connect() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS uploaded_files (
                 file_id      TEXT PRIMARY KEY,
@@ -36,7 +33,7 @@ def insert_file(uid: str, filename: str, storage_path: str, size: int) -> str:
     """Store file metadata and return the new opaque file_id."""
     file_id = secrets.token_urlsafe(16)
     mime_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
-    with sqlite3.connect(_DB) as conn:
+    with connect() as conn:
         conn.execute(
             "INSERT INTO uploaded_files "
             "(file_id, uid, filename, mime_type, storage_path, size, created_at) "
@@ -48,7 +45,7 @@ def insert_file(uid: str, filename: str, storage_path: str, size: int) -> str:
 
 def get_file(file_id: str, uid: str) -> dict | None:
     """Return file metadata if file_id exists and belongs to uid, else None."""
-    with sqlite3.connect(_DB) as conn:
+    with connect() as conn:
         row = conn.execute(
             "SELECT filename, mime_type, storage_path, size "
             "FROM uploaded_files WHERE file_id = ? AND uid = ?",

@@ -9,17 +9,16 @@ instead of rewriting the full conversation JSON (O(n²)).
 
 from __future__ import annotations
 
-import pathlib
 import sqlite3
 import time
 
-_DB = pathlib.Path("data/history.db")
+from ._db import connect
+
 _MAX_SESSIONS = 50
 
 
 def init_sessions_db() -> None:
-    _DB.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(_DB) as conn:
+    with connect() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS chat_sessions (
                 session_id  TEXT PRIMARY KEY,
@@ -67,7 +66,7 @@ def upsert_session_meta(
     turn_count: int,
     title: str,
 ) -> None:
-    with sqlite3.connect(_DB) as conn:
+    with connect() as conn:
         conn.execute(
             """
             INSERT INTO chat_sessions (session_id, uid, started_at, ended_at, turn_count, title, updated_at)
@@ -88,7 +87,7 @@ def insert_session_turn(
     user: str,
     assistant: str,
 ) -> None:
-    with sqlite3.connect(_DB) as conn:
+    with connect() as conn:
         conn.execute(
             """
             INSERT OR IGNORE INTO chat_session_turns (session_id, turn_id, user, assistant)
@@ -99,7 +98,7 @@ def insert_session_turn(
 
 
 def list_sessions(uid: str) -> list[dict]:
-    with sqlite3.connect(_DB) as conn:
+    with connect() as conn:
         rows = conn.execute(
             """
             SELECT session_id, started_at, ended_at, turn_count, title
@@ -123,7 +122,7 @@ def list_sessions(uid: str) -> list[dict]:
 
 
 def get_session_messages_slim(session_id: str, uid: str) -> list[dict] | None:
-    with sqlite3.connect(_DB) as conn:
+    with connect() as conn:
         # Verify ownership
         owner = conn.execute(
             "SELECT 1 FROM chat_sessions WHERE session_id = ? AND uid = ?",
@@ -146,7 +145,7 @@ def get_session_messages_slim(session_id: str, uid: str) -> list[dict] | None:
 
 
 def delete_session(session_id: str, uid: str) -> bool:
-    with sqlite3.connect(_DB) as conn:
+    with connect() as conn:
         cur = conn.execute(
             "DELETE FROM chat_sessions WHERE session_id = ? AND uid = ?",
             (session_id, uid),
@@ -162,7 +161,7 @@ def delete_session(session_id: str, uid: str) -> bool:
 
 def delete_all_sessions(uid: str) -> int:
     """Delete every session owned by uid. Returns the count removed."""
-    with sqlite3.connect(_DB) as conn:
+    with connect() as conn:
         ids = [r[0] for r in conn.execute(
             "SELECT session_id FROM chat_sessions WHERE uid = ?", (uid,)
         ).fetchall()]

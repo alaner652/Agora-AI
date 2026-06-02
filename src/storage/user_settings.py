@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import os
-import pathlib
-import sqlite3
 import time
 from dataclasses import dataclass
 
 from cryptography.fernet import Fernet, InvalidToken
 
-_DB = pathlib.Path("data/history.db")
+from ._db import connect
 
 _fernet: Fernet | None = None
 
@@ -26,8 +24,7 @@ def _get_fernet() -> Fernet:
 
 
 def init_user_settings_db() -> None:
-    _DB.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(_DB) as conn:
+    with connect() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS user_llm_config (
                 uid              TEXT PRIMARY KEY,
@@ -47,7 +44,7 @@ class LLMConfig:
 
 
 def get_llm_config(uid: str) -> LLMConfig | None:
-    with sqlite3.connect(_DB) as conn:
+    with connect() as conn:
         row = conn.execute(
             "SELECT base_url, api_key_enc, model FROM user_llm_config WHERE uid = ?",
             (uid,),
@@ -64,7 +61,7 @@ def get_llm_config(uid: str) -> LLMConfig | None:
 
 def set_llm_config(uid: str, base_url: str, api_key: str, model: str) -> None:
     api_key_enc = _get_fernet().encrypt(api_key.encode()).decode()
-    with sqlite3.connect(_DB) as conn:
+    with connect() as conn:
         conn.execute(
             """
             INSERT INTO user_llm_config (uid, base_url, api_key_enc, model, updated_at)
@@ -80,5 +77,5 @@ def set_llm_config(uid: str, base_url: str, api_key: str, model: str) -> None:
 
 
 def delete_llm_config(uid: str) -> None:
-    with sqlite3.connect(_DB) as conn:
+    with connect() as conn:
         conn.execute("DELETE FROM user_llm_config WHERE uid = ?", (uid,))

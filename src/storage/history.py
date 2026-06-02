@@ -3,17 +3,15 @@
 from __future__ import annotations
 
 import json
-import pathlib
-import sqlite3
 import time
 
-_DB = pathlib.Path("data/history.db")
+from ._db import connect
+
 _MAX_MESSAGES = 200
 
 
 def init_db() -> None:
-    _DB.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(_DB) as conn:
+    with connect() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS chat_history (
                 uid               TEXT PRIMARY KEY,
@@ -30,7 +28,7 @@ def init_db() -> None:
 
 def save_history(uid: str, messages: list[dict], viewed_session_id: str | None = None) -> None:
     slim = messages[-_MAX_MESSAGES:]
-    with sqlite3.connect(_DB) as conn:
+    with connect() as conn:
         conn.execute(
             """
             INSERT INTO chat_history (uid, messages_json, viewed_session_id, updated_at)
@@ -45,7 +43,7 @@ def save_history(uid: str, messages: list[dict], viewed_session_id: str | None =
 
 
 def load_history(uid: str) -> list[dict]:
-    with sqlite3.connect(_DB) as conn:
+    with connect() as conn:
         row = conn.execute(
             "SELECT messages_json FROM chat_history WHERE uid = ?", (uid,)
         ).fetchone()
@@ -53,7 +51,7 @@ def load_history(uid: str) -> list[dict]:
 
 
 def get_viewed_session_id(uid: str) -> str | None:
-    with sqlite3.connect(_DB) as conn:
+    with connect() as conn:
         row = conn.execute(
             "SELECT viewed_session_id FROM chat_history WHERE uid = ?", (uid,)
         ).fetchone()
@@ -61,5 +59,5 @@ def get_viewed_session_id(uid: str) -> str | None:
 
 
 def clear_history(uid: str) -> None:
-    with sqlite3.connect(_DB) as conn:
+    with connect() as conn:
         conn.execute("DELETE FROM chat_history WHERE uid = ?", (uid,))
