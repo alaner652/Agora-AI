@@ -71,9 +71,14 @@ async def validation_exception_handler(_request: Request, exc: RequestValidation
         sanitized = {k: ("<binary>" if isinstance(v, bytes) else v) for k, v in err.items()}
         errors.append(sanitized)
     return JSONResponse(status_code=422, content={"detail": errors})
+_CORS_ORIGINS = [
+    o.strip()
+    for o in os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:3000").split(",")
+    if o.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -53,14 +53,6 @@ async function clearHistoryOnServer(token: string): Promise<void> {
   } catch { /* ignore */ }
 }
 
-async function fetchRenderedImage(imageType: string, token: string): Promise<string | null> {
-  try {
-    const res = await fetch(`${BASE}/api/image/${imageType}`, { headers: { Authorization: `Bearer ${token}` } })
-    if (!res.ok) return null
-    return URL.createObjectURL(await res.blob())
-  } catch { return null }
-}
-
 async function* streamSse(url: string, body: object, signal: AbortSignal): AsyncGenerator<Record<string, unknown>> {
   const res = await fetch(url, {
     method: 'POST',
@@ -99,7 +91,6 @@ const TOOL_LABELS: Record<string, string> = {
   get_leave_form: '取得假單選項',
   apply_leave: '申請假單',
   delete_leave: '刪除假單',
-  render_image: '產生圖表',
   ask_user: '詢問使用者',
 }
 
@@ -256,7 +247,6 @@ export default function ChatPage() {
 
     let assistantText = ''
     const toolCalls: ToolRecord[] = []
-    const images: string[] = []
     let pendingToolName = ''
 
     setMessages(prev => [...prev, { role: 'assistant', content: '', toolCalls: [], images: [] }])
@@ -290,17 +280,6 @@ export default function ChatPage() {
             try {
               const parsed = JSON.parse(dataStr)
               if (parsed?.error_code === 'NET_002') { handleSessionExpired(); return }
-            } catch { /* not JSON */ }
-          } else if (pendingToolName === 'render_image') {
-            try {
-              const parsed = JSON.parse(dataStr)
-              if (parsed?.type) {
-                const token = getCookie('token')
-                if (token) {
-                  const imgUrl = await fetchRenderedImage(parsed.type as string, token)
-                  if (imgUrl) { images.push(imgUrl); updateLast({ images: [...images] }) }
-                }
-              }
             } catch { /* not JSON */ }
           }
 

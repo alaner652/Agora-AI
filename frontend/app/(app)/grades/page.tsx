@@ -1,3 +1,4 @@
+import { unstable_rethrow } from 'next/navigation'
 import { serverFetch } from '@/lib/api-server'
 import { PageLayout } from '@/components/PageLayout'
 import { GradesView } from '@/components/GradesView'
@@ -8,7 +9,8 @@ export default async function GradesPage() {
   try {
     const data = await serverFetch<{ entries: GradeEntry[] }>('/api/grades')
     entries = data.entries ?? []
-  } catch {
+  } catch (e) {
+    unstable_rethrow(e)
     return (
       <PageLayout>
         <p className="text-red-600 text-sm">載入失敗，請重新整理</p>

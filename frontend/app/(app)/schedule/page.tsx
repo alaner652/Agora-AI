@@ -1,3 +1,4 @@
+import { unstable_rethrow } from 'next/navigation'
 import { serverFetch } from '@/lib/api-server'
 import { PageLayout } from '@/components/PageLayout'
 import { SemesterSelect } from '@/components/SemesterSelect'
@@ -17,7 +18,8 @@ export default async function SchedulePage({
   try {
     const data = await serverFetch<{ semesters: SemesterOption[] }>('/api/semester-options')
     opts = data.semesters ?? []
-  } catch {
+  } catch (e) {
+    unstable_rethrow(e)
     fetchError = true
   }
 
@@ -27,7 +29,8 @@ export default async function SchedulePage({
     try {
       const data = await serverFetch<{ entries: ScheduleEntry[] }>(`/api/schedule?semester=${encodeURIComponent(semester)}`)
       entries = data.entries ?? []
-    } catch {
+    } catch (e) {
+      unstable_rethrow(e)
       fetchError = true
     }
   }

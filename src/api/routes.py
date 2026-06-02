@@ -26,9 +26,6 @@ from storage import save_history, load_history, clear_history, get_llm_config, s
 from .models import LLMConfigRequest, LLMConfigResponse, LLMModelsRequest, SettingsPatch, FullSettingsResponse, UserSettings, LLMBehaviourSettings
 from .state import AgentRegistry
 
-_IMAGE_DIR = pathlib.Path(__file__).parent.parent.parent / "output"
-_ALLOWED_IMAGE_TYPES = {"schedule", "absence", "grades"}
-
 router = APIRouter()
 _bearer = HTTPBearer()
 
@@ -249,23 +246,6 @@ async def delete_leave_endpoint(
         return result
     except Exception as e:
         raise _handle_exc(e)
-
-
-# ---------------------------------------------------------------------------
-# AI-rendered images
-# ---------------------------------------------------------------------------
-
-@router.get("/image/{image_type}")
-async def rendered_image(
-    image_type: str,
-    _jsessionid: str = Depends(_resolve_session),
-):
-    if image_type not in _ALLOWED_IMAGE_TYPES:
-        raise HTTPException(status_code=404, detail={"error": "未知圖片類型", "error_code": "NOT_FOUND"})
-    path = _IMAGE_DIR / f"{image_type}.png"
-    if not path.exists():
-        raise HTTPException(status_code=404, detail={"error": "圖片不存在，請先透過 AI 助理產生", "error_code": "NOT_FOUND"})
-    return FileResponse(path, media_type="image/png")
 
 
 # ---------------------------------------------------------------------------

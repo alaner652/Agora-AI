@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 
@@ -10,8 +11,14 @@ export async function serverFetch<T = unknown>(path: string): Promise<T> {
     cache: 'no-store',
   })
   if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText)
-    throw new Error(text)
+    // 401 = token 失效 (AUTH_002) 或上游 session 過期 (NET_002) → 一律導回登入。
+    // 注意：redirect() 以丟例外實作，呼叫端的 try/catch 需用 unstable_rethrow 放行。
+    if (res.status === 401) redirect('/login')
+    const body = await res.json().catch(() => null)
+    const message =
+      (typeof body?.detail?.error === 'string' && body.detail.error) ||
+      (body ? JSON.stringify(body) : res.statusText)
+    throw new Error(message)
   }
   return res.json() as Promise<T>
 }
