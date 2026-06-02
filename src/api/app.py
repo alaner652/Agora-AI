@@ -232,7 +232,7 @@ def _load_attachment(file_id: str | None, uid: str) -> tuple[str | None, str]:
 
 
 @app.post("/chat")
-@limiter.limit("5/minute")
+@limiter.limit("20/minute")
 async def chat(request: Request, body: ChatRequest):
     agent, lock = await _get_agent_or_401(body.token)
     uid = _get_registry().get_uid(body.token) or ''
@@ -254,7 +254,7 @@ async def chat(request: Request, body: ChatRequest):
 
 
 @app.post("/answer")
-@limiter.limit("5/minute")
+@limiter.limit("20/minute")
 async def answer(request: Request, body: AnswerRequest):
     agent, lock = await _get_agent_or_401(body.token)
 

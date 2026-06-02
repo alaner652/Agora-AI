@@ -18,28 +18,69 @@ class ChatMemory:
     def get_context(self, max_msgs: int = _MAX_MESSAGES) -> list[dict]:
         """Return trimmed history safe for the next LLM call.
 
-        Fixes the original bug: after slicing, if the first message is a tool
-        result (no preceding assistant tool_call), walk forward until we reach
-        a safe starting point so the API never receives an orphaned tool msg.
+        Three-phase validation prevents the API from receiving broken context:
+        1. Drop leading orphaned tool messages (no preceding assistant)
+        2. Find a safe starting point (user msg, or assistant not mid-tool-chain)
+        3. Validate tool call chains — assistant with tool_calls must be followed
+           by all their tool results before the slice ends.
         """
         if len(self.history) <= max_msgs:
             return list(self.history)
 
         trimmed = self.history[-max_msgs:]
 
-        # Drop leading tool messages that have no matching assistant message
-        while trimmed and trimmed[0].get("role") == "tool":
-            trimmed = trimmed[1:]
+        # Phase 1: drop leading orphaned tool messages
+        start = 0
+        while start < len(trimmed) and trimmed[start].get("role") == "tool":
+            start += 1
 
-        # If everything was trimmed, return the single most-recent user message
-        # so the next API call always has something to work with.
-        if not trimmed:
+        # Phase 2: walk forward to a clean starting point
+        while start < len(trimmed):
+            role = trimmed[start].get("role")
+            if role == "user":
+                break
+            if role == "assistant":
+                if start == 0 or trimmed[start - 1].get("role") != "tool":
+                    break
+            start += 1
+
+        if start >= len(trimmed):
             for msg in reversed(self.history):
                 if msg.get("role") == "user":
                     return [msg]
             return []
 
-        return trimmed
+        trimmed = trimmed[start:]
+
+        # Phase 3: ensure every assistant tool_call block has complete tool results
+        result: list[dict] = []
+        i = 0
+        while i < len(trimmed):
+            msg = trimmed[i]
+            result.append(msg)
+            if msg.get("role") == "assistant" and msg.get("tool_calls"):
+                expected = {tc["id"] for tc in msg["tool_calls"]}
+                answered: set[str] = set()
+                j = i + 1
+                while j < len(trimmed) and trimmed[j].get("role") == "tool":
+                    answered.add(trimmed[j].get("tool_call_id", ""))
+                    result.append(trimmed[j])
+                    j += 1
+                if expected != answered:
+                    # Incomplete chain at tail — drop this block entirely
+                    result = result[: -len(answered) - 1]
+                    break
+                i = j
+            else:
+                i += 1
+
+        if not result:
+            for msg in reversed(self.history):
+                if msg.get("role") == "user":
+                    return [msg]
+            return []
+
+        return result
 
     def remember(self, key: str, value) -> None:
         self.prefs[key] = value
