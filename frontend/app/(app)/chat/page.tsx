@@ -27,14 +27,17 @@ function slimMessages(messages: TextMessage[]): object[] {
   }))
 }
 
-async function loadHistoryFromServer(token: string): Promise<TextMessage[] | null> {
+async function loadHistoryFromServer(token: string): Promise<{ messages: TextMessage[]; viewedSessionId: string | null } | null> {
   try {
     const res = await fetch(`${BASE}/api/history`, { headers: { Authorization: `Bearer ${token}` } })
     if (res.status === 401) return null
-    if (!res.ok) return []
+    if (!res.ok) return { messages: [], viewedSessionId: null }
     const data = await res.json()
-    return (data.messages ?? []) as TextMessage[]
-  } catch { return [] }
+    return {
+      messages: (data.messages ?? []) as TextMessage[],
+      viewedSessionId: (data.viewed_session_id as string | null) ?? null,
+    }
+  } catch { return { messages: [], viewedSessionId: null } }
 }
 
 async function saveHistoryToServer(token: string, messages: TextMessage[]): Promise<void> {
@@ -217,9 +220,10 @@ export default function ChatPage() {
   useEffect(() => {
     const token = getCookie('token')
     if (!token) { router.push('/login'); return }
-    loadHistoryFromServer(token).then(msgs => {
-      if (msgs === null) { deleteCookie('token'); router.push('/login'); return }
-      setMessages(msgs)
+    loadHistoryFromServer(token).then(result => {
+      if (result === null) { deleteCookie('token'); router.push('/login'); return }
+      setMessages(result.messages)
+      if (result.viewedSessionId) setViewingSessionId(result.viewedSessionId)
       setHistoryLoaded(true)
     })
   }, [])

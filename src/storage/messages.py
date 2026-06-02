@@ -102,6 +102,60 @@ def upsert_conversation_turn(
         )
 
 
+def get_session_display_messages(session_id: str, uid: str) -> list[dict] | None:
+    """Return TextMessage[]-compatible dicts (with toolCalls) for frontend display.
+
+    Reads conversation_messages and groups tool calls onto their assistant turn.
+    Returns None if the session is not found or has no conversation_messages rows
+    (caller should fall back to slim messages in that case).
+    """
+    with sqlite3.connect(_DB) as conn:
+        owner = conn.execute(
+            "SELECT 1 FROM chat_sessions WHERE session_id = ? AND uid = ?",
+            (session_id, uid),
+        ).fetchone()
+        if owner is None:
+            return None
+
+        rows = conn.execute(
+            """
+            SELECT turn_id, role, msg_type, content, tool_name, ok
+            FROM conversation_messages
+            WHERE session_id = ?
+            ORDER BY turn_id, rowid
+            """,
+            (session_id,),
+        ).fetchall()
+
+    if not rows:
+        return None
+
+    turns: dict[int, dict] = {}
+    for turn_id, role, msg_type, content, tool_name, ok in rows:
+        if turn_id not in turns:
+            turns[turn_id] = {"user": None, "assistant": None, "tool_calls": []}
+        if role == "user" and msg_type == "text":
+            turns[turn_id]["user"] = content
+        elif role == "assistant" and msg_type == "text":
+            turns[turn_id]["assistant"] = content
+        elif role == "tool" and msg_type == "tool_call" and tool_name:
+            turns[turn_id]["tool_calls"].append({
+                "name": tool_name,
+                "ok": bool(ok) if ok is not None else False,
+            })
+
+    result: list[dict] = []
+    for turn_id in sorted(turns.keys()):
+        t = turns[turn_id]
+        if t["user"] is not None:
+            result.append({"role": "user", "content": t["user"]})
+        assistant: dict = {"role": "assistant", "content": t["assistant"] or ""}
+        if t["tool_calls"]:
+            assistant["toolCalls"] = t["tool_calls"]
+        result.append(assistant)
+    return result
+
+
 def get_conversation_messages(session_id: str, uid: str) -> list[dict] | None:
     """Return all rich messages for a session, or None if session not found / wrong owner."""
     with sqlite3.connect(_DB) as conn:

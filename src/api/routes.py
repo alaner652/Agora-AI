@@ -22,7 +22,7 @@ from actions.fetch_grades.index import get_grades as _grades
 from actions.fetch_leaves.index import get_leaves as _leaves
 from actions.apply_leave.index import apply_leave as _apply_leave, get_leave_form as _get_leave_form, LEAVE_TYPES
 from actions.delete_leave.index import delete_leave as _delete_leave
-from storage import save_history, load_history, clear_history, get_llm_config, set_llm_config, delete_llm_config, list_sessions, get_session_messages_slim, delete_session, delete_all_sessions, insert_file, get_file, get_conversation_messages, get_settings, patch_settings
+from storage import save_history, load_history, clear_history, get_viewed_session_id, get_llm_config, set_llm_config, delete_llm_config, list_sessions, get_session_messages_slim, delete_session, delete_all_sessions, insert_file, get_file, get_conversation_messages, get_session_display_messages, get_settings, patch_settings
 
 from .models import LLMConfigRequest, LLMConfigResponse, LLMModelsRequest, SettingsPatch, FullSettingsResponse, UserSettings, LLMBehaviourSettings
 from .state import AgentRegistry
@@ -260,8 +260,22 @@ class SaveHistoryBody(BaseModel):
 
 
 @router.get("/history")
-async def get_history(uid: str = Depends(_resolve_uid)):
-    return {"messages": load_history(uid)}
+async def get_history(
+    creds: HTTPAuthorizationCredentials = Depends(_bearer),
+    request: Request = None,
+):
+    reg = _get_registry(request)
+    uid = await reg.get_uid_checked(creds.credentials)
+    if uid is None:
+        raise HTTPException(status_code=401, detail={"error": "Token 無效或已過期", "error_code": "AUTH_002"})
+    session_id = reg.get_current_session_id(creds.credentials)
+    if session_id:
+        display = get_session_display_messages(session_id, uid)
+        if display:
+            return {"messages": display, "viewed_session_id": session_id}
+    messages = load_history(uid)
+    viewed_session_id = get_viewed_session_id(uid)
+    return {"messages": messages, "viewed_session_id": viewed_session_id}
 
 
 @router.post("/history")
@@ -319,12 +333,13 @@ async def switch_session_endpoint(
     uid = reg.get_uid(creds.credentials)
     if uid is None:
         raise HTTPException(status_code=401, detail={"error": "Token 無效", "error_code": "AUTH_002"})
-    messages = get_session_messages_slim(session_id, uid)
-    if messages is None:
+    slim = get_session_messages_slim(session_id, uid)
+    if slim is None:
         raise HTTPException(status_code=404, detail={"error": "Session 不存在", "error_code": "NOT_FOUND"})
-    await reg.restore_session(creds.credentials, messages)
-    save_history(uid, messages)
-    return {"messages": messages}
+    await reg.restore_session(creds.credentials, slim)
+    display = get_session_display_messages(session_id, uid) or slim
+    save_history(uid, display, viewed_session_id=session_id)
+    return {"messages": display}
 
 
 @router.get("/sessions/{session_id}/messages")
