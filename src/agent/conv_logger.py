@@ -225,6 +225,7 @@ class ConversationLogger:
             old.unlink(missing_ok=True)
 
     def _flush(self) -> None:
+        self._dir.mkdir(parents=True, exist_ok=True)
         path = self._dir / f"{self._session.session_id}.json"
         path.write_text(
             json.dumps(asdict(self._session), ensure_ascii=False, indent=2),

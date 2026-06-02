@@ -33,8 +33,9 @@ async def _send(method: str, url: str, **kwargs) -> httpx.Response:
                      duration_ms=duration_ms, error=type(e).__name__)
         raise
     duration_ms = round((time.monotonic() - t0) * 1000, 1)
-    _log.info("upstream_call", method=method, path=url,
-              status=resp.status_code, duration_ms=duration_ms)
+    log_fn = _log.warning if resp.status_code >= 400 else _log.info
+    log_fn("upstream_call", method=method, path=url,
+           status=resp.status_code, duration_ms=duration_ms)
     return resp
 
 

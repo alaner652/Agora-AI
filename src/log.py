@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 import os
 import pathlib
+from logging.handlers import TimedRotatingFileHandler
 
 import structlog
 from structlog.contextvars import bind_contextvars, clear_contextvars, merge_contextvars
@@ -23,7 +24,28 @@ _SENSITIVE = {
 }
 _REDACTED = "***"
 
-_LOG_FILE = pathlib.Path("logs/system.jsonl")
+_PROJECT_ROOT = pathlib.Path(__file__).parent.parent
+_LOG_FILE = _PROJECT_ROOT / "logs" / "system.jsonl"
+_ERROR_FILE = _PROJECT_ROOT / "logs" / "errors.jsonl"
+
+
+def _console_filter(_logger, _method, event_dict: dict) -> dict:
+    """console 專用：過濾 OPTIONS preflight 與空事件（仍寫入 file）。"""
+    event = event_dict.get("event") or ""
+    if not str(event).strip():
+        raise structlog.DropEvent()
+    if event == "http_request" and event_dict.get("method") == "OPTIONS":
+        raise structlog.DropEvent()
+    return event_dict
+
+
+def _console_format(_logger, _method, event_dict: dict) -> dict:
+    """console 專用：縮短 request_id、慢請求加 ⚠ 前綴。"""
+    if rid := event_dict.get("request_id"):
+        event_dict["request_id"] = rid[:8]
+    if (event_dict.get("duration_ms") or 0) > 2000:
+        event_dict["event"] = "⚠ " + str(event_dict.get("event", ""))
+    return event_dict
 
 
 def _redact(_logger, _method, event_dict: dict) -> dict:
@@ -47,19 +69,19 @@ def get_logger(name: str) -> structlog.stdlib.BoundLogger:
 
 
 def setup_logging() -> None:
-    """設定 structlog + stdlib，輸出 JSON 到 stderr 與 logs/system.jsonl。
+    """設定 structlog + stdlib，輸出到 stderr 與 logs/system.jsonl + logs/errors.jsonl。
 
+    console 永遠彩色人讀格式（HH:MM:SS 本地時間）；file handler 永遠 JSON（ISO UTC）。
     LOG_LEVEL 環境變數控制層級（預設 INFO）。冪等：重入不重複加 handler。
     """
     level_name = os.environ.get("LOG_LEVEL", "INFO").upper()
     level = getattr(logging, level_name, logging.INFO)
 
-    # structlog 與 stdlib 共用的前處理鏈（contextvars → redaction → 位置參數）。
-    shared_processors = [
+    # timestamp 以外的共用前處理，timestamp 由各 formatter 自行加，避免格式衝突。
+    base_processors = [
         merge_contextvars,
         structlog.stdlib.add_log_level,
         structlog.stdlib.add_logger_name,
-        structlog.processors.TimeStamper(fmt="iso"),
         structlog.stdlib.PositionalArgumentsFormatter(),
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
@@ -67,7 +89,7 @@ def setup_logging() -> None:
     ]
 
     structlog.configure(
-        processors=shared_processors + [
+        processors=base_processors + [
             structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
         ],
         logger_factory=structlog.stdlib.LoggerFactory(),
@@ -75,30 +97,51 @@ def setup_logging() -> None:
         cache_logger_on_first_use=True,
     )
 
-    # ProcessorFormatter 讓 stdlib LogRecord（含 uvicorn 等第三方）也走 JSON 渲染。
-    formatter = structlog.stdlib.ProcessorFormatter(
-        foreign_pre_chain=shared_processors,
+    json_formatter = structlog.stdlib.ProcessorFormatter(
+        foreign_pre_chain=base_processors,
         processors=[
             structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            structlog.processors.TimeStamper(fmt="iso", utc=True),
             structlog.processors.JSONRenderer(ensure_ascii=False),
         ],
     )
 
-    # Handler 掛在 root，讓 uvicorn 等第三方 log 也走 JSON 渲染（透過
-    # foreign_pre_chain）。root 維持 WARNING 以避免第三方 INFO 噪音；
-    # tpcu.* 自己設成 LOG_LEVEL，其 INFO 仍會冒泡到 root handler。
+    console_formatter = structlog.stdlib.ProcessorFormatter(
+        foreign_pre_chain=base_processors,
+        processors=[
+            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            structlog.processors.TimeStamper(fmt="%H:%M:%S", utc=False),
+            _console_filter,
+            _console_format,
+            structlog.dev.ConsoleRenderer(colors=True, pad_event=0),
+        ],
+    )
+
     root = logging.getLogger()
     if not any(getattr(h, "_tpcu_json", False) for h in root.handlers):
         stream = logging.StreamHandler()
-        stream.setFormatter(formatter)
+        stream.setFormatter(console_formatter)
         stream._tpcu_json = True
         root.addHandler(stream)
 
         _LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-        file_handler = logging.FileHandler(_LOG_FILE, encoding="utf-8")
-        file_handler.setFormatter(formatter)
+
+        # system.jsonl — 每天午夜 rotate，保留 30 天
+        file_handler = TimedRotatingFileHandler(
+            _LOG_FILE, when="midnight", backupCount=30, encoding="utf-8"
+        )
+        file_handler.setFormatter(json_formatter)
         file_handler._tpcu_json = True
         root.addHandler(file_handler)
+
+        # errors.jsonl — 僅 WARNING+，同樣按日 rotate
+        error_handler = TimedRotatingFileHandler(
+            _ERROR_FILE, when="midnight", backupCount=30, encoding="utf-8"
+        )
+        error_handler.setLevel(logging.WARNING)
+        error_handler.setFormatter(json_formatter)
+        error_handler._tpcu_json = True
+        root.addHandler(error_handler)
 
     root.setLevel(logging.WARNING)
     logging.getLogger("tpcu").setLevel(level)

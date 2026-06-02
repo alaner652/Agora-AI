@@ -126,7 +126,8 @@ class RequestContextMiddleware:
             await self.app(scope, receive, send_wrapper)
         finally:
             duration_ms = round((time.monotonic() - start) * 1000, 1)
-            _log.info(
+            log_fn = _log.warning if duration_ms > 2000 else _log.info
+            log_fn(
                 "http_request",
                 method=method,
                 path=path,

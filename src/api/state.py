@@ -13,7 +13,7 @@ import time as _time
 from storage.sessions import upsert_session_meta, insert_session_turn
 from storage.messages import upsert_conversation_turn
 
-_LOG_DIR_BASE = __import__("pathlib").Path("logs/api")
+_LOG_DIR_BASE = __import__("pathlib").Path(__file__).parent.parent.parent / "logs" / "api"
 _EVICT_AFTER = 2 * 3600  # seconds of inactivity before eviction
 
 

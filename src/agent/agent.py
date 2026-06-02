@@ -261,13 +261,25 @@ class ChatAgent:
                 if self._memory.history and self._memory.history[-1].get("role") == "user":
                     self._memory.history.pop()
                 raise
-            self._turn_llm_ms += (time.monotonic() - _t_llm) * 1000
+            llm_ms = round((time.monotonic() - _t_llm) * 1000, 1)
+            self._turn_llm_ms += llm_ms
 
             msg = response.choices[0].message
             self._memory.add(_message_to_dict(msg))
+            prompt_tokens = completion_tokens = 0
             if response.usage:
-                self._turn_tokens["prompt"] = self._turn_tokens.get("prompt", 0) + (getattr(response.usage, "prompt_tokens", 0) or 0)
-                self._turn_tokens["completion"] = self._turn_tokens.get("completion", 0) + (getattr(response.usage, "completion_tokens", 0) or 0)
+                prompt_tokens = getattr(response.usage, "prompt_tokens", 0) or 0
+                completion_tokens = getattr(response.usage, "completion_tokens", 0) or 0
+                self._turn_tokens["prompt"] = self._turn_tokens.get("prompt", 0) + prompt_tokens
+                self._turn_tokens["completion"] = self._turn_tokens.get("completion", 0) + completion_tokens
+            _log.info(
+                "llm_call",
+                model=response.model,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                latency_ms=llm_ms,
+                has_tool_calls=bool(msg.tool_calls),
+            )
 
             # --- No tool calls: final text response ---
             if not msg.tool_calls:
@@ -282,6 +294,12 @@ class ChatAgent:
                         llm_ms=self._turn_llm_ms,
                         token_usage=self._turn_tokens or None,
                     )
+                _log.info(
+                    "agent_turn_done",
+                    llm_calls=self._turn_llm_calls,
+                    llm_ms=round(self._turn_llm_ms, 1),
+                    tokens=self._turn_tokens or {},
+                )
                 yield DoneEvent()
                 return
 
@@ -361,6 +379,12 @@ class ChatAgent:
                 })
                 if self._logger:
                     self._logger.on_tool_call(tc.function.name, args, result, latency_ms, unconfirmed=unconfirmed)
+                _log.info(
+                    "agent_tool_call",
+                    tool=tc.function.name,
+                    ok=ok,
+                    latency_ms=round(latency_ms, 1),
+                )
 
             if ask_event is not None:
                 yield ask_event
