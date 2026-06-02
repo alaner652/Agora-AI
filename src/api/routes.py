@@ -238,6 +238,24 @@ async def delete_leave_endpoint(
     body: DeleteLeaveBody,
     jsessionid: str = Depends(_resolve_session),
 ):
+    # IDOR 防護：確認這張假單真的屬於當前登入者本人。
+    # 用本人的 JSESSIONID 重查假單列表（查詢範圍即假單自身日期，故假單必落在
+    # 範圍內），要刪的 barcode 必須出現在本人名下，否則拒絕——杜絕有人帶他人的
+    # stdkey/barcode 刪掉別人的假單（gateway 補學校端的 IDOR）。能否刪除由學校
+    # 自行判斷，這裡只把關「擁有權」。日期只取數字轉 compact YYYMMDD 供查詢；
+    # 實際 delete 呼叫沿用原值不變。
+    q_sdate = "".join(c for c in body.start_date if c.isdigit())
+    q_edate = "".join(c for c in body.end_date if c.isdigit())
+    try:
+        own = await _leaves(jsessionid, q_sdate, q_edate)
+    except Exception as e:
+        raise await _handle_exc(e, jsessionid)
+    if not any(e.get("barcode") == body.barcode for e in own):
+        raise HTTPException(
+            status_code=403,
+            detail={"error": "查無此假單或無權刪除", "error_code": "FORBIDDEN"},
+        )
+
     try:
         result = await _delete_leave(
             jsessionid=jsessionid,
