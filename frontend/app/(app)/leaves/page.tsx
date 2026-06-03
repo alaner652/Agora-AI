@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { Plus, X, Trash2 } from 'lucide-react'
 import {
   getLeaves, getLeaveForm, applyLeave, deleteLeave,
@@ -10,7 +10,6 @@ import {
 } from '@/lib/data'
 import { toCEInput, inputValToRoc, thisMonthRange } from '@/lib/date'
 import { DateRangePicker } from '@/components/DateRangePicker'
-import { deleteCookie } from '@/lib/cookie'
 import { PageLayout } from '@/components/PageLayout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -182,6 +181,7 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
       }
     }
     setProgress(null); setDone(true)
+    toast.success(workdays.length > 1 ? `假單申請成功（共 ${workdays.length} 天）` : '假單申請成功')
     setTimeout(() => onSuccess(), 1000)
   }
 
@@ -404,7 +404,7 @@ function DeleteButton({ leave, onDeleted }: { leave: LeaveItem; onDeleted: () =>
       end_date: leave.end_date,
     }),
     onSuccess: (data) => {
-      if (data.success) onDeleted()
+      if (data.success) { toast.success('假單已刪除'); onDeleted() }
       else { setMsg(data.message || '刪除失敗'); setConfirm(false) }
     },
   })
@@ -444,7 +444,6 @@ function isPending(status: string) {
 }
 
 export default function LeavesPage() {
-  const router = useRouter()
   const [start, setStart] = useState(() => toCEInput(thisMonthRange()[0]))
   const [end, setEnd] = useState(() => toCEInput(thisMonthRange()[1]))
   const [query, setQuery] = useState(() => ({
@@ -454,18 +453,10 @@ export default function LeavesPage() {
   const [dialogView, setDialogView] = useState<DialogView | null>(null)
   const queryClient = useQueryClient()
 
-  const { data: leaves, isLoading, error } = useQuery<LeaveItem[]>({
+  const { data: leaves, isLoading } = useQuery<LeaveItem[]>({
     queryKey: ['leaves', query],
     queryFn: () => getLeaves(query.start, query.end),
   })
-
-  useEffect(() => {
-    const code = (error as { response?: { data?: { detail?: { error_code?: string } } } })
-      ?.response?.data?.detail?.error_code
-    if (code === 'AUTH_002' || code === 'NET_002') {
-      deleteCookie('token'); router.push('/login')
-    }
-  }, [error])
 
   function handleApplyClick() {
     const acked = sessionStorage.getItem(LEAVE_NOTICE_ACK_KEY)

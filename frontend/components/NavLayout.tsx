@@ -8,7 +8,8 @@ import {
   CalendarDays, GraduationCap, Clock, FileText,
   Bot, Settings, LogOut, School, Sun, Moon, Monitor,
 } from 'lucide-react'
-import { deleteCookie, getCookie } from '@/lib/cookie'
+import { getCookie } from '@/lib/cookie'
+import { useAuthStore } from '@/lib/stores/auth'
 import {
   Sidebar,
   SidebarContent,
@@ -96,7 +97,7 @@ function AppSidebar() {
   const truancyCount = useTruancyCount()
 
   function logout() {
-    deleteCookie('token')
+    useAuthStore.getState().logout()
     sessionStorage.removeItem('tpcu_chat')
     sessionStorage.removeItem(CACHE_KEY)
     router.push('/login')

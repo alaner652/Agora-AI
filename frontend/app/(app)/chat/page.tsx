@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Bot, Paperclip, Send, Square, ChevronRight, History, LayoutGrid } from 'lucide-react'
-import { getCookie, deleteCookie } from '@/lib/cookie'
+import { getCookie } from '@/lib/cookie'
+import { useAuthStore } from '@/lib/stores/auth'
 import { SessionHistoryPanel } from '@/components/SessionHistoryPanel'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Spinner } from '@/components/ui/spinner'
@@ -221,7 +222,7 @@ export default function ChatPage() {
     const token = getCookie('token')
     if (!token) { router.push('/login'); return }
     loadHistoryFromServer(token).then(result => {
-      if (result === null) { deleteCookie('token'); router.push('/login'); return }
+      if (result === null) { useAuthStore.getState().logout(); router.push('/login'); return }
       setMessages(result.messages)
       if (result.viewedSessionId) setViewingSessionId(result.viewedSessionId)
       setHistoryLoaded(true)
@@ -249,7 +250,7 @@ export default function ChatPage() {
   }, [])
 
   function handleSessionExpired() {
-    deleteCookie('token')
+    useAuthStore.getState().logout()
     setMessages(prev => [...prev, { role: 'assistant', content: 'Session 已過期，即將跳轉至登入頁面...' }])
     setTimeout(() => router.push('/login'), 1500)
   }

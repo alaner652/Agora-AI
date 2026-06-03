@@ -3,7 +3,8 @@
 import { useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
-import { setCookie } from '@/lib/cookie'
+import { useAuthStore } from '@/lib/stores/auth'
+import { errorMessage } from '@/lib/api-error'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -22,21 +23,14 @@ export default function LoginPage() {
     setLoading(true)
     try {
       const res = await axios.post<{ token: string }>(`${BASE}/login`, { uid, pwd })
-      setCookie('token', res.data.token)
+      useAuthStore.getState().setToken(res.data.token)
       router.push('/schedule')
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { detail?: { error?: string } | string } }; code?: string; message?: string }
-      if (!axiosErr.response) {
+      // 連不到後端（沒有 response）給專屬提示，其餘交給統一解析。
+      if (!(err as { response?: unknown }).response) {
         setError(`無法連線到伺服器（${BASE}），請確認後端是否運行`)
       } else {
-        const detail = axiosErr.response.data?.detail
-        if (typeof detail === 'object' && detail !== null && 'error' in detail) {
-          setError(String((detail as { error: string }).error))
-        } else if (typeof detail === 'string') {
-          setError(detail)
-        } else {
-          setError('登入失敗，請確認學號密碼')
-        }
+        setError(errorMessage(err, '登入失敗，請確認學號密碼'))
       }
     } finally {
       setLoading(false)

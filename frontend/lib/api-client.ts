@@ -1,5 +1,7 @@
 import axios from 'axios'
-import { getCookie, deleteCookie } from './cookie'
+import { getCookie } from './cookie'
+import { isAuthError } from './api-error'
+import { useAuthStore } from './stores/auth'
 
 export const apiClient = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000',
@@ -11,15 +13,12 @@ apiClient.interceptors.request.use(cfg => {
   return cfg
 })
 
+// 直接呼叫 apiClient（未經 react-query）時的 auth 安全網；
+// 經 react-query 的錯誤統一由 providers 的 onError 處理。
 apiClient.interceptors.response.use(
   res => res,
   err => {
-    const code = (err as { response?: { data?: { detail?: { error_code?: string } } } })
-      ?.response?.data?.detail?.error_code
-    if (code === 'AUTH_002' || code === 'NET_002') {
-      deleteCookie('token')
-      window.location.href = '/login'
-    }
+    if (isAuthError(err)) useAuthStore.getState().sessionExpired()
     return Promise.reject(err)
   }
 )

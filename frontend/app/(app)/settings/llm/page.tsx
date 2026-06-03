@@ -1,14 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import {
   getLLMConfig, setLLMConfig, deleteLLMConfig, testLLMConfig,
   getFullSettings, patchSettings,
   type LLMConfigRequest, type LLMBehaviourSettings,
 } from '@/lib/data'
 import { PROVIDERS, providerForBaseUrl, type ModelOption, type ProviderDef } from '@/lib/providers'
-import { deleteCookie } from '@/lib/cookie'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
@@ -19,8 +18,6 @@ const DEFAULT_BEHAVIOUR: LLMBehaviourSettings = {
 }
 
 export default function LLMSettingsPage() {
-  const router = useRouter()
-
   // Provider state
   const [hasCustom, setHasCustom] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -34,7 +31,6 @@ export default function LLMSettingsPage() {
   const [modelsFellBack, setModelsFellBack] = useState(false)
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
-  const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null)
   const [error, setError] = useState('')
 
   // Behaviour state
@@ -70,17 +66,13 @@ export default function LLMSettingsPage() {
         setBehaviour(full.settings.llm)
         loadModels(p, '')   // no key on load → falls back to known list
       })
-      .catch(e => {
-        if (e?.response?.data?.detail?.error_code === 'AUTH_002') {
-          deleteCookie('token'); router.push('/login')
-        }
-      })
+      .catch(() => { /* auth 錯誤已由 apiClient 攔截器統一導回登入 */ })
       .finally(() => setLoading(false))
-  }, [router])
+  }, [])
 
   function selectProvider(p: ProviderDef) {
     setProvider(p)
-    setError(''); setTestResult(null)
+    setError('')
     setBaseUrl(p.baseUrl)
     setModel(p.defaultModel)
     loadModels(p, apiKey)
@@ -93,7 +85,8 @@ export default function LLMSettingsPage() {
       const req: LLMConfigRequest = { base_url: baseUrl, api_key: apiKey, model }
       await setLLMConfig(req)
       setHasCustom(true); setApiKey('')
-    } catch { setError('儲存失敗，請重試') } finally { setSaving(false) }
+      toast.success('已儲存模型設定')
+    } catch { toast.error('儲存失敗，請重試') } finally { setSaving(false) }
   }
 
   async function handleDelete() {
@@ -101,17 +94,19 @@ export default function LLMSettingsPage() {
       await deleteLLMConfig()
       setHasCustom(false)
       selectProvider(PROVIDERS[0])
-      setApiKey(''); setTestResult(null)
-    } catch { setError('清除失敗') }
+      setApiKey('')
+      toast.success('已清除自訂設定，改用伺服器預設')
+    } catch { toast.error('清除失敗') }
   }
 
   async function handleTest() {
     if (!baseUrl || !model) { setError('請先選擇模型'); return }
-    setError(''); setTesting(true); setTestResult(null)
+    setError(''); setTesting(true)
     try {
       const res = await testLLMConfig({ base_url: baseUrl, api_key: apiKey, model })
-      setTestResult({ ok: res.ok, msg: res.ok ? (res.reply || '成功') : (res.error ?? '失敗') })
-    } catch { setTestResult({ ok: false, msg: '請求失敗' }) } finally { setTesting(false) }
+      if (res.ok) toast.success('連線測試成功', { description: res.reply || undefined })
+      else toast.error('連線測試失敗', { description: res.error || undefined })
+    } catch { toast.error('連線測試失敗，請求未完成') } finally { setTesting(false) }
   }
 
   async function handleSaveBehaviour() {
@@ -216,13 +211,8 @@ export default function LLMSettingsPage() {
             placeholder="https://api.openai.com/v1" className="font-mono text-sm" />
         </div>
 
-        {/* Feedback */}
+        {/* Feedback：欄位驗證留 inline，連線/儲存結果走 toast */}
         {error && <p className="text-xs text-red-400">{error}</p>}
-        {testResult && (
-          <p className={`text-xs ${testResult.ok ? 'text-emerald-400' : 'text-red-400'}`}>
-            {testResult.ok ? '✓ ' : '✗ '}{testResult.msg}
-          </p>
-        )}
 
         {/* Actions */}
         <div className="flex items-center gap-2 flex-wrap pt-1">

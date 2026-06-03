@@ -2,14 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useRouter } from 'next/navigation'
 import {
   getAbsenceOptions, getAbsence,
   type AbsenceEntry, type AbsenceOptions,
 } from '@/lib/data'
 import { toCEInput, inputValToRoc, thisMonthRange } from '@/lib/date'
 import { DateRangePicker } from '@/components/DateRangePicker'
-import { deleteCookie } from '@/lib/cookie'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -42,40 +40,22 @@ function buildPivot(entries: AbsenceEntry[]): [string, PivotRow][] {
 }
 
 export default function AbsencePage() {
-  const router = useRouter()
   const [semester, setSemester] = useState('')
   const [start, setStart] = useState(() => toCEInput(thisMonthRange()[0]))
   const [end, setEnd] = useState(() => toCEInput(thisMonthRange()[1]))
   const [leaveType, setLeaveType] = useState('00')
   const [query, setQuery] = useState<{ semester: string; start: string; end: string; type: string } | null>(null)
 
-  function onAuthErr() {
-    deleteCookie('token')
-    router.push('/login')
-  }
-
-  const { data: opts, error: optsErr } = useQuery<AbsenceOptions>({
+  const { data: opts } = useQuery<AbsenceOptions>({
     queryKey: ['absence-options'],
     queryFn: getAbsenceOptions,
   })
 
-  const { data: entries, isLoading, error: absErr } = useQuery<AbsenceEntry[]>({
+  const { data: entries, isLoading } = useQuery<AbsenceEntry[]>({
     queryKey: ['absence', query],
     queryFn: () => getAbsence(query!.semester, query!.start, query!.end, query!.type),
     enabled: !!query,
   })
-
-  useEffect(() => {
-    const code = (optsErr as { response?: { data?: { detail?: { error_code?: string } } } })
-      ?.response?.data?.detail?.error_code
-    if (code === 'AUTH_002' || code === 'NET_002') onAuthErr()
-  }, [optsErr])
-
-  useEffect(() => {
-    const code = (absErr as { response?: { data?: { detail?: { error_code?: string } } } })
-      ?.response?.data?.detail?.error_code
-    if (code === 'AUTH_002' || code === 'NET_002') onAuthErr()
-  }, [absErr])
 
   useEffect(() => {
     if (opts?.semesters && opts.semesters.length > 0 && !semester) {

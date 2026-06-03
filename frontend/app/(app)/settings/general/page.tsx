@@ -1,28 +1,21 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getFullSettings, type FullSettingsResponse } from '@/lib/data'
-import { deleteCookie } from '@/lib/cookie'
 import { Spinner } from '@/components/ui/spinner'
 import { SettingCard, InfoRow, CopyButton } from '@/components/settings/primitives'
 
 export default function GeneralSettingsPage() {
-  const router = useRouter()
   const [data, setData] = useState<FullSettingsResponse | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     getFullSettings()
       .then(setData)
-      .catch(e => {
-        if (e?.response?.data?.detail?.error_code === 'AUTH_002') {
-          deleteCookie('token'); router.push('/login')
-        }
-      })
+      .catch(() => { /* auth 錯誤已由 apiClient 攔截器統一導回登入 */ })
       .finally(() => setLoading(false))
-  }, [router])
+  }, [])
 
   if (loading) return (
     <div className="flex items-center gap-2 text-muted-foreground text-sm py-6">
