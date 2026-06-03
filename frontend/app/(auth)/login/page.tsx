@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
+import { toast } from 'sonner'
 import { useAuthStore } from '@/lib/stores/auth'
 import { errorMessage } from '@/lib/api-error'
 import { Button } from '@/components/ui/button'
@@ -13,25 +14,23 @@ const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 export default function LoginPage() {
   const [uid, setUid] = useState('')
   const [pwd, setPwd] = useState('')
-  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    setError('')
     setLoading(true)
     try {
       const res = await axios.post<{ token: string }>(`${BASE}/login`, { uid, pwd })
       useAuthStore.getState().setToken(res.data.token)
       router.push('/schedule')
     } catch (err: unknown) {
-      // 連不到後端（沒有 response）給專屬提示，其餘交給統一解析。
-      if (!(err as { response?: unknown }).response) {
-        setError(`無法連線到伺服器（${BASE}），請確認後端是否運行`)
-      } else {
-        setError(errorMessage(err, '登入失敗，請確認學號密碼'))
-      }
+      // 連不到後端（沒有 response）給專屬提示，其餘交給統一解析；
+      // 去掉後端訊息可能殘留的結尾冒號（例："登入失敗："）。
+      const msg = !(err as { response?: unknown }).response
+        ? `無法連線到伺服器（${BASE}），請確認後端是否運行`
+        : errorMessage(err, '登入失敗，請確認學號密碼').replace(/[：:]\s*$/, '')
+      toast.error(msg || '登入失敗，請確認學號密碼')
     } finally {
       setLoading(false)
     }
@@ -70,12 +69,6 @@ export default function LoginPage() {
                 className="py-2"
               />
             </div>
-
-            {error && (
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                {error}
-              </p>
-            )}
 
             <Button
               type="submit"
