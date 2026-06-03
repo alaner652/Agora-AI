@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { PageLayout } from '@/components/PageLayout'
-import { ALL_PERIODS, ABSENCE_TYPE_CLS } from '@/lib/constants'
+import { ALL_PERIODS, ABSENCE_TYPE_CLS } from '@/constants'
 
 function typeCls(t: string) { return ABSENCE_TYPE_CLS[t] ?? 'bg-muted text-muted-foreground' }
 

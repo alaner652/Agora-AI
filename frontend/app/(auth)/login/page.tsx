@@ -8,8 +8,7 @@ import { useAuthStore } from '@/lib/stores/auth'
 import { errorMessage } from '@/lib/api-error'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+import { API_BASE_URL as BASE } from '@/constants'
 
 export default function LoginPage() {
   const [uid, setUid] = useState('')

@@ -2,13 +2,14 @@ import axios from 'axios'
 import { getCookie } from './cookie'
 import { isAuthError } from './api-error'
 import { useAuthStore } from './stores/auth'
+import { API_BASE_URL, TOKEN_COOKIE } from '@/constants'
 
 export const apiClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000',
+  baseURL: API_BASE_URL,
 })
 
 apiClient.interceptors.request.use(cfg => {
-  const token = getCookie('token')
+  const token = getCookie(TOKEN_COOKIE)
   if (token) cfg.headers.Authorization = `Bearer ${token}`
   return cfg
 })

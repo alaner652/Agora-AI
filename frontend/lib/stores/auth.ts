@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { getCookie, setCookie, deleteCookie } from '@/lib/cookie'
+import { TOKEN_COOKIE } from '@/constants'
 
 /**
  * 唯一的登入/session 來源。
@@ -17,17 +18,17 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
-  token: getCookie('token') ?? null,
+  token: getCookie(TOKEN_COOKIE) ?? null,
   setToken: (token) => {
-    setCookie('token', token)
+    setCookie(TOKEN_COOKIE, token)
     set({ token })
   },
   logout: () => {
-    deleteCookie('token')
+    deleteCookie(TOKEN_COOKIE)
     set({ token: null })
   },
   sessionExpired: () => {
-    deleteCookie('token')
+    deleteCookie(TOKEN_COOKIE)
     set({ token: null })
     if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
       window.location.href = '/login'

@@ -32,7 +32,7 @@ import {
   LEAVE_NOTICE_ACK_KEY,
   LEAVE_NOTICE_ITEMS,
   leaveStatusCls,
-} from '@/lib/constants'
+} from '@/constants'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

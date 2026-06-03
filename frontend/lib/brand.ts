@@ -5,7 +5,7 @@
  * An empty value clears the override and falls back to globals.css (Orange).
  */
 
-const KEY = 'brand-color'
+import { BRAND_STORAGE_KEY as KEY } from '@/constants'
 
 export interface BrandPreset { name: string; value: string }
 

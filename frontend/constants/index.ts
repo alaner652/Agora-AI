@@ -1,4 +1,36 @@
-// ── 缺曠 ──────────────────────────────────────────────────────────────────────
+/**
+ * 全專案常數的單一出口。
+ *
+ * 分區：
+ *   1. App / 環境       — API base URL、cookie / storage 鍵
+ *   2. LLM 行為預設      — 與後端 routes.py 的 fallback 對齊
+ *   3. 缺曠 (absence)
+ *   4. 假單 (leave)
+ *   5. 課表 (schedule)
+ */
+
+// ── 1. App / 環境 ─────────────────────────────────────────────────────────────
+
+/** 後端 API base URL；未設定環境變數時退回本機 dev server。 */
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+
+/** 存放登入 token 的 cookie 名稱。 */
+export const TOKEN_COOKIE = 'token'
+
+/** brand 顏色偏好（localStorage）。 */
+export const BRAND_STORAGE_KEY = 'brand-color'
+
+// ── 2. LLM 行為預設 ───────────────────────────────────────────────────────────
+
+/** 與後端 `_to_user_settings` 的 fallback 一致；前端表單未載入前的初始值。 */
+export const DEFAULT_LLM_BEHAVIOUR = {
+  temperature: 0.7,
+  max_tokens: 2048,
+  system_prompt: '',
+  context_length: 20,
+} as const
+
+// ── 3. 缺曠 (absence) ─────────────────────────────────────────────────────────
 
 export const ALL_PERIODS = [
   '朝會', '自', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'K', 'A', 'B', 'C', 'D', 'E',
@@ -12,7 +44,7 @@ export const ABSENCE_TYPE_CLS: Record<string, string> = {
   '喪假': 'bg-purple-500/20 text-purple-400',
 }
 
-// ── 假單 ──────────────────────────────────────────────────────────────────────
+// ── 4. 假單 (leave) ───────────────────────────────────────────────────────────
 
 export const PUBLIC_LEAVE_ID = '23'
 
@@ -50,7 +82,7 @@ export const LEAVE_NOTICE_ITEMS: Array<{
   { label: '八、考試請假', text: '於考試期間請假者，一律列印紙本，按照流程逐一簽核後送生輔組核准。' },
 ]
 
-// ── 課表 ──────────────────────────────────────────────────────────────────────
+// ── 5. 課表 (schedule) ────────────────────────────────────────────────────────
 
 export const DAY_LABELS = ['', '一', '二', '三', '四', '五', '六', '日']
 

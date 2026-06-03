@@ -1,12 +1,11 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+import { API_BASE_URL, TOKEN_COOKIE } from '@/constants'
 
 export async function serverFetch<T = unknown>(path: string): Promise<T> {
   const store = await cookies()
-  const token = store.get('token')?.value
-  const res = await fetch(`${BASE}${path}`, {
+  const token = store.get(TOKEN_COOKIE)?.value
+  const res = await fetch(`${API_BASE_URL}${path}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     cache: 'no-store',
   })

@@ -12,8 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Spinner } from '@/components/ui/spinner'
 import type { ToolRecord, TextMessage, Attachment } from '@/lib/data'
 import { newSession } from '@/lib/data'
-
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+import { API_BASE_URL as BASE, TOKEN_COOKIE } from '@/constants'
 
 interface AskUserState {
   question: string
@@ -219,7 +218,7 @@ export default function ChatPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
-    const token = getCookie('token')
+    const token = getCookie(TOKEN_COOKIE)
     if (!token) { router.push('/login'); return }
     loadHistoryFromServer(token).then(result => {
       if (result === null) { useAuthStore.getState().logout(); router.push('/login'); return }
@@ -236,7 +235,7 @@ export default function ChatPage() {
   useEffect(() => { messagesRef.current = messages }, [messages])
   useEffect(() => {
     return () => {
-      const token = getCookie('token')
+      const token = getCookie(TOKEN_COOKIE)
       if (token && messagesRef.current.length > 0) {
         saveHistoryToServer(token, messagesRef.current)
       }
@@ -320,7 +319,7 @@ export default function ChatPage() {
       }
       updateLast({ content: assistantText || '發生錯誤，請稍後再試。' })
     } finally {
-      const token = getCookie('token')
+      const token = getCookie(TOKEN_COOKIE)
       const msgsToSave = [...contextMessages, currentAssistantMsg]
       setMessages(msgsToSave)
       if (token && msgsToSave.length > 0) await saveHistoryToServer(token, msgsToSave)
@@ -331,7 +330,7 @@ export default function ChatPage() {
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    const token = getCookie('token')
+    const token = getCookie(TOKEN_COOKIE)
     if (!token) return
     const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined
     setUploading(true)
@@ -360,7 +359,7 @@ export default function ChatPage() {
   async function handleSend(e?: { preventDefault?(): void }) {
     e?.preventDefault?.()
     if (!input.trim() || streaming) return
-    const token = getCookie('token')
+    const token = getCookie(TOKEN_COOKIE)
     if (!token) { router.push('/login'); return }
     const userMsg = input.trim()
     const pendingFile = uploadedFile
@@ -392,7 +391,7 @@ export default function ChatPage() {
   }
 
   async function handleAnswer(selected: string) {
-    const token = getCookie('token')
+    const token = getCookie(TOKEN_COOKIE)
     if (!token) { router.push('/login'); return }
     const answerMsg: TextMessage = { role: 'user', content: `▶ ${selected}` }
     setAskUser(null)
@@ -402,7 +401,7 @@ export default function ChatPage() {
   }
 
   async function handleClearHistory() {
-    const token = getCookie('token')
+    const token = getCookie(TOKEN_COOKIE)
     if (token) await clearHistoryOnServer(token)
     setMessages([])
   }
@@ -430,7 +429,7 @@ export default function ChatPage() {
 
   async function submitEdit() {
     if (!editText.trim() || editingIndex === null || streaming) return
-    const token = getCookie('token')
+    const token = getCookie(TOKEN_COOKIE)
     if (!token) { router.push('/login'); return }
     const newMsg = editText.trim()
     const editedMsg: TextMessage = { role: 'user', content: newMsg }

@@ -12,10 +12,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { SettingCard, SettingCardHeader, FieldLabel, Slider } from '@/components/settings/primitives'
+import { DEFAULT_LLM_BEHAVIOUR } from '@/constants'
 
-const DEFAULT_BEHAVIOUR: LLMBehaviourSettings = {
-  temperature: 0.7, max_tokens: 2048, system_prompt: '', context_length: 20,
-}
+const DEFAULT_BEHAVIOUR: LLMBehaviourSettings = DEFAULT_LLM_BEHAVIOUR
 
 export default function LLMSettingsPage() {
   // Provider state

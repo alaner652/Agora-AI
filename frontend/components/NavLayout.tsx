@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { getCookie } from '@/lib/cookie'
 import { useAuthStore } from '@/lib/stores/auth'
+import { API_BASE_URL as BASE, TOKEN_COOKIE } from '@/constants'
 import {
   Sidebar,
   SidebarContent,
@@ -33,7 +34,6 @@ import {
   BreadcrumbPage,
 } from '@/components/ui/breadcrumb'
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 const CACHE_KEY = 'tpcu_absence_summary'
 const CACHE_TTL = 30 * 60 * 1000  // 30 minutes
 
@@ -49,7 +49,7 @@ function useTruancyCount() {
       }
     } catch { /* ignore */ }
 
-    const token = getCookie('token')
+    const token = getCookie(TOKEN_COOKIE)
     if (!token) return
     fetch(`${BASE}/api/absence/summary`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
