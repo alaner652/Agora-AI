@@ -23,5 +23,7 @@ logs/**/*.jsonl
 
 # 資料庫（runtime 產生，含使用者資料）
 data/*.db
+data/*.db-wal
+data/*.db-shm
 
 uploads/*
