@@ -29,7 +29,7 @@ function TrendCard({ title, value, sub, children }: {
     <div className="rounded-xl border border-border bg-card p-4">
       {title && <p className="text-xs text-muted-foreground mb-1">{title}</p>}
       {value !== undefined && (
-        <p className="text-2xl font-semibold text-foreground">{value}</p>
+        <p className="font-heading text-2xl font-semibold text-foreground">{value}</p>
       )}
       {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
       {children}

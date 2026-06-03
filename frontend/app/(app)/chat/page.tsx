@@ -172,11 +172,11 @@ const mdComponents = {
   strong: ({ children }: { children?: React.ReactNode }) =>
     <strong className="font-semibold text-foreground">{children}</strong>,
   h1: ({ children }: { children?: React.ReactNode }) =>
-    <h1 className="font-semibold text-base mb-1.5 mt-3 text-foreground">{children}</h1>,
+    <h1 className="font-heading font-semibold text-base mb-1.5 mt-3 text-foreground">{children}</h1>,
   h2: ({ children }: { children?: React.ReactNode }) =>
-    <h2 className="font-semibold mb-1 mt-2.5 text-foreground">{children}</h2>,
+    <h2 className="font-heading font-semibold mb-1 mt-2.5 text-foreground">{children}</h2>,
   h3: ({ children }: { children?: React.ReactNode }) =>
-    <h3 className="font-semibold mb-1 mt-2 text-foreground">{children}</h3>,
+    <h3 className="font-heading font-semibold mb-1 mt-2 text-foreground">{children}</h3>,
   code: ({ inline, children }: { inline?: boolean; children?: React.ReactNode }) =>
     inline
       ? <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono text-primary">{children}</code>
@@ -472,7 +472,7 @@ export default function ChatPage() {
                 <Bot className="w-7 h-7 text-primary" />
               </div>
               <div>
-                <p className="text-sm font-medium text-foreground mb-1">需要什麼協助？</p>
+                <p className="font-heading text-base font-semibold text-foreground mb-1">需要什麼協助？</p>
                 <p className="text-xs text-muted-foreground">詢問課表、成績、缺曠、假單等問題</p>
               </div>
             </div>

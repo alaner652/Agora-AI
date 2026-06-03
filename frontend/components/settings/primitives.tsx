@@ -15,7 +15,7 @@ export function SettingCardHeader({ title, description, status }: {
   return (
     <div className="flex items-start justify-between gap-2">
       <div>
-        <p className="text-sm font-medium text-foreground">{title}</p>
+        <p className="font-heading text-sm font-semibold text-foreground">{title}</p>
         {description && <p className="text-xs text-muted-foreground mt-0.5">{description}</p>}
       </div>
       {status}

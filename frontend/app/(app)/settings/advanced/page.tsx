@@ -6,7 +6,7 @@ import { SettingCard, DangerRow } from '@/components/settings/primitives'
 export default function AdvancedSettingsPage() {
   return (
     <SettingCard>
-      <p className="text-sm font-medium text-foreground">資料管理</p>
+      <p className="font-heading text-sm font-semibold text-foreground">資料管理</p>
       <div className="-mt-1">
         <DangerRow
           title="清除當前對話"

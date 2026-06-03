@@ -33,7 +33,7 @@ export default function GeneralSettingsPage() {
   return (
     <>
       <SettingCard>
-        <p className="text-sm font-medium text-foreground">帳號</p>
+        <p className="font-heading text-sm font-semibold text-foreground">帳號</p>
         <div className="-mt-2">
           <InfoRow label="學號" value={uid} mono action={<CopyButton value={uid} />} />
         </div>
@@ -41,7 +41,7 @@ export default function GeneralSettingsPage() {
 
       <SettingCard>
         <div className="flex items-center justify-between">
-          <p className="text-sm font-medium text-foreground">語言模型</p>
+          <p className="font-heading text-sm font-semibold text-foreground">語言模型</p>
           <Link href="/settings/llm" className="text-xs text-primary hover:text-primary/80 transition-colors">
             設定 →
           </Link>

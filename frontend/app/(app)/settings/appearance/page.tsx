@@ -41,7 +41,7 @@ export default function AppearanceSettingsPage() {
       {/* Theme */}
       <div className="rounded-xl border border-border bg-card p-4 space-y-4">
         <div>
-          <p className="text-sm font-medium text-foreground">主題</p>
+          <p className="font-heading text-sm font-semibold text-foreground">主題</p>
           <p className="text-xs text-muted-foreground mt-0.5">選擇介面外觀，預設為深色</p>
         </div>
         <div className="grid grid-cols-3 gap-2">
@@ -65,7 +65,7 @@ export default function AppearanceSettingsPage() {
       {/* Brand colour */}
       <div className="rounded-xl border border-border bg-card p-4 space-y-4">
         <div>
-          <p className="text-sm font-medium text-foreground">品牌色</p>
+          <p className="font-heading text-sm font-semibold text-foreground">品牌色</p>
           <p className="text-xs text-muted-foreground mt-0.5">主題色彩，套用於按鈕、連結與重點元素</p>
         </div>
 
