@@ -128,5 +128,10 @@ async def get_session_api(uid: str, pwd: str) -> str:
 async def refresh_api(uid: str, pwd: str) -> str:
     """Session 中途失效時呼叫（API 用途，無 print/input）。"""
     jsessionid = await login(uid, pwd)
+    # 防呆：學校忙線時 perchk 可能回「未認證頁」卻仍帶 JSESSIONID cookie，
+    # login() 只擋「帳密錯誤」抓不到這種。登入後立刻用既有 _validate 驗一次，
+    # 未通過就明確報錯且不存檔——避免「假登入成功 → 首次查詢就被倒回登入頁」。
+    if not await _validate(jsessionid):
+        raise ValueError("登入未成功（學校系統忙線或暫時無法驗證），請稍後再試")
     _api_save(uid, jsessionid)
     return jsessionid
