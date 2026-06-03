@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import pathlib
 import time
@@ -173,7 +174,8 @@ class ChatAgent:
         uid = self._memory.recall("uid", "")
         try:
             from storage.settings import get_settings as _get_settings
-            _llm = _get_settings(uid).get("llm", {}) if uid else {}
+            _settings = await asyncio.to_thread(_get_settings, uid) if uid else {}
+            _llm = _settings.get("llm", {})
         except Exception:
             _llm = {}
         self._cfg_temperature = float(_llm.get("temperature", 0.7))

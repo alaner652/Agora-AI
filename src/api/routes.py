@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import pathlib
@@ -288,23 +289,23 @@ async def get_history(
         raise HTTPException(status_code=401, detail={"error": "Token 無效或已過期", "error_code": "AUTH_002"})
     session_id = reg.get_current_session_id(creds.credentials)
     if session_id:
-        display = get_session_display_messages(session_id, uid)
+        display = await asyncio.to_thread(get_session_display_messages, session_id, uid)
         if display:
             return {"messages": display, "viewed_session_id": session_id}
-    messages = load_history(uid)
-    viewed_session_id = get_viewed_session_id(uid)
+    messages = await asyncio.to_thread(load_history, uid)
+    viewed_session_id = await asyncio.to_thread(get_viewed_session_id, uid)
     return {"messages": messages, "viewed_session_id": viewed_session_id}
 
 
 @router.post("/history")
 async def post_history(body: SaveHistoryBody, uid: str = Depends(_resolve_uid)):
-    save_history(uid, body.messages)
+    await asyncio.to_thread(save_history, uid, body.messages)
     return {"ok": True}
 
 
 @router.delete("/history")
 async def delete_history(uid: str = Depends(_resolve_uid)):
-    clear_history(uid)
+    await asyncio.to_thread(clear_history, uid)
     return {"ok": True}
 
 
@@ -322,7 +323,7 @@ async def new_session_endpoint(
     if uid is None:
         raise HTTPException(status_code=401, detail={"error": "Token 無效", "error_code": "AUTH_002"})
     await reg.new_session(creds.credentials)
-    clear_history(uid)
+    await asyncio.to_thread(clear_history, uid)
     return {"ok": True}
 
 
@@ -335,8 +336,9 @@ async def get_sessions(
     uid = reg.get_uid(creds.credentials)
     if uid is None:
         raise HTTPException(status_code=401, detail={"error": "Token 無效", "error_code": "AUTH_002"})
+    sessions = await asyncio.to_thread(list_sessions, uid)
     return {
-        "sessions": list_sessions(uid),
+        "sessions": sessions,
         "current_session_id": reg.get_current_session_id(creds.credentials),
     }
 
@@ -351,18 +353,18 @@ async def switch_session_endpoint(
     uid = reg.get_uid(creds.credentials)
     if uid is None:
         raise HTTPException(status_code=401, detail={"error": "Token 無效", "error_code": "AUTH_002"})
-    slim = get_session_messages_slim(session_id, uid)
+    slim = await asyncio.to_thread(get_session_messages_slim, session_id, uid)
     if slim is None:
         raise HTTPException(status_code=404, detail={"error": "Session 不存在", "error_code": "NOT_FOUND"})
     await reg.restore_session(creds.credentials, slim)
-    display = get_session_display_messages(session_id, uid) or slim
-    save_history(uid, display, viewed_session_id=session_id)
+    display = await asyncio.to_thread(get_session_display_messages, session_id, uid) or slim
+    await asyncio.to_thread(save_history, uid, display, viewed_session_id=session_id)
     return {"messages": display}
 
 
 @router.get("/sessions/{session_id}/messages")
 async def get_session_messages_detail(session_id: str, uid: str = Depends(_resolve_uid)):
-    messages = get_conversation_messages(session_id, uid)
+    messages = await asyncio.to_thread(get_conversation_messages, session_id, uid)
     if messages is None:
         raise HTTPException(status_code=404, detail={"error": "Session 不存在", "error_code": "NOT_FOUND"})
     return {"messages": messages}
@@ -370,7 +372,7 @@ async def get_session_messages_detail(session_id: str, uid: str = Depends(_resol
 
 @router.delete("/sessions/{session_id}")
 async def delete_session_endpoint(session_id: str, uid: str = Depends(_resolve_uid)):
-    ok = delete_session(session_id, uid)
+    ok = await asyncio.to_thread(delete_session, session_id, uid)
     if not ok:
         raise HTTPException(status_code=404, detail={"error": "Session 不存在", "error_code": "NOT_FOUND"})
     return {"ok": True}
@@ -400,10 +402,11 @@ def _to_user_settings(raw: dict) -> UserSettings:
 
 @router.get("/settings", response_model=FullSettingsResponse)
 async def get_full_settings(uid: str = Depends(_resolve_uid)):
-    cfg = get_llm_config(uid)
+    cfg = await asyncio.to_thread(get_llm_config, uid)
+    raw_settings = await asyncio.to_thread(get_settings, uid)
     return FullSettingsResponse(
         uid=uid,
-        settings=_to_user_settings(get_settings(uid)),
+        settings=_to_user_settings(raw_settings),
         llm_status=LLMConfigResponse(
             has_custom_config=cfg is not None,
             base_url=cfg.base_url if cfg else "",
@@ -417,18 +420,20 @@ async def patch_user_settings(body: SettingsPatch, uid: str = Depends(_resolve_u
     patch: dict = {}
     if body.llm is not None:
         patch["llm"] = {k: v for k, v in body.llm.model_dump().items() if v is not None}
-    return _to_user_settings(patch_settings(uid, patch))
+    merged = await asyncio.to_thread(patch_settings, uid, patch)
+    return _to_user_settings(merged)
 
 
 @router.delete("/settings/history")
 async def delete_history_settings(uid: str = Depends(_resolve_uid)):
-    clear_history(uid)
+    await asyncio.to_thread(clear_history, uid)
     return {"ok": True}
 
 
 @router.delete("/settings/sessions")
 async def delete_all_sessions_settings(uid: str = Depends(_resolve_uid)):
-    return {"deleted": delete_all_sessions(uid)}
+    deleted = await asyncio.to_thread(delete_all_sessions, uid)
+    return {"deleted": deleted}
 
 
 # ---------------------------------------------------------------------------
@@ -437,7 +442,7 @@ async def delete_all_sessions_settings(uid: str = Depends(_resolve_uid)):
 
 @router.get("/settings/llm", response_model=LLMConfigResponse)
 async def get_llm_settings(uid: str = Depends(_resolve_uid)):
-    cfg = get_llm_config(uid)
+    cfg = await asyncio.to_thread(get_llm_config, uid)
     if cfg is None:
         return LLMConfigResponse(has_custom_config=False)
     return LLMConfigResponse(has_custom_config=True, base_url=cfg.base_url, model=cfg.model)
@@ -445,13 +450,13 @@ async def get_llm_settings(uid: str = Depends(_resolve_uid)):
 
 @router.put("/settings/llm", response_model=LLMConfigResponse)
 async def put_llm_settings(body: LLMConfigRequest, uid: str = Depends(_resolve_uid)):
-    set_llm_config(uid, base_url=body.base_url, api_key=body.api_key, model=body.model)
+    await asyncio.to_thread(set_llm_config, uid, base_url=body.base_url, api_key=body.api_key, model=body.model)
     return LLMConfigResponse(has_custom_config=True, base_url=body.base_url, model=body.model)
 
 
 @router.delete("/settings/llm")
 async def delete_llm_settings(uid: str = Depends(_resolve_uid)):
-    delete_llm_config(uid)
+    await asyncio.to_thread(delete_llm_config, uid)
     return {"ok": True}
 
 
@@ -501,13 +506,13 @@ async def upload_file(
     dest = dest_dir / safe_name
     dest.write_bytes(content)
 
-    file_id = insert_file(uid, safe_name, str(dest), len(content))
+    file_id = await asyncio.to_thread(insert_file, uid, safe_name, str(dest), len(content))
     return {"file_id": file_id, "filename": safe_name}
 
 
 @router.get("/files/{file_id}")
 async def serve_file(file_id: str, uid: str = Depends(_resolve_uid)):
-    meta = get_file(file_id, uid)
+    meta = await asyncio.to_thread(get_file, file_id, uid)
     if meta is None:
         raise HTTPException(status_code=403, detail={"error": "檔案不存在或無權限", "error_code": "FORBIDDEN"})
     p = pathlib.Path(meta["storage_path"])

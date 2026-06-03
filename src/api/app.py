@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import mimetypes
@@ -200,7 +201,7 @@ async def login(request: Request, body: LoginRequest):
         raise HTTPException(status_code=401, detail={"error": f"登入失敗：{e}", "error_code": "AUTH_001"})
     _log.info("auth_login", uid=body.uid, ok=True, client_ip=client_ip)
 
-    user_cfg = get_llm_config(body.uid)
+    user_cfg = await asyncio.to_thread(get_llm_config, body.uid)
     if user_cfg:
         llm = OpenAI(api_key=user_cfg.api_key or "EMPTY", base_url=user_cfg.base_url)
         model = user_cfg.model
@@ -242,7 +243,7 @@ async def chat(request: Request, body: ChatRequest):
     if lock.locked():
         raise HTTPException(status_code=429, detail="上一個請求仍在處理中")
 
-    image_b64, image_mime = _load_attachment(body.file_id, uid)
+    image_b64, image_mime = await asyncio.to_thread(_load_attachment, body.file_id, uid)
 
     async def generate():
         async with lock:
