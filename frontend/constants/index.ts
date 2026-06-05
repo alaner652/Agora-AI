@@ -54,7 +54,7 @@ export function leaveStatusCls(label: string): string {
   if (label === '已核准' || label === '核准') return 'text-emerald-400 bg-emerald-500/15'
   if (['待審核', '送出', '待核准', '待審'].includes(label)) return 'text-amber-400 bg-amber-500/15'
   if (label === '退件' || label === '不核准') return 'text-red-400 bg-red-500/15'
-  if (label === '作廢' || label === '已刪除') return 'text-muted-foreground/50 bg-muted line-through'
+  if (label === '作廢' || label === '已刪除') return 'text-rose-400 bg-rose-500/15 line-through'
   return 'text-muted-foreground bg-muted'
 }
 

@@ -91,7 +91,11 @@ def parse_leaves(html: str) -> list[dict]:
     Returns:
         [{"index", "barcode", "reason", "apply_date", "start_date",
           "end_date", "teacher_status", "teacher_note",
-          "officer_status", "officer_note", "stdkey", "can_delete"}, ...]
+          "officer_status", "officer_note", "action_status",
+          "stdkey", "can_delete"}, ...]
+
+    action_status 為第 12 欄的異動說明文字（如「作廢」、「無法異動(已核准)」）；
+    可刪除（該欄為刪除按鈕）時為空字串。
     """
     soup = BeautifulSoup(html, "html.parser")
     table = next(
@@ -124,6 +128,7 @@ def parse_leaves(html: str) -> list[dict]:
             "teacher_note":   get_text(cols[8]),
             "officer_status": get_text(cols[9]),
             "officer_note":   get_text(cols[10]),
+            "action_status":  get_text(cols[11]),
             "stdkey":         stdkey,
             "can_delete":     can_delete,
         })

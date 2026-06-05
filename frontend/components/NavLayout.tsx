@@ -223,7 +223,7 @@ export function NavLayout({ children }: { children: React.ReactNode }) {
             <ThemeToggle />
           </div>
         </header>
-        <main className="relative z-10 flex-1 overflow-auto">
+        <main className="relative z-10 min-w-0 flex-1 overflow-auto">
           {children}
         </main>
       </SidebarInset>

@@ -79,6 +79,7 @@ export interface LeaveItem {
   teacher_note: string
   officer_status: string
   officer_note: string
+  action_status: string  // 第 12 欄異動說明：「作廢」「無法異動(已核准)」，可刪除時為空
   stdkey: string
   can_delete: boolean
 }

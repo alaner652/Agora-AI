@@ -111,11 +111,8 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
   const [reason, setReason] = useState('')
   const [periods, setPeriods] = useState<Set<string>>(new Set())
   const [confirm, setConfirm] = useState(false)
-  const [submitMsg, setSubmitMsg] = useState('')
   const [file, setFile] = useState<File | null>(null)
-  const [fileError, setFileError] = useState('')
   const [progress, setProgress] = useState<BatchProgress | null>(null)
-  const [done, setDone] = useState(false)
 
   const rocStartDate = formStart ? inputValToRoc(formStart) : ''
   const isPublicLeave = leaveId === PUBLIC_LEAVE_ID
@@ -140,8 +137,7 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
     if (!f) return
-    if (f.size > 3 * 1024 * 1024) { setFileError('檔案超過 3MB 限制'); e.target.value = ''; return }
-    setFileError('')
+    if (f.size > 3 * 1024 * 1024) { toast.error('檔案超過 3MB 限制'); e.target.value = ''; return }
     setFile(f)
   }
 
@@ -163,7 +159,7 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
   const isMultiDay = workdays.length > 1
 
   async function handleBatchSubmit() {
-    setProgress(null); setSubmitMsg('')
+    setProgress(null)
     const days = workdays.map(d => toCEInputFromDate(d))
     for (let i = 0; i < days.length; i++) {
       setProgress({ current: i + 1, total: days.length, day: days[i] })
@@ -173,26 +169,17 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
           i === 0 ? file ?? undefined : undefined,
         )
         if (!result.success) {
-          setSubmitMsg(`第 ${i + 1} 天（${days[i]}）申請失敗：${result.message || '未知錯誤'}`)
+          toast.error(`第 ${i + 1} 天（${days[i]}）申請失敗：${result.message || '未知錯誤'}`)
           setConfirm(false); setProgress(null); return
         }
       } catch {
-        setSubmitMsg(`第 ${i + 1} 天（${days[i]}）發生錯誤，請稍後再試`)
+        toast.error(`第 ${i + 1} 天（${days[i]}）發生錯誤，請稍後再試`)
         setConfirm(false); setProgress(null); return
       }
     }
-    setProgress(null); setDone(true)
+    setProgress(null)
     toast.success(workdays.length > 1 ? `假單申請成功（共 ${workdays.length} 天）` : '假單申請成功')
-    setTimeout(() => onSuccess(), 1000)
-  }
-
-  if (done) {
-    return (
-      <div className="py-8 text-center">
-        <p className="text-emerald-600 font-medium text-lg">✓ 假單申請成功！</p>
-        {workdays.length > 1 && <p className="text-muted-foreground/70 text-sm mt-1">共 {workdays.length} 天</p>}
-      </div>
-    )
+    onSuccess()
   }
 
   return (
@@ -324,10 +311,7 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
           <input type="file" accept=".jpg,.jpeg,.pdf" onChange={handleFileChange}
             className="text-sm text-muted-foreground file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border file:border-border file:text-xs file:text-foreground/80 file:bg-muted/30 hover:file:bg-muted transition-colors" />
         )}
-        {fileError && <p className="mt-1 text-xs text-red-600">{fileError}</p>}
       </div>
-
-      {submitMsg && <p className="text-sm text-red-600">{submitMsg}</p>}
 
       {/* Progress */}
       {progress && (
@@ -380,7 +364,7 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
       ) : !progress && (
         <div className="flex justify-end gap-2 pt-1 border-t border-border/60 -mx-4 -mb-4 px-4 pb-4 bg-muted/30 rounded-b-xl">
           <Button variant="ghost" onClick={onClose} className="h-8 text-xs">取消</Button>
-          <Button onClick={() => { setSubmitMsg(''); setConfirm(true) }}
+          <Button onClick={() => setConfirm(true)}
             disabled={!canSubmit}
             className="bg-primary hover:bg-primary/90 text-white h-8 text-xs">
             確認申請
@@ -395,7 +379,6 @@ function LeaveForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
 
 function DeleteButton({ leave, onDeleted }: { leave: LeaveItem; onDeleted: () => void }) {
   const [confirm, setConfirm] = useState(false)
-  const [msg, setMsg] = useState('')
 
   const mutation = useMutation({
     mutationFn: () => deleteLeave({
@@ -406,11 +389,9 @@ function DeleteButton({ leave, onDeleted }: { leave: LeaveItem; onDeleted: () =>
     }),
     onSuccess: (data) => {
       if (data.success) { toast.success('假單已刪除'); onDeleted() }
-      else { setMsg(data.message || '刪除失敗'); setConfirm(false) }
+      else { toast.error(data.message || '刪除失敗'); setConfirm(false) }
     },
   })
-
-  if (msg) return <span className="text-xs text-red-600">{msg}</span>
 
   if (confirm) {
     return (
@@ -442,6 +423,17 @@ function isApproved(status: string) {
 }
 function isPending(status: string) {
   return ['待審核', '送出', '待核准', '待審'].includes(status)
+}
+// 第 12 欄異動說明含「作廢」即視為已作廢——不應計入待審核。
+// 容錯：舊版 API / 快取可能沒有此欄位。
+function isVoided(action?: string) {
+  return !!action && (action.includes('作廢') || action.includes('已刪除'))
+}
+
+// 民國 compact YYYMMDD → YYY/MM/DD；非預期格式原樣回傳。
+function fmtRoc(s?: string) {
+  if (!s) return '—'
+  return /^\d{7}$/.test(s) ? `${s.slice(0, 3)}/${s.slice(3, 5)}/${s.slice(5, 7)}` : s
 }
 
 interface LeavesViewProps {
@@ -484,7 +476,9 @@ export function LeavesView({ leaves, start: initStart, end: initEnd }: LeavesVie
   // TrendCard stats
   const total = leaves.length
   const approved = leaves.filter(l => isApproved(l.teacher_status) && isApproved(l.officer_status)).length
-  const pending = leaves.filter(l => isPending(l.teacher_status) || isPending(l.officer_status)).length
+  const pending = leaves.filter(l =>
+    !isVoided(l.action_status) && (isPending(l.teacher_status) || isPending(l.officer_status))
+  ).length
 
   return (
     <PageLayout>
@@ -531,40 +525,35 @@ export function LeavesView({ leaves, start: initStart, end: initEnd }: LeavesVie
           <p className="text-muted-foreground/70 text-sm text-center py-10">此區間無假單</p>
         ) : (
           <>
-            {/* Desktop */}
-            <div className="hidden md:block">
-              <table className="w-full text-sm table-fixed">
+            {/* Desktop：最小寬度保可讀，水平捲動鎖在卡片內 */}
+            <div className="hidden lg:block overflow-x-auto overscroll-x-contain">
+              <table className="w-full min-w-3xl text-sm whitespace-nowrap">
                 <thead>
-                  <tr className="bg-muted/30 border-b border-border">
-                    <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">事由 / 假單號</th>
-                    <th className="text-left px-4 py-2.5 font-medium text-muted-foreground w-36">請假日期</th>
-                    <th className="text-left px-4 py-2.5 font-medium text-muted-foreground w-24">申請日</th>
-                    <th className="text-center px-4 py-2.5 font-medium text-muted-foreground w-24">導師</th>
-                    <th className="text-center px-4 py-2.5 font-medium text-muted-foreground w-24">教務</th>
-                    <th className="w-12" />
+                  <tr className="bg-muted/30 border-b border-border text-muted-foreground">
+                    <th className="text-left px-3 py-2.5 font-medium">假單編號</th>
+                    <th className="text-left px-3 py-2.5 font-medium">請假原因</th>
+                    <th className="text-left px-3 py-2.5 font-medium">申請日</th>
+                    <th className="text-left px-3 py-2.5 font-medium">起始日</th>
+                    <th className="text-left px-3 py-2.5 font-medium">結束日</th>
+                    <th className="text-center px-3 py-2.5 font-medium">導師核准</th>
+                    <th className="text-left px-3 py-2.5 font-medium">異動狀態</th>
                   </tr>
                 </thead>
                 <tbody>
                   {leaves.map((l, i) => (
-                    <tr key={i} className="border-b border-border/60 last:border-0 align-top hover:bg-accent/40 transition-colors">
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-foreground truncate">{l.reason || '（無事由）'}</p>
-                        <p className="text-xs text-muted-foreground/70 mt-0.5 tabular-nums">#{l.barcode || l.index}</p>
-                        {l.teacher_note && l.teacher_note !== '/' && (
-                          <p className="text-xs text-muted-foreground/70 mt-0.5 truncate">導師：{l.teacher_note}</p>
-                        )}
-                        {l.officer_note && l.officer_note !== '/' && (
-                          <p className="text-xs text-muted-foreground/70 truncate">教務：{l.officer_note}</p>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground tabular-nums text-xs">
-                        {l.start_date === l.end_date ? l.start_date : `${l.start_date} — ${l.end_date}`}
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground/70 tabular-nums text-xs">{l.apply_date}</td>
-                      <td className="px-4 py-3 text-center"><StatusBadge label={l.teacher_status} /></td>
-                      <td className="px-4 py-3 text-center"><StatusBadge label={l.officer_status} /></td>
-                      <td className="px-4 py-3 text-center">
-                        {l.can_delete && <DeleteButton leave={l} onDeleted={handleDeleted} />}
+                    <tr key={i} className="border-b border-border/60 last:border-0 hover:bg-accent/40 transition-colors">
+                      <td className="px-3 py-3 tabular-nums text-xs text-muted-foreground/70">{l.barcode || '—'}</td>
+                      <td className="px-3 py-3 max-w-[18rem] truncate font-medium text-foreground" title={l.reason}>{l.reason || '—'}</td>
+                      <td className="px-3 py-3 tabular-nums text-xs text-muted-foreground">{fmtRoc(l.apply_date)}</td>
+                      <td className="px-3 py-3 tabular-nums text-xs text-muted-foreground">{fmtRoc(l.start_date)}</td>
+                      <td className="px-3 py-3 tabular-nums text-xs text-muted-foreground">{fmtRoc(l.end_date)}</td>
+                      <td className="px-3 py-3 text-center"><StatusBadge label={l.teacher_status} /></td>
+                      <td className="px-3 py-3">
+                        {l.can_delete
+                          ? <DeleteButton leave={l} onDeleted={handleDeleted} />
+                          : isVoided(l.action_status)
+                            ? <StatusBadge label={l.action_status} />
+                            : <span className="text-muted-foreground/40">—</span>}
                       </td>
                     </tr>
                   ))}
@@ -573,23 +562,25 @@ export function LeavesView({ leaves, start: initStart, end: initEnd }: LeavesVie
             </div>
 
             {/* Mobile */}
-            <div className="md:hidden divide-y divide-border/60">
+            <div className="lg:hidden divide-y divide-border/60">
               {leaves.map((l, i) => (
                 <div key={i} className="px-4 py-3">
-                  <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="min-w-0">
-                      <p className="font-medium text-foreground truncate">{l.reason || '（無事由）'}</p>
-                      <p className="text-xs text-muted-foreground/70 tabular-nums">#{l.barcode || l.index}</p>
+                      <p className="font-medium text-foreground">{l.reason || '—'}</p>
+                      <p className="text-xs text-muted-foreground/60 tabular-nums">{l.barcode || '—'}</p>
                     </div>
                     {l.can_delete && <DeleteButton leave={l} onDeleted={handleDeleted} />}
                   </div>
-                  <p className="mt-2 text-xs text-muted-foreground tabular-nums">
-                    {l.start_date === l.end_date ? l.start_date : `${l.start_date} — ${l.end_date}`}
-                  </p>
-                  <p className="text-xs text-muted-foreground/70">申請：{l.apply_date}</p>
-                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <span className="text-xs text-muted-foreground/70">導師</span><StatusBadge label={l.teacher_status} />
-                    <span className="text-xs text-muted-foreground/70">教務</span><StatusBadge label={l.officer_status} />
+                  <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
+                    <span className="text-muted-foreground/60">申請日</span><span className="tabular-nums">{fmtRoc(l.apply_date)}</span>
+                    <span className="text-muted-foreground/60">請假日期</span>
+                    <span className="tabular-nums">
+                      {l.start_date === l.end_date ? fmtRoc(l.start_date) : `${fmtRoc(l.start_date)} — ${fmtRoc(l.end_date)}`}
+                    </span>
+                    <span className="text-muted-foreground/60">導師核准</span><span><StatusBadge label={l.teacher_status} /></span>
+                    <span className="text-muted-foreground/60">異動狀態</span>
+                    <span>{isVoided(l.action_status) ? <StatusBadge label={l.action_status} /> : '—'}</span>
                   </div>
                 </div>
               ))}

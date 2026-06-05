@@ -5,6 +5,10 @@ import type { ScheduleEntry } from '@/lib/data'
 
 const DAY_SHORT = ['', '一', '二', '三', '四', '五', '六', '日']
 const HOUR_HEIGHT = 64  // px per hour
+const TIME_AXIS_WIDTH = 48  // px, 對齊 w-12 的時間軸欄
+// 每欄可讀下限：正常寬度時欄位以 flex-1 均分塞滿容器，不出橫向捲軸；
+// 只有窄到每欄低於此值（如手機）才退回橫向捲動，避免欄位被壓到無法閱讀。
+const MIN_COL_WIDTH = 72
 
 const PALETTE = [
   '#f97316', '#0ea5e9', '#10b981', '#8b5cf6',
@@ -169,7 +173,7 @@ export function ScheduleCalendar({ entries }: Props) {
         <div className="overflow-auto"
           style={{ maxHeight: 'calc(100dvh - 18rem)' }}>
           <div className="relative"
-            style={{ minWidth: `${daysToShow.length * 120 + 48}px` }}>
+            style={{ minWidth: `${daysToShow.length * MIN_COL_WIDTH + TIME_AXIS_WIDTH}px` }}>
 
             {/* Sticky header — no pointer events, no hover */}
             <div className="sticky top-0 z-20 flex border-b border-border bg-card pointer-events-none">
