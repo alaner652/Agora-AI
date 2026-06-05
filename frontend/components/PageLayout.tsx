@@ -26,7 +26,7 @@ function TrendCard({ title, value, sub, children }: {
   children?: ReactNode
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <div className="rounded-xl border border-border bg-card/70 p-4 backdrop-blur-xl">
       {title && <p className="text-xs text-muted-foreground mb-1">{title}</p>}
       {value !== undefined && (
         <p className="font-heading text-2xl font-semibold text-foreground">{value}</p>
@@ -57,7 +57,7 @@ interface TableProps {
 
 function Table({ children, loading = false, skeletonRows = 5 }: TableProps) {
   return (
-    <div className="bg-card border border-border rounded-xl overflow-hidden">
+    <div className="bg-card/70 border border-border rounded-xl overflow-hidden backdrop-blur-xl">
       {loading ? (
         <div>
           <div className="flex gap-4 px-4 py-3 border-b border-border bg-muted/20">

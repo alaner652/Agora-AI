@@ -6,7 +6,7 @@ import { Copy, Check } from 'lucide-react'
 // ── Card ──────────────────────────────────────────────────────────────────────
 
 export function SettingCard({ children }: { children: ReactNode }) {
-  return <div className="rounded-xl border border-border bg-card p-4 space-y-4">{children}</div>
+  return <div className="rounded-xl border border-border bg-card/70 p-4 space-y-4 backdrop-blur-xl">{children}</div>
 }
 
 export function SettingCardHeader({ title, description, status }: {

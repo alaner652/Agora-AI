@@ -203,7 +203,14 @@ export function NavLayout({ children }: { children: React.ReactNode }) {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
-        <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-card px-4">
+        {/* 氛圍背景：多層緩慢飄移的柔和品牌光暈（深淺色皆可） */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+          <div className="animate-float-slow absolute -top-40 -right-24 size-120 rounded-full bg-primary/10 blur-[140px]" />
+          <div className="animate-float-slow absolute top-1/3 -left-32 size-96 rounded-full bg-primary/[0.07] blur-[130px] [animation-delay:-7s] animation-duration-[24s]" />
+          <div className="animate-float-slow absolute -bottom-48 left-1/3 size-136 rounded-full bg-primary/5 blur-[160px] [animation-delay:-14s] animation-duration-[30s]" />
+        </div>
+
+        <header className="relative z-10 flex h-12 shrink-0 items-center gap-2 border-b border-border bg-card/70 px-4 backdrop-blur-xl">
           <SidebarTrigger className="-ml-1 text-muted-foreground hover:text-foreground hover:bg-accent" />
           <Breadcrumb>
             <BreadcrumbList>
@@ -216,7 +223,7 @@ export function NavLayout({ children }: { children: React.ReactNode }) {
             <ThemeToggle />
           </div>
         </header>
-        <main className="flex-1 overflow-auto bg-background">
+        <main className="relative z-10 flex-1 overflow-auto">
           {children}
         </main>
       </SidebarInset>

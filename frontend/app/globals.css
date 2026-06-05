@@ -126,6 +126,17 @@
   --sidebar-ring: oklch(0.75 0.183 47.6);
 }
 
+/* 登入頁浮動光暈動畫：緩慢飄移 + 呼吸式縮放，營造柔和氛圍 */
+@keyframes float-slow {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(3%, -4%) scale(1.06); }
+  66% { transform: translate(-3%, 3%) scale(0.96); }
+}
+
+.animate-float-slow {
+  animation: float-slow 16s ease-in-out infinite;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

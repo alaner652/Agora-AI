@@ -6,7 +6,7 @@ export default function ScheduleLoading() {
     <PageLayout>
       <PageLayout.Trend>
         {[...Array(3)].map((_, i) => (
-          <div key={i} className="rounded-xl border border-border bg-card p-4 space-y-2">
+          <div key={i} className="rounded-xl border border-border bg-card/70 p-4 space-y-2 backdrop-blur-xl">
             <Skeleton className="h-3 w-16" />
             <Skeleton className="h-7 w-8" />
             <Skeleton className="h-2.5 w-6" />
@@ -22,7 +22,7 @@ export default function ScheduleLoading() {
       </div>
 
       {/* Calendar skeleton */}
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="rounded-xl border border-border bg-card/70 overflow-hidden backdrop-blur-xl">
         <div className="flex border-b border-border">
           <div className="w-12 shrink-0 border-r border-border h-10" />
           {[...Array(5)].map((_, i) => (

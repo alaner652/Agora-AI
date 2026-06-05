@@ -165,7 +165,7 @@ export function ScheduleCalendar({ entries }: Props) {
       </div>
 
       {/* Calendar */}
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="rounded-xl border border-border bg-card/70 overflow-hidden backdrop-blur-xl">
         <div className="overflow-auto"
           style={{ maxHeight: 'calc(100dvh - 18rem)' }}>
           <div className="relative"
