@@ -1,28 +1,17 @@
-'use client'
-
-import { useEffect, useState } from 'react'
+import { unstable_rethrow } from 'next/navigation'
 import Link from 'next/link'
-import { getFullSettings, type FullSettingsResponse } from '@/lib/data'
-import { Spinner } from '@/components/ui/spinner'
+import { serverFetch } from '@/lib/api-server'
 import { SettingCard, InfoRow, CopyButton } from '@/components/settings/primitives'
+import type { FullSettingsResponse } from '@/lib/data'
 
-export default function GeneralSettingsPage() {
-  const [data, setData] = useState<FullSettingsResponse | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    getFullSettings()
-      .then(setData)
-      .catch(() => { /* auth 錯誤已由 apiClient 攔截器統一導回登入 */ })
-      .finally(() => setLoading(false))
-  }, [])
-
-  if (loading) return (
-    <div className="flex items-center gap-2 text-muted-foreground text-sm py-6">
-      <Spinner /> 載入中…
-    </div>
-  )
-  if (!data) return null
+export default async function GeneralSettingsPage() {
+  let data: FullSettingsResponse
+  try {
+    data = await serverFetch<FullSettingsResponse>('/api/settings')
+  } catch (e) {
+    unstable_rethrow(e)
+    return <p className="text-red-500 text-sm">載入失敗，請重新整理</p>
+  }
 
   const { uid, llm_status, settings } = data
   const model = llm_status.has_custom_config ? (llm_status.model || '—') : '伺服器預設'

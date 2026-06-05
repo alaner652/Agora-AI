@@ -1,182 +1,67 @@
-'use client'
-
-import { useState, useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import {
-  getAbsenceOptions, getAbsence,
-  type AbsenceEntry, type AbsenceOptions,
-} from '@/lib/data'
-import { toCEInput, inputValToRoc, thisMonthRange } from '@/lib/date'
-import { DateRangePicker } from '@/components/DateRangePicker'
-import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { unstable_rethrow } from 'next/navigation'
+import { serverFetch } from '@/lib/api-server'
 import { PageLayout } from '@/components/PageLayout'
-import { ALL_PERIODS, ABSENCE_TYPE_CLS } from '@/constants'
+import { AbsenceView } from '@/components/AbsenceView'
+import { toCEInput, inputValToRoc, thisMonthRange } from '@/lib/date'
+import type { AbsenceOptions, AbsenceEntry } from '@/lib/data'
 
-function typeCls(t: string) { return ABSENCE_TYPE_CLS[t] ?? 'bg-muted text-muted-foreground' }
+export default async function AbsencePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ semester?: string; type?: string; start?: string; end?: string }>
+}) {
+  const params = await searchParams
 
-function mostCommonType(entries: AbsenceEntry[]): string {
-  if (!entries.length) return '—'
-  const counts: Record<string, number> = {}
-  for (const e of entries) counts[e.type] = (counts[e.type] ?? 0) + 1
-  return Object.entries(counts).sort(([, a], [, b]) => b - a)[0]?.[0] ?? '—'
-}
-
-type PivotRow = { weekday: string; cells: Record<string, string> }
-
-function buildPivot(entries: AbsenceEntry[]): [string, PivotRow][] {
-  const map = new Map<string, PivotRow>()
-  for (const e of entries) {
-    if (!map.has(e.date)) map.set(e.date, { weekday: e.weekday, cells: {} })
-    map.get(e.date)!.cells[e.period] = e.type
+  let opts: AbsenceOptions = { semesters: [], leave_types: [] }
+  let fetchError = false
+  try {
+    opts = await serverFetch<AbsenceOptions>('/api/absence/options')
+  } catch (e) {
+    unstable_rethrow(e)
+    fetchError = true
   }
-  return [...map.entries()]
-}
 
-export default function AbsencePage() {
-  const [semester, setSemester] = useState('')
-  const [start, setStart] = useState(() => toCEInput(thisMonthRange()[0]))
-  const [end, setEnd] = useState(() => toCEInput(thisMonthRange()[1]))
-  const [leaveType, setLeaveType] = useState('00')
-  const [query, setQuery] = useState<{ semester: string; start: string; end: string; type: string } | null>(null)
+  const defaultSem = opts.semesters.find(s => s.selected)?.value ?? opts.semesters[0]?.value ?? ''
+  const semester = params.semester ?? defaultSem
+  const [defStart, defEnd] = thisMonthRange()
+  const start = params.start ?? toCEInput(defStart)
+  const end = params.end ?? toCEInput(defEnd)
+  const type = params.type ?? '00'
 
-  const { data: opts } = useQuery<AbsenceOptions>({
-    queryKey: ['absence-options'],
-    queryFn: getAbsenceOptions,
-  })
-
-  const { data: entries, isLoading } = useQuery<AbsenceEntry[]>({
-    queryKey: ['absence', query],
-    queryFn: () => getAbsence(query!.semester, query!.start, query!.end, query!.type),
-    enabled: !!query,
-  })
-
-  useEffect(() => {
-    if (opts?.semesters && opts.semesters.length > 0 && !semester) {
-      const current = opts.semesters.find(s => s.selected) ?? opts.semesters[0]
-      setSemester(current.value)
-      setQuery({ semester: current.value, start: inputValToRoc(start), end: inputValToRoc(end), type: leaveType })
+  let entries: AbsenceEntry[] = []
+  if (semester && !fetchError) {
+    try {
+      const qs = new URLSearchParams({
+        semester,
+        start: inputValToRoc(start),
+        end: inputValToRoc(end),
+        type,
+      })
+      const data = await serverFetch<{ entries: AbsenceEntry[] }>(`/api/absence?${qs}`)
+      entries = data.entries ?? []
+    } catch (e) {
+      unstable_rethrow(e)
+      fetchError = true
     }
-  }, [opts])
-
-  function handleSearch() {
-    if (!semester) return
-    setQuery({ semester, start: inputValToRoc(start), end: inputValToRoc(end), type: leaveType })
   }
 
-  const pivot = entries ? buildPivot(entries) : []
-  const activePeriods = ALL_PERIODS.filter(p => entries?.some(e => e.period === p))
+  if (fetchError) {
+    return (
+      <PageLayout>
+        <p className="text-red-500 text-sm">載入失敗，請重新整理</p>
+      </PageLayout>
+    )
+  }
 
   return (
-    <PageLayout>
-      {entries && (
-        <PageLayout.Trend>
-          <PageLayout.TrendCard title="缺曠天數" value={pivot.length} sub="天" />
-          <PageLayout.TrendCard title="缺曠節次" value={entries.length} sub="節" />
-          <PageLayout.TrendCard title="最常假別" value={mostCommonType(entries)} />
-        </PageLayout.Trend>
-      )}
-
-      <PageLayout.Toolbar>
-        <div>
-          <label className="block text-xs text-muted-foreground mb-1">學期</label>
-          <Select value={semester} onValueChange={v => v != null && setSemester(v)}>
-            <SelectTrigger className="w-40">
-              <SelectValue
-                displayValue={opts?.semesters.find(o => o.value === semester)?.label}
-                placeholder="選擇學期"
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {(opts?.semesters ?? []).map(o => (
-                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <label className="block text-xs text-muted-foreground mb-1">假別</label>
-          <Select value={leaveType} onValueChange={v => v != null && setLeaveType(v)}>
-            <SelectTrigger className="w-28">
-              <SelectValue displayValue={opts?.leave_types.find(t => t.value === leaveType)?.label} />
-            </SelectTrigger>
-            <SelectContent>
-              {(opts?.leave_types ?? [{ value: '00', label: '全部' }]).map(t => (
-                <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <DateRangePicker
-          start={start}
-          end={end}
-          onStartChange={setStart}
-          onEndChange={setEnd}
-          onQuickApply={(s, e) => {
-            if (semester) setQuery({ semester, start: inputValToRoc(s), end: inputValToRoc(e), type: leaveType })
-          }}
-        />
-
-        <Button
-          onClick={handleSearch}
-          disabled={!semester}
-          className="bg-primary hover:bg-primary/90 text-white self-end"
-        >
-          查詢
-        </Button>
-      </PageLayout.Toolbar>
-
-      <PageLayout.Table loading={isLoading}>
-        {pivot.length === 0 ? (
-          <p className="text-muted-foreground/70 text-sm text-center py-8">此區間無記錄</p>
-        ) : (
-          <table className="text-xs border-collapse w-full whitespace-nowrap">
-            <thead>
-              <tr className="bg-muted/30 border-b border-border">
-                <th className="px-3 py-2 text-left font-medium text-muted-foreground sticky left-0 bg-card z-10 border-r border-border w-8">項次</th>
-                <th className="px-3 py-2 text-left font-medium text-muted-foreground sticky left-8 bg-card z-10 border-r border-border min-w-32">日期</th>
-                {activePeriods.map(p => (
-                  <th key={p} className="px-2 py-2 text-center font-medium text-muted-foreground min-w-11">{p}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {pivot.map(([date, { weekday, cells }], idx) => (
-                <tr key={date} className="border-b border-border/60 last:border-0 hover:bg-accent/30 transition-colors">
-                  <td className="px-3 py-2 text-muted-foreground/70 tabular-nums text-center sticky left-0 bg-card border-r border-border">{idx + 1}</td>
-                  <td className="px-3 py-2 text-foreground/80 tabular-nums sticky left-8 bg-card border-r border-border">
-                    {date}<span className="text-muted-foreground/70 ml-1.5">（{weekday}）</span>
-                  </td>
-                  {activePeriods.map(p => (
-                    <td key={p} className="px-1.5 py-2 text-center">
-                      {cells[p] ? (
-                        <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${typeCls(cells[p])}`}>
-                          {cells[p]}
-                        </span>
-                      ) : null}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="border-t border-border/60 bg-muted/30">
-                <td colSpan={2 + activePeriods.length} className="px-3 py-2 text-xs text-muted-foreground/70">
-                  共 {pivot.length} 天・{entries!.length} 節次
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        )}
-      </PageLayout.Table>
-    </PageLayout>
+    <AbsenceView
+      key={`${semester}|${type}|${start}|${end}`}
+      options={opts}
+      entries={entries}
+      semester={semester}
+      leaveType={type}
+      start={start}
+      end={end}
+    />
   )
 }
