@@ -1,22 +1,35 @@
 # 單一入口反向代理：同源服務前端與後端。
 #
-# 先 HTTP（:80）。要上 HTTPS 時，把下面的 `:80` 改成你的網域（例如 `tpcu.example.com`）、
-# 移除 `auto_https off`，Caddy 會自動申請並續期 Let's Encrypt 憑證。
+# 注意：/login 與 /chat 同時是「前端頁面（GET）」與「後端端點（POST）」，
+# 因此後端的 /login /chat /answer 用 method=POST 區分，避免把登入/聊天頁面也送到後端。
+#
+# 先 HTTP（:80）。要上 HTTPS 時，把下面的 `:80` 改成你的網域、移除 `auto_https off`，
+# Caddy 會自動申請並續期 Let's Encrypt 憑證。
 
 {
 	auto_https off
 }
 
 :80 {
-	# 後端路由（含 SSE 串流的 /chat、/answer）
-	@backend path /api/* /login /health /chat /answer
-	handle @backend {
+	# 後端 API（資料路由 + 健康檢查），任何 method
+	@api path /api/* /health
+	handle @api {
+		reverse_proxy backend:8000
+	}
+
+	# 後端的 POST 端點（與前端同名頁面 /login、/chat 以 method 區分）
+	# /chat、/answer 為 SSE，flush_interval -1 確保即時不緩衝
+	@backend_post {
+		method POST
+		path /login /chat /answer
+	}
+	handle @backend_post {
 		reverse_proxy backend:8000 {
-			flush_interval -1   # 立即 flush，確保 SSE 串流不被緩衝
+			flush_interval -1
 		}
 	}
 
-	# 其餘全部交給前端
+	# 其餘全部交給前端（含頁面導覽 GET /login、GET /chat 與靜態資源）
 	handle {
 		reverse_proxy frontend:3000
 	}

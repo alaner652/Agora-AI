@@ -135,7 +135,7 @@ docker compose logs -f           # 看 log
 docker compose down              # 停止（資料留在 backend/ volume）
 ```
 
-- **路由**（[Caddyfile](Caddyfile)）：`/api/*`、`/login`、`/health`、`/chat`、`/answer` → `backend:8000`（`/chat`、`/answer` 設 `flush_interval -1`，SSE 即時不緩衝）；其餘 → `frontend:3000`。
+- **路由**（[Caddyfile](Caddyfile)）：`/api/*`、`/health` → `backend`；**POST** `/login`、`/chat`、`/answer` → `backend`（`/chat`、`/answer` 設 `flush_interval -1`，SSE 即時不緩衝）；其餘（含 **GET** 的 `/login`、`/chat` 頁面）→ `frontend`。`/login`、`/chat` 同時是前端頁面與後端端點，故以 method 區分。
 - **持久化**：`backend/` 下的 `data/`、`logs/`、`.cache/`、`uploads/` 以 volume 掛載，重啟資料不遺失。
 - **換 host / 網域免重 build**：前端同源、無烘入 URL，image 完全通用。
 
