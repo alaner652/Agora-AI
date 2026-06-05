@@ -1,7 +1,9 @@
 # 環境
 .venv/
 .env
-.env.*
+.env.local
+# 樣板要進版控
+!.env.example
 
 # Python
 __pycache__/
@@ -14,20 +16,18 @@ __pycache__/
 # 系統 / 編輯器
 .DS_Store
 
-# Session 暫存（含 JSESSIONID，不可上傳）
-.cache/
-
 # 開發暫存
 schedule_debug.html
 
-# 產出（忽略實際輸出檔）
-output/*
-uploads/*
-
-# 對話 / 系統記錄（runtime 產生，含使用者輸入；含輪替檔 *.jsonl.YYYY-MM-DD）
-logs/
-
-# 資料庫（runtime 產生，含使用者資料；含 SQLite WAL/SHM sidecar）
-data/*.db
-data/*.db-wal
-data/*.db-shm
+# ── 後端 runtime 產物（含使用者資料 / JSESSIONID，不可上傳）──────────────
+# Session 暫存（含 JSESSIONID）
+backend/.cache/
+# 對話 / 系統記錄（含使用者輸入；含輪替檔 *.jsonl.YYYY-MM-DD）
+backend/logs/
+# 資料庫（含使用者資料；含 SQLite WAL/SHM sidecar）
+backend/data/*.db
+backend/data/*.db-wal
+backend/data/*.db-shm
+# 使用者上傳 / 產出
+backend/uploads/*
+backend/output/*

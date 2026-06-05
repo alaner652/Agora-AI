@@ -1,0 +1,25 @@
+# 虛擬環境 / 機密
+.venv
+.env
+.env.*
+!.env.example
+
+# runtime 產物（image 內由 Dockerfile 建空目錄，實機資料走 volume）
+data
+logs
+.cache
+uploads
+output
+
+# Python 暫存
+__pycache__
+**/__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.ruff_cache
+*.egg-info
+
+# 雜項
+.DS_Store
+schedule_debug.html
