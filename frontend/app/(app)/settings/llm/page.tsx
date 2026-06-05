@@ -1,6 +1,7 @@
 import { unstable_rethrow } from 'next/navigation'
 import { serverFetch } from '@/lib/api-server'
 import { LLMSettingsView } from '@/components/settings/LLMSettingsView'
+import { LoadError } from '@/components/LoadError'
 import type { LLMConfigResponse, FullSettingsResponse } from '@/lib/data'
 
 export default async function LLMSettingsPage() {
@@ -13,7 +14,7 @@ export default async function LLMSettingsPage() {
     ])
   } catch (e) {
     unstable_rethrow(e)
-    return <p className="text-red-500 text-sm">載入失敗，請重新整理</p>
+    return <LoadError />
   }
 
   return <LLMSettingsView initialConfig={cfg} initialBehaviour={full.settings.llm} />

@@ -2,6 +2,7 @@ import { unstable_rethrow } from 'next/navigation'
 import Link from 'next/link'
 import { serverFetch } from '@/lib/api-server'
 import { SettingCard, InfoRow, CopyButton } from '@/components/settings/primitives'
+import { LoadError } from '@/components/LoadError'
 import type { FullSettingsResponse } from '@/lib/data'
 
 export default async function GeneralSettingsPage() {
@@ -10,7 +11,7 @@ export default async function GeneralSettingsPage() {
     data = await serverFetch<FullSettingsResponse>('/api/settings')
   } catch (e) {
     unstable_rethrow(e)
-    return <p className="text-red-500 text-sm">載入失敗，請重新整理</p>
+    return <LoadError />
   }
 
   const { uid, llm_status, settings } = data

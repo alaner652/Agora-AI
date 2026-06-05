@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { MessageSquarePlus, Trash2 } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Spinner } from '@/components/ui/spinner'
@@ -63,7 +64,7 @@ export function SessionHistoryPanel({ open, onClose, onSwitch, onNewSession, vie
       await newSession()  // single API call — parent's onNewSession does NOT call it again
       onNewSession()
     } catch {
-      /* ignore */
+      toast.error('開新對話失敗，請稍後再試')
     } finally {
       setStartingNew(false)
     }
@@ -76,7 +77,7 @@ export function SessionHistoryPanel({ open, onClose, onSwitch, onNewSession, vie
       const msgs = await switchSession(sessionId)
       onSwitch(msgs, sessionId)
     } catch {
-      /* ignore */
+      toast.error('切換對話失敗，請稍後再試')
     } finally {
       setSwitchingId(null)
     }
@@ -89,8 +90,9 @@ export function SessionHistoryPanel({ open, onClose, onSwitch, onNewSession, vie
     try {
       await deleteSessionById(sessionId)
       setSessions(prev => prev.filter(s => s.session_id !== sessionId))
+      toast.success('對話已刪除')
     } catch {
-      /* ignore */
+      toast.error('刪除對話失敗，請稍後再試')
     } finally {
       setDeletingId(null)
     }

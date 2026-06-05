@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Bot, Paperclip, Send, Square, ChevronRight, History, LayoutGrid } from 'lucide-react'
@@ -326,9 +327,11 @@ export function ChatView({ initialMessages, initialSessionId }: ChatViewProps) {
         setUploadedFile({ fileId: data.file_id, filename: data.filename, previewUrl })
       } else {
         if (previewUrl) URL.revokeObjectURL(previewUrl)
+        toast.error('附件上傳失敗，請重試')
       }
     } catch {
       if (previewUrl) URL.revokeObjectURL(previewUrl)
+      toast.error('附件上傳失敗，請重試')
     } finally {
       setUploading(false)
       e.target.value = ''

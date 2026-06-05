@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, type ReactNode } from 'react'
+import { toast } from 'sonner'
 import { Copy, Check } from 'lucide-react'
 
 // ── Card ──────────────────────────────────────────────────────────────────────
@@ -82,16 +83,15 @@ export function DangerRow({ title, description, action, onConfirm }: {
 }) {
   const [confirming, setConfirming] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<'ok' | 'err' | null>(null)
 
   async function run() {
     setLoading(true)
     try {
       await onConfirm()
-      setResult('ok'); setConfirming(false)
-      setTimeout(() => setResult(null), 3000)
+      setConfirming(false)
+      toast.success('已完成')
     } catch {
-      setResult('err')
+      toast.error('操作失敗，請重試')
     } finally {
       setLoading(false)
     }
@@ -102,8 +102,6 @@ export function DangerRow({ title, description, action, onConfirm }: {
       <div className="flex-1 min-w-0">
         <p className="text-sm text-foreground">{title}</p>
         <p className="text-xs text-muted-foreground/70 mt-0.5">{description}</p>
-        {result === 'ok' && <p className="text-xs text-emerald-400 mt-1">✓ 完成</p>}
-        {result === 'err' && <p className="text-xs text-red-400 mt-1">✗ 失敗，請重試</p>}
       </div>
       <div className="shrink-0 flex items-center gap-2">
         {confirming ? (

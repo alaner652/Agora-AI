@@ -1,6 +1,7 @@
 import { unstable_rethrow } from 'next/navigation'
 import { serverFetch } from '@/lib/api-server'
 import { PageLayout } from '@/components/PageLayout'
+import { LoadError } from '@/components/LoadError'
 import { SemesterSelect } from '@/components/SemesterSelect'
 import { ScheduleCalendar } from '@/components/ScheduleCalendar'
 import type { SemesterOption, ScheduleEntry } from '@/lib/data'
@@ -38,7 +39,7 @@ export default async function SchedulePage({
   if (fetchError) {
     return (
       <PageLayout>
-        <p className="text-red-500 text-sm">載入失敗，請重新整理</p>
+        <LoadError />
       </PageLayout>
     )
   }

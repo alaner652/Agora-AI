@@ -1,6 +1,7 @@
 import { unstable_rethrow } from 'next/navigation'
 import { serverFetch } from '@/lib/api-server'
 import { PageLayout } from '@/components/PageLayout'
+import { LoadError } from '@/components/LoadError'
 import { AbsenceView } from '@/components/AbsenceView'
 import { toCEInput, inputValToRoc, thisMonthRange } from '@/lib/date'
 import type { AbsenceOptions, AbsenceEntry } from '@/lib/data'
@@ -48,7 +49,7 @@ export default async function AbsencePage({
   if (fetchError) {
     return (
       <PageLayout>
-        <p className="text-red-500 text-sm">載入失敗，請重新整理</p>
+        <LoadError />
       </PageLayout>
     )
   }

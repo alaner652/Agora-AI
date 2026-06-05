@@ -33,12 +33,10 @@ export function LLMSettingsView({ initialConfig, initialBehaviour }: LLMSettings
   const [modelsFellBack, setModelsFellBack] = useState(false)
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
-  const [error, setError] = useState('')
 
   // Behaviour state
   const [behaviour, setBehaviour] = useState<LLMBehaviourSettings>(initialBehaviour)
   const [bSaving, setBSaving] = useState(false)
-  const [bSaved, setBSaved] = useState(false)
 
   async function loadModels(p: ProviderDef, key: string) {
     setModelsLoading(true)
@@ -64,15 +62,14 @@ export function LLMSettingsView({ initialConfig, initialBehaviour }: LLMSettings
 
   function selectProvider(p: ProviderDef) {
     setProvider(p)
-    setError('')
     setBaseUrl(p.baseUrl)
     setModel(p.defaultModel)
     loadModels(p, apiKey)
   }
 
   async function handleSave() {
-    if (!baseUrl || !model) { setError('請選擇模型'); return }
-    setError(''); setSaving(true)
+    if (!baseUrl || !model) { toast.error('請選擇模型'); return }
+    setSaving(true)
     try {
       const req: LLMConfigRequest = { base_url: baseUrl, api_key: apiKey, model }
       await setLLMConfig(req)
@@ -92,8 +89,8 @@ export function LLMSettingsView({ initialConfig, initialBehaviour }: LLMSettings
   }
 
   async function handleTest() {
-    if (!baseUrl || !model) { setError('請先選擇模型'); return }
-    setError(''); setTesting(true)
+    if (!baseUrl || !model) { toast.error('請先選擇模型'); return }
+    setTesting(true)
     try {
       const res = await testLLMConfig({ base_url: baseUrl, api_key: apiKey, model })
       if (res.ok) toast.success('連線測試成功', { description: res.reply || undefined })
@@ -105,9 +102,9 @@ export function LLMSettingsView({ initialConfig, initialBehaviour }: LLMSettings
     setBSaving(true)
     try {
       const updated = await patchSettings({ llm: behaviour })
-      setBehaviour(updated.llm); setBSaved(true)
-      setTimeout(() => setBSaved(false), 2000)
-    } catch { /* silent */ } finally { setBSaving(false) }
+      setBehaviour(updated.llm)
+      toast.success('已儲存行為設定')
+    } catch { toast.error('儲存失敗，請重試') } finally { setBSaving(false) }
   }
 
   return (
@@ -196,9 +193,6 @@ export function LLMSettingsView({ initialConfig, initialBehaviour }: LLMSettings
             placeholder="https://api.openai.com/v1" className="font-mono text-sm" />
         </div>
 
-        {/* Feedback：欄位驗證留 inline，連線/儲存結果走 toast */}
-        {error && <p className="text-xs text-red-400">{error}</p>}
-
         {/* Actions */}
         <div className="flex items-center gap-2 flex-wrap pt-1">
           <Button size="sm" variant="outline" onClick={handleTest} disabled={testing} className="text-xs">
@@ -249,7 +243,6 @@ export function LLMSettingsView({ initialConfig, initialBehaviour }: LLMSettings
             className="text-xs bg-primary hover:bg-primary/80 text-primary-foreground">
             {bSaving ? '儲存中…' : '儲存'}
           </Button>
-          {bSaved && <span className="text-xs text-emerald-400">✓ 已儲存</span>}
         </div>
       </SettingCard>
     </>
