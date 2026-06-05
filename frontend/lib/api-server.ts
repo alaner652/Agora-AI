@@ -1,10 +1,12 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { API_BASE_URL, TOKEN_COOKIE } from '@/constants'
+import { TOKEN_COOKIE } from '@/constants'
 
-// Server component 跑在前端容器內，優先走容器內網（runtime 環境變數，不烘進 client bundle）。
-// 未設定時退回 API_BASE_URL（= NEXT_PUBLIC_API_URL，本機開發即 localhost:8000）。
-const SERVER_API_URL = process.env.API_INTERNAL_URL ?? API_BASE_URL
+// Server component 跑在前端容器內，需要「絕對 URL」（不能用同源相對路徑）。
+// 優先走容器內網 API_INTERNAL_URL（runtime，不烘進 bundle）；
+// 退回 NEXT_PUBLIC_API_URL；最後退回本機 dev server。
+const SERVER_API_URL =
+  process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 export async function serverFetch<T = unknown>(path: string): Promise<T> {
   const store = await cookies()

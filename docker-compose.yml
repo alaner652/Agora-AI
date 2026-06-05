@@ -1,34 +1,47 @@
-# TPCU 單機部署：backend(8000) + frontend(3000)
-# 啟動：docker compose up --build -d
+# 單機部署（本機 build）：Caddy 反代統一入口（:80）→ frontend + backend 同源。
+# 啟動：docker compose up --build -d  →  瀏覽器開 http://localhost
 #
-# 部署到實機時要改的兩個地方（前端 URL 變更需重新 build）：
-#   1. frontend.build.args.NEXT_PUBLIC_API_URL → http://<你的IP>:8000
-#   2. backend.environment.CORS_ALLOW_ORIGINS  → http://<你的IP>:3000
+# 同源架構下，前端不烘後端 URL、後端不需 CORS、兩者都不對外開 port，
+# 對外只有 Caddy 的 :80。要上 HTTPS / 換網域只改 Caddyfile，程式碼不動。
 
 services:
   backend:
     build: ./backend
-    env_file: ./backend/.env          # LLM_API_KEY / SETTINGS_ENCRYPT_KEY 等機密
-    environment:
-      - CORS_ALLOW_ORIGINS=http://localhost:3000
+    image: ${REGISTRY:-tpcu}/tpcu-backend:${TAG:-latest}   # 供 docker compose build / push 用
+    env_file: ./backend/.env          # LLM_API_KEY / SETTINGS_ENCRYPT_KEY 等機密（runtime 注入，不烘進 image）
     volumes:
       - ./backend/data:/app/data       # SQLite（含使用者資料）
       - ./backend/logs:/app/logs       # 系統 / 對話記錄
       - ./backend/.cache:/app/.cache   # session 暫存（JSESSIONID）
       - ./backend/uploads:/app/uploads # 使用者上傳檔
-    ports:
-      - "8000:8000"
     restart: unless-stopped
 
   frontend:
     build:
       context: ./frontend
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:8000   # client bundle（build-time 烘入）
+        NEXT_PUBLIC_API_URL: ""         # 同源：留空 → client 走相對路徑，image 完全通用
+    image: ${REGISTRY:-tpcu}/tpcu-frontend:${TAG:-latest}
     environment:
-      - API_INTERNAL_URL=http://backend:8000          # server component 走容器內網
-    ports:
-      - "3000:3000"
+      - API_INTERNAL_URL=http://backend:8000   # server component 走容器內網
     depends_on:
       - backend
     restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      # - "443:443"                     # 上 HTTPS 時開啟
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data                # 憑證等持久資料
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - backend
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:

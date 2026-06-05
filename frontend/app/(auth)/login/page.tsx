@@ -29,7 +29,7 @@ export default function LoginPage() {
       // 連不到後端（沒有 response）給專屬提示，其餘交給統一解析；
       // 去掉後端訊息可能殘留的結尾冒號（例："登入失敗："）。
       const msg = !(err as { response?: unknown }).response
-        ? `無法連線到伺服器（${BASE}），請確認後端是否運行`
+        ? `無法連線到伺服器${BASE ? `（${BASE}）` : ''}，請確認後端是否運行`
         : errorMessage(err, '登入失敗，請確認學號密碼').replace(/[：:]\s*$/, '')
       toast.error(msg || '登入失敗，請確認學號密碼')
     } finally {

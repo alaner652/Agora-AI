@@ -1,0 +1,23 @@
+# 單一入口反向代理：同源服務前端與後端。
+#
+# 先 HTTP（:80）。要上 HTTPS 時，把下面的 `:80` 改成你的網域（例如 `tpcu.example.com`）、
+# 移除 `auto_https off`，Caddy 會自動申請並續期 Let's Encrypt 憑證。
+
+{
+	auto_https off
+}
+
+:80 {
+	# 後端路由（含 SSE 串流的 /chat、/answer）
+	@backend path /api/* /login /health /chat /answer
+	handle @backend {
+		reverse_proxy backend:8000 {
+			flush_interval -1   # 立即 flush，確保 SSE 串流不被緩衝
+		}
+	}
+
+	# 其餘全部交給前端
+	handle {
+		reverse_proxy frontend:3000
+	}
+}

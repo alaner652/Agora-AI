@@ -9,9 +9,9 @@ RUN npm ci
 
 COPY . .
 
-# client bundle 會把這個公開後端 URL 烘進去（build-time）。
-# 部署到實機時用 --build-arg / compose args 改成後端公開 URL。
-ARG NEXT_PUBLIC_API_URL=http://localhost:8000
+# 同源（反向代理）部署：留空 → client 走相對路徑，image 完全通用、可跨 host。
+# 若要直連後端（無 proxy），才用 --build-arg NEXT_PUBLIC_API_URL=http://<host>:8000 烘入。
+ARG NEXT_PUBLIC_API_URL=
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
 RUN npm run build

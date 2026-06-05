@@ -11,8 +11,12 @@
 
 // ── 1. App / 環境 ─────────────────────────────────────────────────────────────
 
-/** 後端 API base URL；未設定環境變數時退回本機 dev server。 */
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+/**
+ * 後端 API base URL（client / 瀏覽器端用）。
+ * - 反向代理（同源）部署：留空 → 走相對路徑 /api、/login…，由 proxy 轉到後端。
+ * - 直連後端（本機開發 / 無 proxy）：設 NEXT_PUBLIC_API_URL=http://localhost:8000。
+ */
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? ''
 
 /** 存放登入 token 的 cookie 名稱。 */
 export const TOKEN_COOKIE = 'token'
