@@ -1,29 +1,33 @@
 # 環境
 .venv/
 .env
+.env.*
 
 # Python
 __pycache__/
 *.pyc
 *.pyo
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
 
-# 產出（保留目錄結構，忽略實際輸出檔）
-output/*
+# 系統 / 編輯器
+.DS_Store
 
 # Session 暫存（含 JSESSIONID，不可上傳）
 .cache/
 
 # 開發暫存
 schedule_debug.html
-.DS_Store
 
-# 對話記錄（含使用者輸入，不上傳；保留目錄結構）
-logs/**/*.json
-logs/**/*.jsonl
+# 產出（忽略實際輸出檔）
+output/*
+uploads/*
 
-# 資料庫（runtime 產生，含使用者資料）
+# 對話 / 系統記錄（runtime 產生，含使用者輸入；含輪替檔 *.jsonl.YYYY-MM-DD）
+logs/
+
+# 資料庫（runtime 產生，含使用者資料；含 SQLite WAL/SHM sidecar）
 data/*.db
 data/*.db-wal
 data/*.db-shm
-
-uploads/*
