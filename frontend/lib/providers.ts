@@ -70,8 +70,8 @@ export const PROVIDERS: ProviderDef[] = [
     id: 'gemini',
     label: 'Gemini',
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai/',
-    defaultModel: 'gemini-2.0-flash-lite',
-    knownModels: ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-pro'],
+    defaultModel: 'gemini-3.1-flash-lite',
+    knownModels: ["gemini-3.1-flash-lite", "gemini-3.1-flash", "gemini-3.1-pro", "gemini-2.0-flash"],
     needsKey: true,
   }),
   listingProvider({
