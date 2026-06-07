@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@ta
 import { toast } from 'sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ThemeProvider } from 'next-themes'
+import { MotionConfig } from 'framer-motion'
 import { loadBrand } from '@/lib/brand'
 import { isAuthError, errorMessage } from '@/lib/api-error'
 import { useAuthStore } from '@/lib/stores/auth'
@@ -26,11 +27,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => { loadBrand() }, [])
   return (
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          {children}
-        </TooltipProvider>
-      </QueryClientProvider>
+      {/* MotionConfig reducedMotion="user"：全站尊重系統「減少動態」偏好。 */}
+      <MotionConfig reducedMotion="user">
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            {children}
+          </TooltipProvider>
+        </QueryClientProvider>
+      </MotionConfig>
     </ThemeProvider>
   )
 }

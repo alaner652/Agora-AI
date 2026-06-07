@@ -1,10 +1,14 @@
 import type { ReactNode } from 'react'
 import { Skeleton } from '@/components/ui/skeleton'
+import { CountUp } from '@/components/CountUp'
+import { PageTransition } from '@/components/PageTransition'
 
 // ── Root ──────────────────────────────────────────────────────────────────────
 
 function Root({ children }: { children: ReactNode }) {
-  return <div className="flex flex-col gap-4 p-4 sm:p-6">{children}</div>
+  return (
+    <PageTransition className="flex flex-col gap-4 p-4 sm:p-6">{children}</PageTransition>
+  )
 }
 
 // ── Trend ─────────────────────────────────────────────────────────────────────
@@ -29,7 +33,9 @@ function TrendCard({ title, value, sub, children }: {
     <div className="rounded-xl border border-border bg-card/70 p-4 backdrop-blur-xl">
       {title && <p className="text-xs text-muted-foreground mb-1">{title}</p>}
       {value !== undefined && (
-        <p className="font-heading text-2xl font-semibold text-foreground">{value}</p>
+        <p className="font-heading text-2xl font-semibold text-foreground">
+          {typeof value === 'number' ? <CountUp value={value} /> : value}
+        </p>
       )}
       {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
       {children}
