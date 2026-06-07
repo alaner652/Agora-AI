@@ -9,9 +9,13 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import pathlib
+import threading
+import time
+import urllib.request
 from logging.handlers import TimedRotatingFileHandler
 
 import structlog
@@ -61,6 +65,53 @@ def _redact(_logger, _method, event_dict: dict) -> dict:
         return obj
 
     return scrub(event_dict)
+
+
+class WebhookAlertHandler(logging.Handler):
+    """WARNING+ 事件即時推到 webhook（Discord / Slack / 通用 JSON）。
+
+    - 內容沿用 json_formatter（同 errors.jsonl）→ 敏感欄位已遮蔽，不會外洩。
+    - 非阻塞：每則於 daemon thread 短逾時送出，發送失敗靜默吞掉，
+      告警管線絕不能拖垮或拖慢主請求。
+    - 冷卻：同一 (logger, 訊息) 在 cooldown 秒內只發一次，避免洗版。
+    僅當設了 ALERT_WEBHOOK_URL 時才掛上，未設則完全不啟用。
+    """
+
+    def __init__(self, url: str, cooldown: float = 60.0) -> None:
+        super().__init__(level=logging.WARNING)
+        self._url = url
+        self._cooldown = cooldown
+        self._last: dict[str, float] = {}
+        self._lock = threading.Lock()
+        # Discord 用 "content"、Slack 與多數通用 webhook 用 "text"。
+        self._payload_key = "content" if "discord" in url else "text"
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            key = f"{record.name}:{str(record.msg)[:80]}"
+            now = time.monotonic()
+            with self._lock:
+                if now - self._last.get(key, 0.0) < self._cooldown:
+                    return
+                self._last[key] = now
+
+            body = self.format(record)  # 已套 _redact 的 JSON
+            if len(body) > 1500:
+                body = body[:1500] + "…"
+            text = f"⚠️ Agora 後端告警\n```json\n{body}\n```"
+            data = json.dumps({self._payload_key: text}).encode("utf-8")
+            threading.Thread(target=self._post, args=(data,), daemon=True).start()
+        except Exception:
+            pass
+
+    def _post(self, data: bytes) -> None:
+        try:
+            req = urllib.request.Request(
+                self._url, data=data, headers={"Content-Type": "application/json"}
+            )
+            urllib.request.urlopen(req, timeout=5)  # noqa: S310 (url 來自自家環境變數)
+        except Exception:
+            pass
 
 
 def get_logger(name: str) -> structlog.stdlib.BoundLogger:
@@ -142,6 +193,15 @@ def setup_logging() -> None:
         error_handler.setFormatter(json_formatter)
         error_handler._tpcu_json = True
         root.addHandler(error_handler)
+
+        # 選用：WARNING+ 即時 webhook 告警。未設 ALERT_WEBHOOK_URL 則不掛。
+        if alert_url := os.environ.get("ALERT_WEBHOOK_URL"):
+            alert_handler = WebhookAlertHandler(
+                alert_url, cooldown=float(os.environ.get("ALERT_COOLDOWN", "60"))
+            )
+            alert_handler.setFormatter(json_formatter)
+            alert_handler._tpcu_json = True
+            root.addHandler(alert_handler)
 
     root.setLevel(logging.WARNING)
     logging.getLogger("tpcu").setLevel(level)

@@ -69,6 +69,9 @@ cd frontend && npm install && npm run dev             # :3000
 | `CORS_ALLOW_ORIGINS` | | 同源部署不需要；僅跨來源直連時才設 |
 | `NEXT_PUBLIC_API_URL` | | 前端 build-time，瀏覽器端後端 URL；同源留空，本機開發設 `http://localhost:8000` |
 | `API_INTERNAL_URL` | | 前端 runtime，server component 內網 URL；compose 設 `http://backend:8000` |
+| `LOG_LEVEL` | | `tpcu.*` logger 層級，預設 `INFO` |
+| `ALERT_WEBHOOK_URL` | | 設了才啟用：WARNING+ 即時推到 Discord / Slack webhook（內容已遮蔽機密）|
+| `ALERT_COOLDOWN` | | 同一告警的冷卻秒數，預設 `60`，避免洗版 |
 
 **LLM** 走 OpenAI 相容 API，支援 Gemini / OpenAI / Ollama。登入後也可在前端 **Settings** 即時切換，優先於 `.env`、免重啟。
 

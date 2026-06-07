@@ -1,0 +1,60 @@
+import { Calendar, Bot, Bell, Smartphone, type LucideIcon } from 'lucide-react'
+import { Card } from '@/components/ui/card'
+
+interface Feature {
+  icon: LucideIcon
+  title: string
+  desc: string
+}
+
+// 手機友善僅在 RWD 確實驗證後才保留；其餘三項對應實際已上線功能。
+const FEATURES: Feature[] = [
+  {
+    icon: Calendar,
+    title: '更直覺的課表',
+    desc: '一週課表一眼看完，節次、地點、老師清楚排好，不再從表格裡撈。',
+  },
+  {
+    icon: Bot,
+    title: 'AI 對話查詢',
+    desc: '「我這週缺幾節課？」「幫我查上學期成績」——用講的就能查，還能代為操作假單。',
+  },
+  {
+    icon: Bell,
+    title: '課程與資訊整合',
+    desc: '課表、缺曠、成績、假單集中在同一處，不必在多個頁面之間來回切換。',
+  },
+  {
+    icon: Smartphone,
+    title: '手機友善',
+    desc: '為小螢幕重新排版，走在路上也能隨手查課表、送假單。',
+  },
+]
+
+export function LandingFeatures() {
+  return (
+    <section id="features" className="mx-auto w-full max-w-5xl scroll-mt-16 px-6 py-24">
+      <div className="mb-12 text-center">
+        <h2 className="font-heading text-3xl font-semibold tracking-wide text-foreground sm:text-4xl">
+          把每天都要做的事，做得更順手
+        </h2>
+        <p className="mt-3 text-muted-foreground">同一份校務資料，換一種更好用的方式呈現。</p>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        {FEATURES.map(({ icon: Icon, title, desc }) => (
+          <Card
+            key={title}
+            className="gap-3 bg-card/60 p-6 backdrop-blur-md ring-border transition-colors hover:ring-primary/40"
+          >
+            <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Icon className="size-5" />
+            </div>
+            <h3 className="text-lg font-medium text-foreground">{title}</h3>
+            <p className="text-sm leading-relaxed text-muted-foreground">{desc}</p>
+          </Card>
+        ))}
+      </div>
+    </section>
+  )
+}
