@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { toast } from 'sonner'
 import { MessageSquarePlus, Trash2 } from 'lucide-react'
+import { staggerContainer, staggerItem } from '@/lib/motion'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Spinner } from '@/components/ui/spinner'
 import { getSessions, switchSession, deleteSessionById, newSession, type SessionMeta, type TextMessage } from '@/lib/data'
@@ -123,9 +125,14 @@ export function SessionHistoryPanel({ open, onClose, onSwitch, onNewSession, vie
           )}
 
           {!loading && (sessions.length > 0 || showSyntheticCurrent) && (
-            <ul className="divide-y divide-border/60">
+            <motion.ul
+              variants={staggerContainer}
+              initial="hidden"
+              animate="show"
+              className="divide-y divide-border/60"
+            >
               {showSyntheticCurrent && (
-                <li className="flex items-stretch">
+                <motion.li variants={staggerItem} className="flex items-stretch">
                   <div className="flex-1 text-left px-4 py-3 bg-accent/60">
                     <div className="flex items-start justify-between gap-2">
                       <span className="text-xs font-medium text-primary truncate">新對話</span>
@@ -135,12 +142,19 @@ export function SessionHistoryPanel({ open, onClose, onSwitch, onNewSession, vie
                     </div>
                     <div className="mt-0.5 text-[10px] text-muted-foreground/70">尚未送出訊息</div>
                   </div>
-                </li>
+                </motion.li>
               )}
+              <AnimatePresence initial={false}>
               {sessions.map(s => {
                 const isCurrent = s.session_id === activeSessionId
                 return (
-                  <li key={s.session_id} className="group flex items-stretch">
+                  <motion.li
+                    key={s.session_id}
+                    variants={staggerItem}
+                    layout
+                    exit={{ opacity: 0, x: 24, transition: { duration: 0.18 } }}
+                    className="group flex items-stretch"
+                  >
                     <button
                       onClick={() => handleSwitch(s.session_id)}
                       disabled={disabled || !!switchingId || !!deletingId}
@@ -181,10 +195,11 @@ export function SessionHistoryPanel({ open, onClose, onSwitch, onNewSession, vie
                         }
                       </button>
                     )}
-                  </li>
+                  </motion.li>
                 )
               })}
-            </ul>
+              </AnimatePresence>
+            </motion.ul>
           )}
         </div>
 
