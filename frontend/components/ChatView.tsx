@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { motion } from 'framer-motion'
+import { springSnappy } from '@/lib/motion'
 import { toast } from 'sonner'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -466,7 +468,13 @@ export function ChatView({ initialMessages, initialSessionId }: ChatViewProps) {
         {!isEmpty && (
           <div className="py-6 px-4 md:px-6 space-y-6 max-w-3xl mx-auto">
             {messages.map((m, i) => (
-              <div key={i} className={`flex gap-3 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={springSnappy}
+                className={`flex gap-3 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
                 {m.role === 'assistant' && (
                   <div className="w-7 h-7 rounded-full bg-accent flex items-center justify-center shrink-0 mt-0.5">
                     <Bot className="w-4 h-4 text-primary" />
@@ -561,11 +569,16 @@ export function ChatView({ initialMessages, initialSessionId }: ChatViewProps) {
                     )
                   )}
                 </div>
-              </div>
+              </motion.div>
             ))}
 
             {askUser && (
-              <div className="flex gap-3 justify-start">
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={springSnappy}
+                className="flex gap-3 justify-start"
+              >
                 <div className="w-7 h-7 rounded-full bg-accent flex items-center justify-center shrink-0 mt-0.5">
                   <Bot className="w-4 h-4 text-primary" />
                 </div>
@@ -580,7 +593,7 @@ export function ChatView({ initialMessages, initialSessionId }: ChatViewProps) {
                     ))}
                   </div>
                 </div>
-              </div>
+              </motion.div>
             )}
 
             <div ref={bottomRef} />

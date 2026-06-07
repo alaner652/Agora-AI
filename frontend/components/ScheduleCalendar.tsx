@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { motion } from 'framer-motion'
 import type { ScheduleEntry } from '@/lib/data'
 
 const DAY_SHORT = ['', '一', '二', '三', '四', '五', '六', '日']
@@ -142,10 +143,17 @@ export function ScheduleCalendar({ entries }: Props) {
         <div className="flex rounded-lg border border-border overflow-hidden text-xs shrink-0">
           {(['week', 'day'] as const).map(v => (
             <button key={v} onClick={() => setView(v)}
-              className={`px-3 py-1.5 transition-colors ${view === v
-                ? 'bg-primary text-primary-foreground'
+              className={`relative px-3 py-1.5 transition-colors ${view === v
+                ? 'text-primary-foreground'
                 : 'text-muted-foreground hover:bg-accent'}`}>
-              {v === 'week' ? '週' : '日'}
+              {view === v && (
+                <motion.span
+                  layoutId="schedView"
+                  transition={{ type: 'spring', stiffness: 400, damping: 34 }}
+                  className="absolute inset-0 bg-primary"
+                />
+              )}
+              <span className="relative z-10">{v === 'week' ? '週' : '日'}</span>
             </button>
           ))}
         </div>
