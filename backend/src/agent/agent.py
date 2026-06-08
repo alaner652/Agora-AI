@@ -10,7 +10,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import AsyncIterator
 
-from openai import OpenAI, APITimeoutError, APIConnectionError
+from openai import OpenAI, APITimeoutError, APIConnectionError, APIStatusError
 
 from log import get_logger
 
@@ -21,7 +21,7 @@ from .errors import ErrorCode
 from .tool_meta import get_meta
 from .tools import TOOLS, AskUserError, dispatch
 
-_log = get_logger(__name__)
+_log = get_logger("agent")
 
 # ---------------------------------------------------------------------------
 # Event types — consumed by CLI, API, or any other I/O layer
@@ -258,11 +258,20 @@ class ChatAgent:
             _t_llm = time.monotonic()
             try:
                 response = self._llm.chat.completions.create(**create_kwargs)
-            except (APITimeoutError, APIConnectionError):
-                # Remove the last user message so the caller can retry
+            except (APITimeoutError, APIConnectionError, APIStatusError) as e:
+                # 上游 LLM 暫時性故障（逾時 / 連線中斷 / 5xx / 429）就地降級成串流內的
+                # 友善訊息，而非讓例外冒到 ASGI 變成中途斷掉的 500。
+                # 4xx（如請求格式錯、金鑰無效）屬真 bug，往上拋不吞。
+                status = getattr(e, "status_code", None)
+                if isinstance(e, APIStatusError) and status is not None and status < 500 and status != 429:
+                    raise
+                _log.warning("llm_upstream_error", error=type(e).__name__, status=status)
+                # 移除本回合最後的 user 訊息，讓使用者重送時不會在 context 堆疊重複。
                 if self._memory.history and self._memory.history[-1].get("role") == "user":
                     self._memory.history.pop()
-                raise
+                yield TextDeltaEvent(text="（AI 服務暫時忙碌或連線不穩，請稍後再送一次）")
+                yield DoneEvent()
+                return
             llm_ms = round((time.monotonic() - _t_llm) * 1000, 1)
             self._turn_llm_ms += llm_ms
 
