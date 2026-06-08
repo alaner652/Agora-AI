@@ -53,6 +53,26 @@ backend/logs/*.jsonl ──tail──> promtail ──push──> loki <──qu
 {job="agora-backend", level=~"error|critical"}
 ```
 
+## 不想跑 Grafana？每日摘要腳本
+
+對單機/低流量，常駐 Loki+Grafana 偏重。[backend/scripts/daily_summary.py](../backend/scripts/daily_summary.py) 是輕量替代：純標準庫，讀 `logs/*.jsonl` + SQLite，彙整當日**活躍人數、對話/LLM 呼叫、token 用量、共用 AI 用量、免費額度命中、錯誤數**，推到 webhook。
+
+```bash
+# 先看內容（不推送）
+docker compose exec backend python scripts/daily_summary.py --dry-run
+
+# 在 host 直接跑也行（logs/ data/ 都是掛出來的 volume）
+cd backend && python3 scripts/daily_summary.py --yesterday
+```
+
+webhook 取自 `SUMMARY_WEBHOOK_URL`，沒設則 fallback `ALERT_WEBHOOK_URL`。排程（每天 00:10 推前一天）：
+
+```cron
+10 0 * * * cd /path/to/Agora-AI && docker compose exec -T backend python scripts/daily_summary.py --yesterday
+```
+
+> 日界用 Asia/Taipei，對齊額度計算；會自動讀 rotate 過的 `*.jsonl.YYYY-MM-DD`。
+
 ## 與即時告警的分工
 
 `ALERT_WEBHOOK_URL`（後端 [log.py](../backend/src/log.py) 的 `WebhookAlertHandler`）負責 **WARNING+ 即時推播**到 Discord/Slack；這套 Loki+Grafana 負責 **歷史趨勢與聚合分析**。兩者互補，不重做：出事即時收到通知，事後來這裡查根因與趨勢。
