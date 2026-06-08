@@ -9,23 +9,52 @@ import pathlib
 import tempfile
 
 import httpx
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile, File
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from openai import OpenAI
 from pydantic import BaseModel
 
-from openai import OpenAI
-
-from session import _validate as _validate_session
-from actions.fetch_schedule.index import get_options as _sched_opts, get_schedule as _sched
-from actions.fetch_absence.index import get_options as _abs_opts, get_absence as _absence
+from actions.apply_leave.index import LEAVE_TYPES
+from actions.apply_leave.index import apply_leave as _apply_leave
+from actions.apply_leave.index import get_leave_form as _get_leave_form
+from actions.delete_leave.index import delete_leave as _delete_leave
+from actions.fetch_absence.index import get_absence as _absence
+from actions.fetch_absence.index import get_options as _abs_opts
 from actions.fetch_grades.index import get_grades as _grades
 from actions.fetch_leaves.index import get_leaves as _leaves
-from actions.apply_leave.index import apply_leave as _apply_leave, get_leave_form as _get_leave_form, LEAVE_TYPES
-from actions.delete_leave.index import delete_leave as _delete_leave
-from storage import save_history, load_history, clear_history, get_viewed_session_id, get_llm_config, set_llm_config, delete_llm_config, list_sessions, get_session_messages_slim, delete_session, delete_all_sessions, insert_file, get_file, get_conversation_messages, get_session_display_messages, get_settings, patch_settings
+from actions.fetch_schedule.index import get_options as _sched_opts
+from actions.fetch_schedule.index import get_schedule as _sched
+from session import _validate as _validate_session
+from storage import (
+    clear_history,
+    delete_all_sessions,
+    delete_llm_config,
+    delete_session,
+    get_conversation_messages,
+    get_file,
+    get_llm_config,
+    get_session_display_messages,
+    get_session_messages_slim,
+    get_settings,
+    get_viewed_session_id,
+    insert_file,
+    list_sessions,
+    load_history,
+    patch_settings,
+    save_history,
+    set_llm_config,
+)
 
-from .models import LLMConfigRequest, LLMConfigResponse, LLMModelsRequest, SettingsPatch, FullSettingsResponse, UserSettings, LLMBehaviourSettings
+from .models import (
+    FullSettingsResponse,
+    LLMBehaviourSettings,
+    LLMConfigRequest,
+    LLMConfigResponse,
+    LLMModelsRequest,
+    SettingsPatch,
+    UserSettings,
+)
 from .state import AgentRegistry
 
 router = APIRouter()
@@ -87,7 +116,7 @@ async def semester_options(jsessionid: str = Depends(_resolve_session)):
     try:
         return await _sched_opts(jsessionid)
     except Exception as e:
-        raise await _handle_exc(e, jsessionid)
+        raise await _handle_exc(e, jsessionid) from e
 
 
 @router.get("/schedule")
@@ -96,7 +125,7 @@ async def schedule(semester: str, jsessionid: str = Depends(_resolve_session)):
         entries = await _sched(jsessionid, semester)
         return {"entries": entries}
     except Exception as e:
-        raise await _handle_exc(e, jsessionid)
+        raise await _handle_exc(e, jsessionid) from e
 
 
 # ---------------------------------------------------------------------------
@@ -108,7 +137,7 @@ async def absence_options(jsessionid: str = Depends(_resolve_session)):
     try:
         return await _abs_opts(jsessionid)
     except Exception as e:
-        raise await _handle_exc(e, jsessionid)
+        raise await _handle_exc(e, jsessionid) from e
 
 
 @router.get("/absence/summary")
@@ -127,7 +156,7 @@ async def absence_summary(jsessionid: str = Depends(_resolve_session)):
         truancy = [e for e in entries if e.get("type") == "缺曠"]
         return {"total": len(truancy), "semester": current}
     except Exception as e:
-        raise await _handle_exc(e, jsessionid)
+        raise await _handle_exc(e, jsessionid) from e
 
 
 @router.get("/absence")
@@ -142,9 +171,9 @@ async def absence(
         entries = await _absence(jsessionid, semester, leave=type, start=start, end=end)
         return {"entries": entries}
     except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        raise HTTPException(status_code=422, detail=str(e)) from e
     except Exception as e:
-        raise await _handle_exc(e, jsessionid)
+        raise await _handle_exc(e, jsessionid) from e
 
 
 # ---------------------------------------------------------------------------
@@ -157,7 +186,7 @@ async def grades(jsessionid: str = Depends(_resolve_session)):
         entries = await _grades(jsessionid)
         return {"entries": entries}
     except Exception as e:
-        raise await _handle_exc(e, jsessionid)
+        raise await _handle_exc(e, jsessionid) from e
 
 
 # ---------------------------------------------------------------------------
@@ -174,9 +203,9 @@ async def leaves(
         items = await _leaves(jsessionid, start, end)
         return {"leaves": items}
     except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        raise HTTPException(status_code=422, detail=str(e)) from e
     except Exception as e:
-        raise await _handle_exc(e, jsessionid)
+        raise await _handle_exc(e, jsessionid) from e
 
 
 # ---------------------------------------------------------------------------
@@ -190,7 +219,7 @@ async def leave_form(date: str = "", jsessionid: str = Depends(_resolve_session)
         result["leave_types"] = LEAVE_TYPES
         return result
     except Exception as e:
-        raise await _handle_exc(e, jsessionid)
+        raise await _handle_exc(e, jsessionid) from e
 
 
 @router.post("/apply-leave")
@@ -206,7 +235,7 @@ async def apply_leave_endpoint(
     image_path: str | None = None
     if attachment and attachment.filename:
         suffix = pathlib.Path(attachment.filename).suffix.lower()
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)  # noqa: SIM115 (檔案於請求結束才刪)
         tmp.write(await attachment.read())
         tmp.close()
         image_path = tmp.name
@@ -221,7 +250,7 @@ async def apply_leave_endpoint(
         )
         return result
     except Exception as e:
-        raise await _handle_exc(e, jsessionid)
+        raise await _handle_exc(e, jsessionid) from e
     finally:
         if image_path:
             os.unlink(image_path)
@@ -250,7 +279,7 @@ async def delete_leave_endpoint(
     try:
         own = await _leaves(jsessionid, q_sdate, q_edate)
     except Exception as e:
-        raise await _handle_exc(e, jsessionid)
+        raise await _handle_exc(e, jsessionid) from e
     if not any(e.get("barcode") == body.barcode for e in own):
         raise HTTPException(
             status_code=403,
@@ -267,7 +296,7 @@ async def delete_leave_endpoint(
         )
         return result
     except Exception as e:
-        raise await _handle_exc(e, jsessionid)
+        raise await _handle_exc(e, jsessionid) from e
 
 
 # ---------------------------------------------------------------------------

@@ -22,6 +22,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
+import summary
 from agent import (
     AskUserEvent,
     DoneEvent,
@@ -29,14 +30,24 @@ from agent import (
     ToolCallEvent,
     ToolResultEvent,
 )
+from log import bind_request, bind_uid, clear_request, get_logger
 from session import refresh_api as _fresh_login
-from log import get_logger, bind_request, bind_uid, clear_request
-import summary
+from storage import (
+    get_file,
+    get_llm_config,
+    init_db,
+    init_files_db,
+    init_messages_db,
+    init_sessions_db,
+    init_settings_db,
+    init_usage_db,
+    init_user_settings_db,
+    record_and_check,
+)
 
 from .models import AnswerRequest, ChatRequest, LoginRequest, LoginResponse
 from .routes import router as data_router
 from .state import AgentRegistry
-from storage import init_db, init_user_settings_db, init_sessions_db, init_files_db, init_messages_db, init_settings_db, init_usage_db, get_file, get_llm_config, record_and_check
 
 load_dotenv()
 
@@ -277,7 +288,7 @@ async def login(request: Request, body: LoginRequest):
         jsessionid = await _fresh_login(body.uid, body.pwd)
     except Exception as e:
         _log.warning("auth_login", uid=body.uid, ok=False, client_ip=client_ip, reason=str(e))
-        raise HTTPException(status_code=401, detail={"error": f"登入失敗：{e}", "error_code": "AUTH_001"})
+        raise HTTPException(status_code=401, detail={"error": f"登入失敗：{e}", "error_code": "AUTH_001"}) from e
     _log.info("auth_login", uid=body.uid, ok=True, client_ip=client_ip)
 
     user_cfg = await asyncio.to_thread(get_llm_config, body.uid)
