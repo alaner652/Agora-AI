@@ -54,6 +54,10 @@ _FREE_DAILY_GLOBAL    = int(os.getenv("FREE_DAILY_GLOBAL", "500"))
 # DAILY_SUMMARY_AT 為 Asia/Taipei 的 HH:MM；留空關閉。需設好 webhook 才會啟用。
 _DAILY_SUMMARY_AT = os.getenv("DAILY_SUMMARY_AT", "00:10")
 
+# 慢請求門檻（毫秒）：超過則在 http_request log 標 slow=true —— 仍是 INFO，不是錯誤。
+# TPCU 上游查詢常態 2~3s，門檻設高於此，避免正常查詢被當異常洗版告警。
+_SLOW_REQUEST_MS = float(os.getenv("SLOW_REQUEST_MS", "4000"))
+
 _registry: AgentRegistry | None = None
 
 _log = get_logger("api")
@@ -171,13 +175,17 @@ class RequestContextMiddleware:
             await self.app(scope, receive, send_wrapper)
         finally:
             duration_ms = round((time.monotonic() - start) * 1000, 1)
-            log_fn = _log.warning if duration_ms > 2000 else _log.info
+            status = status_holder["code"]
+            # 分級由「狀態碼」決定，不由延遲決定：5xx 才是錯誤（→ errors.jsonl + 告警）；
+            # 慢但成功的請求只是帶 slow 旗標的 INFO，不污染錯誤檔，也不觸發 webhook。
+            log_fn = _log.error if status >= 500 else _log.info
             log_fn(
                 "http_request",
                 method=method,
                 path=path,
-                status=status_holder["code"],
+                status=status,
                 duration_ms=duration_ms,
+                slow=duration_ms > _SLOW_REQUEST_MS,
                 client_ip=client_ip,
             )
             clear_request()

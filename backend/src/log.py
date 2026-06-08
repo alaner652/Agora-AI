@@ -68,7 +68,7 @@ def _redact(_logger, _method, event_dict: dict) -> dict:
 
 
 class WebhookAlertHandler(logging.Handler):
-    """WARNING+ 事件即時推到 webhook（Discord / Slack / 通用 JSON）。
+    """ERROR+ 事件即時推到 webhook（Discord / Slack / 通用 JSON）。
 
     - 內容沿用 json_formatter（同 errors.jsonl）→ 敏感欄位已遮蔽，不會外洩。
     - 非阻塞：每則於 daemon thread 短逾時送出，發送失敗靜默吞掉，
@@ -78,7 +78,7 @@ class WebhookAlertHandler(logging.Handler):
     """
 
     def __init__(self, url: str, cooldown: float = 60.0) -> None:
-        super().__init__(level=logging.WARNING)
+        super().__init__(level=logging.ERROR)
         self._url = url
         self._cooldown = cooldown
         self._last: dict[str, float] = {}
@@ -187,16 +187,17 @@ def setup_logging() -> None:
         file_handler._tpcu_json = True
         root.addHandler(file_handler)
 
-        # errors.jsonl — 僅 WARNING+，同樣按日 rotate
+        # errors.jsonl — 僅 ERROR+（真正的失敗），同樣按日 rotate。
+        # WARNING（如 session 過期、慢請求標 slow=INFO）只進 system.jsonl，不污染此檔。
         error_handler = TimedRotatingFileHandler(
             _ERROR_FILE, when="midnight", backupCount=30, encoding="utf-8"
         )
-        error_handler.setLevel(logging.WARNING)
+        error_handler.setLevel(logging.ERROR)
         error_handler.setFormatter(json_formatter)
         error_handler._tpcu_json = True
         root.addHandler(error_handler)
 
-        # 選用：WARNING+ 即時 webhook 告警。未設 ALERT_WEBHOOK_URL 則不掛。
+        # 選用：ERROR+ 即時 webhook 告警。未設 ALERT_WEBHOOK_URL 則不掛。
         if alert_url := os.environ.get("ALERT_WEBHOOK_URL"):
             alert_handler = WebhookAlertHandler(
                 alert_url, cooldown=float(os.environ.get("ALERT_COOLDOWN", "60"))

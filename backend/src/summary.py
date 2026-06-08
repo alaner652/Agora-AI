@@ -130,9 +130,13 @@ def _collect_from_logs(day: str) -> dict:
     active: set[str] = set()
     prompt_tok = completion_tok = llm_calls = 0
     quota: dict[str, int] = {}
+    slow = warnings = errors = 0
 
+    # 單趟掃 system.jsonl（全量 firehose）：同時算用量與健康分級。
+    # 分級依 log level —— 慢請求是帶 slow 旗標的 INFO，不會被算進 warnings/errors。
     for rec in _iter_log_records("system.jsonl*", day):
         event = rec.get("event")
+        level = rec.get("level")
         if event == "auth_login" and rec.get("ok") is True:
             if uid := rec.get("uid"):
                 active.add(uid)
@@ -144,14 +148,17 @@ def _collect_from_logs(day: str) -> dict:
             code = rec.get("error_code", "?")
             quota[code] = quota.get(code, 0) + 1
 
-    errors: dict[str, int] = {}
-    for rec in _iter_log_records("errors.jsonl*", day):
-        lvl = rec.get("level", "?")
-        errors[lvl] = errors.get(lvl, 0) + 1
+        if event == "http_request" and rec.get("slow"):
+            slow += 1
+        if level == "warning":
+            warnings += 1
+        elif level in ("error", "critical"):
+            errors += 1
 
     return {
         "active": active, "prompt_tok": prompt_tok, "completion_tok": completion_tok,
-        "llm_calls": llm_calls, "quota": quota, "errors": errors,
+        "llm_calls": llm_calls, "quota": quota,
+        "slow": slow, "warnings": warnings, "errors": errors,
     }
 
 
@@ -204,11 +211,18 @@ def format_summary(day: str, logs: dict, db: dict) -> str:
         lines.append("免費額度命中：" + "、".join(f"{k} ×{v}" for k, v in sorted(logs["quota"].items())))
     else:
         lines.append("免費額度命中：無")
-    if logs["errors"]:
-        total_err = sum(logs["errors"].values())
-        lines.append(f"錯誤：{total_err}（" + "、".join(f"{k} ×{v}" for k, v in sorted(logs["errors"].items())) + "）")
+    # 慢請求是「成功但慢」（多為上游延遲），與錯誤分開呈現，不再誤報成故障。
+    if logs["slow"]:
+        lines.append(f"慢請求：{logs['slow']} 次")
+    if logs["errors"] or logs["warnings"]:
+        parts = []
+        if logs["errors"]:
+            parts.append(f"✗ 錯誤 {logs['errors']}")
+        if logs["warnings"]:
+            parts.append(f"⚠ 警告 {logs['warnings']}")
+        lines.append("狀態：" + " · ".join(parts))
     else:
-        lines.append("錯誤：0")
+        lines.append("狀態：✓ 一切正常")
     return "\n".join(lines)
 
 
