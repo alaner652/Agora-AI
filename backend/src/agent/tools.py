@@ -17,7 +17,7 @@ from utils.date import today_roc, days_ago_roc
 from .errors import ErrorCode
 from .memory import ChatMemory
 
-_log = get_logger(__name__)
+_log = get_logger("agent.tools")
 
 class AskUserError(Exception):
     """Raised when the agent needs a structured answer from the user."""

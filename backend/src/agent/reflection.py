@@ -4,7 +4,7 @@ import json
 
 from log import get_logger
 
-_log = get_logger(__name__)
+_log = get_logger("agent.reflection")
 
 _FETCH_TOOLS = {"fetch_schedule", "fetch_absence", "fetch_grades", "get_leaves"}
 
