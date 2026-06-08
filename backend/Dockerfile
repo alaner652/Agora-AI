@@ -13,6 +13,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 程式碼
 COPY src ./src
 COPY main.py .
+# 每日摘要等維運 CLI（排程本體在 src/，不靠這個）
+COPY scripts ./scripts
 
 # runtime 目錄（compose 會用 volume 覆蓋，先建好確保存在與權限）
 RUN mkdir -p data logs .cache uploads

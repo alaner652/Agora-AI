@@ -87,7 +87,9 @@ def post_webhook(url: str, text: str) -> bool:
     data = json.dumps({key: text}).encode("utf-8")
     try:
         req = urllib.request.Request(
-            url, data=data, headers={"Content-Type": "application/json"}
+            url, data=data,
+            # 自訂 User-Agent：Discord/Cloudflare 會擋預設的 Python-urllib（403/1010）。
+            headers={"Content-Type": "application/json", "User-Agent": "Agora/1.0 (+webhook)"},
         )
         urllib.request.urlopen(req, timeout=10)  # noqa: S310
         return True

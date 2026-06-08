@@ -107,7 +107,9 @@ class WebhookAlertHandler(logging.Handler):
     def _post(self, data: bytes) -> None:
         try:
             req = urllib.request.Request(
-                self._url, data=data, headers={"Content-Type": "application/json"}
+                self._url, data=data,
+                # 自訂 User-Agent：Discord/Cloudflare 會擋預設的 Python-urllib（403/1010）。
+                headers={"Content-Type": "application/json", "User-Agent": "Agora/1.0 (+webhook)"},
             )
             urllib.request.urlopen(req, timeout=5)  # noqa: S310 (url 來自自家環境變數)
         except Exception:
