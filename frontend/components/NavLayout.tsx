@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 import { useTheme } from 'next-themes'
 import {
   CalendarDays, GraduationCap, Clock, FileText,
-  Bot, Settings, LogOut, School, Sun, Moon, Monitor,
+  Bot, Settings, LogOut, Sun, Moon, Monitor,
 } from 'lucide-react'
 import { getCookie } from '@/lib/cookie'
 import { useAuthStore } from '@/lib/stores/auth'
@@ -108,14 +108,16 @@ function AppSidebar() {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" className="cursor-default hover:bg-transparent active:bg-transparent">
-              <div className="flex size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground shrink-0">
-                <School className="size-4" />
-              </div>
-              <div className="flex flex-col gap-0.5 leading-none group-data-[collapsible=icon]:hidden">
-                <span className="font-heading font-semibold text-primary text-base">Agora AI</span>
-                <span className="text-xs text-muted-foreground">學生入口</span>
-              </div>
+            <SidebarMenuButton
+              size="lg"
+              render={<Link href="/" />}
+              tooltip="回首頁"
+              className="hover:bg-transparent active:bg-transparent group-data-[collapsible=icon]:justify-center"
+            >
+              <GraduationCap className="size-5 shrink-0 text-primary" />
+              <span className="font-heading text-base font-semibold text-primary group-data-[collapsible=icon]:hidden">
+                Agora AI
+              </span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

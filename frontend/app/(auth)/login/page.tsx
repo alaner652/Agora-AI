@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
 import { toast } from 'sonner'
-import { Eye, EyeOff, ShieldCheck } from 'lucide-react'
+import { Eye, EyeOff, GraduationCap, ShieldCheck } from 'lucide-react'
 import { useAuthStore } from '@/lib/stores/auth'
 import { errorMessage } from '@/lib/api-error'
 import { Button } from '@/components/ui/button'
@@ -49,6 +50,16 @@ export default function LoginPage() {
         <div className="animate-float-slow absolute top-1/4 -left-24 size-96 rounded-full bg-primary/12 blur-[130px] [animation-delay:-7s] animation-duration-[24s]" />
         <div className="animate-float-slow absolute -bottom-32 left-1/4 size-128 rounded-full bg-primary/8 blur-[160px] [animation-delay:-14s] animation-duration-[30s]" />
       </div>
+
+      {/* 返回首頁 —— 手機版進到登入後唯一的出口 */}
+      <Link
+        href="/"
+        aria-label="返回 Agora AI 首頁"
+        className="absolute left-6 top-6 z-10 inline-flex items-center gap-2 transition-opacity hover:opacity-80"
+      >
+        <GraduationCap className="size-6 text-primary" />
+        <span className="font-heading text-lg font-semibold text-primary">Agora AI</span>
+      </Link>
 
       <div className="relative w-full max-w-sm md:max-w-4xl">
         {/* 透明霧面玻璃卡片 */}

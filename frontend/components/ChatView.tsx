@@ -698,18 +698,20 @@ export function ChatView({ initialMessages, initialSessionId }: ChatViewProps) {
 
             {streaming ? (
               <button type="button" onClick={() => abortRef.current?.abort()}
+                aria-label="停止生成"
                 className="h-9 w-9 flex items-center justify-center bg-muted hover:bg-accent border border-border text-muted-foreground rounded-lg transition-colors shrink-0">
                 <Square className="w-3.5 h-3.5" />
               </button>
             ) : (
               <button type="button" onClick={() => handleSend()}
                 disabled={!input.trim() || !!askUser || editingIndex !== null}
+                aria-label="傳送"
                 className="h-9 w-9 flex items-center justify-center bg-primary hover:bg-primary/80 disabled:opacity-40 text-primary-foreground rounded-lg transition-colors shrink-0">
                 <Send className="w-4 h-4" />
               </button>
             )}
           </div>
-          <p className="text-[10px] text-muted-foreground/50 mt-1.5 text-center">AI 可能會出錯，重要事項請自行確認</p>
+          <p className="text-xs text-muted-foreground/70 mt-1.5 text-center">AI 可能會出錯，重要事項請自行確認</p>
         </div>
       </div>
     </div>
