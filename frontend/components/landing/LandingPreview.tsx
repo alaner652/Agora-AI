@@ -1,16 +1,16 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { Bot, ChevronDown, Loader2, Send } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { fadeUp } from '@/lib/motion'
 
 /**
  * 畫面預覽 —— 自動循環、多情境的對話動畫 demo（非截圖）。
  *
- * 輪播多個真實 UX 情境：缺曠+請假（ask_user 確認彈窗）、查成績（表格）、
- * 查課表（條列）、多工具整合（「已使用 N 個工具」面板）。
- * 忠實還原 ChatView 的 UI；動效用 framer-motion。
+ * 情境取材自真實對話紀錄(查課表 / 查缺曠 / 請假確認),含真實課程資料、
+ * 多工具呼叫、ask_user 確認彈窗等實際 UX。忠實還原 ChatView 的 UI。
  * 尊重 prefers-reduced-motion：偏好減少動態時停在靜態最終狀態、不循環。
  */
 
@@ -33,93 +33,105 @@ type Step =
   | { kind: 'confirm'; question: string; options: string[]; pick: string }
 
 const SCENARIOS: Step[][] = [
-  // 1) 缺曠查詢 → 反問 → 請假（危險操作：ask_user 確認彈窗）
+  // 1) 查課表 —— 多工具 + 真實課程表格
+  [
+    { kind: 'user', text: '查詢本學期課表' },
+    {
+      kind: 'assistant',
+      tools: ['取得學期清單', '查詢課表'],
+      table: {
+        head: ['星期', '時間', '課程', '教室'],
+        rows: [
+          ['一', '0920', '資料庫', '成302'],
+          ['一', '1300', '視窗程式設計', '成302'],
+          ['三', '1020', '電路學', '財707'],
+          ['三', '1300', '資料結構', '財707'],
+        ],
+      },
+      text: '這是你 **114 學年第 2 學期** 的課表,共 11 堂、橫跨週一到週五。',
+    },
+  ],
+  // 2) 查缺曠 —— 多工具,且如實回報「沒有記錄」
   [
     { kind: 'user', text: '我這週缺幾節課？' },
     {
       kind: 'assistant',
-      tools: ['查詢缺曠'],
-      text: '這週你有 **2 節** 缺曠，都集中在週三下午。要我幫你補請假單嗎？',
+      tools: ['取得目前時間', '取得學期清單', '查詢缺曠'],
+      text: '這週(06/01–06/07)目前 **沒有缺曠記錄** ✅',
     },
-    { kind: 'user', text: '好，幫我請週三下午的病假' },
+  ],
+  // 3) 請假 —— 多工具 + ask_user 確認彈窗 + 送出
+  [
+    { kind: 'user', text: '幫我請週三下午的病假' },
+    { kind: 'assistant', tools: ['取得假單選項', '查詢課表'] },
     {
       kind: 'confirm',
-      question: '確定要送出這張假單嗎？\n週三下午 · 病假（事由：身體不適）',
+      question: '確定要送出這張假單嗎？\n6/10(三) 下午 5–7 節 · 病假',
       options: ['是，確認送出', '再想想'],
       pick: '是，確認送出',
     },
     {
       kind: 'assistant',
       tools: ['申請假單'],
-      text: '已送出 **週三下午的病假** 單，目前狀態：待審核 ⏳',
-    },
-  ],
-  // 2) 查成績 → 表格渲染
-  [
-    { kind: 'user', text: '幫我看這學期成績' },
-    {
-      kind: 'assistant',
-      tools: ['查詢成績'],
-      table: {
-        head: ['科目', '成績'],
-        rows: [
-          ['微積分', '87'],
-          ['程式設計', '92'],
-          ['線性代數', '80'],
-          ['英文', '78'],
-        ],
-      },
-      text: '平均 **84.25** 分，程式設計最高 🎉',
-    },
-  ],
-  // 3) 查課表 → 條列
-  [
-    { kind: 'user', text: '我禮拜三有什麼課？' },
-    {
-      kind: 'assistant',
-      tools: ['查詢課表'],
-      bullets: ['09:10 計算機概論 · 資201', '10:10 微積分 · 理301', '15:10 英文 · 語110'],
-      text: '週三共 3 堂，最後一堂 16:00 下課。',
-    },
-  ],
-  // 4) 多工具整合 → 「已使用 N 個工具」面板
-  [
-    { kind: 'user', text: '幫我整理這學期的修課狀況' },
-    {
-      kind: 'assistant',
-      tools: ['取得學期清單', '查詢課表', '查詢成績'],
-      text: '這學期共 **7 門課**、20 學分，目前平均 **85 分**，沒有任何缺曠 ✅',
+      text: '已送出 6/10(三) 下午的 **病假** 單,目前狀態:待審核 ⏳',
     },
   ],
 ]
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+const viewport = { once: true, amount: 0.4 }
 
 export function LandingPreview() {
   const [messages, setMessages] = useState<Msg[]>([])
   const [typed, setTyped] = useState('')
   const [card, setCard] = useState<{ question: string; options: string[]; pick: string; lit: boolean } | null>(null)
   const idRef = useRef(0)
+  const rootRef = useRef<HTMLElement>(null)
+  const reduce = useReducedMotion()
+  const [active, setActive] = useState(false)
+
+  // 只在「捲到視窗內 + 分頁在前景」時才跑動畫迴圈,離開即暫停 —— 同時解決
+  // 背景空轉(效能)與報讀器讀到變動內容(無障礙,另以 aria-hidden 處理)。
+  useEffect(() => {
+    const el = rootRef.current
+    if (!el) return
+    let inView = false
+    const sync = () => setActive(inView && !document.hidden)
+    const io = new IntersectionObserver(
+      ([e]) => {
+        inView = e.isIntersecting
+        sync()
+      },
+      { threshold: 0.2 },
+    )
+    io.observe(el)
+    document.addEventListener('visibilitychange', sync)
+    return () => {
+      io.disconnect()
+      document.removeEventListener('visibilitychange', sync)
+    }
+  }, [])
+
+  // reduced-motion:直接靜態呈現第一個情境,不循環
+  useEffect(() => {
+    if (!reduce) return
+    const first = SCENARIOS[0][1]
+    setMessages([
+      { id: ++idRef.current, role: 'user', text: '查詢本學期課表' },
+      {
+        id: ++idRef.current,
+        role: 'assistant',
+        tools: [{ name: '取得學期清單', ok: true }, { name: '查詢課表', ok: true }],
+        table: first.kind === 'assistant' ? first.table : undefined,
+        text: '這是你 **114 學年第 2 學期** 的課表,共 11 堂、橫跨週一到週五。',
+      },
+    ])
+  }, [reduce])
 
   useEffect(() => {
-    const reduce =
-      typeof window !== 'undefined' &&
-      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    if (reduce || !active) return
 
     const nextId = () => ++idRef.current
-
-    if (reduce) {
-      // 靜態呈現第一個情境的最終狀態
-      setMessages([
-        { id: nextId(), role: 'user', text: '我這週缺幾節課？' },
-        { id: nextId(), role: 'assistant', tools: [{ name: '查詢缺曠', ok: true }], text: '這週你有 **2 節** 缺曠，都集中在週三下午。要我幫你補請假單嗎？' },
-        { id: nextId(), role: 'user', text: '好，幫我請週三下午的病假' },
-        { id: nextId(), role: 'user', text: '▶ 是，確認送出' },
-        { id: nextId(), role: 'assistant', tools: [{ name: '申請假單', ok: true }], text: '已送出 **週三下午的病假** 單，目前狀態：待審核 ⏳' },
-      ])
-      return
-    }
-
     let cancelled = false
     const guard = () => cancelled
 
@@ -139,15 +151,14 @@ export function LandingPreview() {
       if (step.kind === 'user') {
         if (await type(step.text)) return true
         await sleep(300)
-        const id = nextId()
-        setMessages((prev) => [...prev, { id, role: 'user', text: step.text }])
+        setMessages((prev) => [...prev, { id: nextId(), role: 'user', text: step.text }])
         setTyped('')
         await sleep(450)
         return guard()
       }
       if (step.kind === 'confirm') {
         setCard({ question: step.question, options: step.options, pick: step.pick, lit: false })
-        await sleep(1600)
+        await sleep(1700)
         if (guard()) return true
         setCard((c) => (c ? { ...c, lit: true } : c))
         await sleep(850)
@@ -157,18 +168,17 @@ export function LandingPreview() {
         await sleep(450)
         return guard()
       }
-      // assistant
       const id = nextId()
       setMessages((prev) => [...prev, { id, role: 'assistant', tools: step.tools.map((name) => ({ name })) }])
       await sleep(550)
       for (let i = 0; i < step.tools.length; i++) {
         if (guard()) return true
         patch(id, (m) => ({ ...m, tools: m.tools.map((t, ti) => (ti === i ? { ...t, ok: true } : t)) }))
-        await sleep(480)
+        await sleep(420)
       }
       await sleep(350)
       patch(id, (m) => ({ ...m, text: step.text, table: step.table, bullets: step.bullets }))
-      await sleep(2400)
+      await sleep(2600)
       return guard()
     }
 
@@ -188,23 +198,35 @@ export function LandingPreview() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [active, reduce])
 
   const processing = messages.some((m) => m.role === 'assistant' && m.tools.some((t) => t.ok === undefined))
 
   return (
-    <section className="mx-auto w-full max-w-5xl px-6 py-24">
-      <div className="mb-12 text-center">
+    <section id="preview" ref={rootRef} className="mx-auto w-full max-w-5xl scroll-mt-16 px-6 py-24">
+      <motion.div
+        variants={fadeUp}
+        initial="hidden"
+        whileInView="show"
+        viewport={viewport}
+        className="mb-12 text-center"
+      >
         <h2 className="font-heading text-3xl font-semibold tracking-wide text-foreground sm:text-4xl">
-          用講的，它就幫你做
+          用講的,它就幫你做
         </h2>
         <p className="mt-3 text-muted-foreground">
-          查課表、看成績、送假單 —— 一句話的事；會改動資料的動作一定先問過你。
+          查課表、看缺曠、送假單 —— 一句話的事;會改動資料的動作一定先問過你。
         </p>
-      </div>
+      </motion.div>
 
-      {/* 瀏覽器外框 */}
-      <div className="mx-auto max-w-xl overflow-hidden rounded-2xl bg-card/60 shadow-2xl shadow-black/20 ring-1 ring-border backdrop-blur-md">
+      <motion.div
+        aria-hidden
+        variants={fadeUp}
+        initial="hidden"
+        whileInView="show"
+        viewport={viewport}
+        className="mx-auto max-w-xl overflow-hidden rounded-2xl bg-card/60 shadow-2xl shadow-black/20 ring-1 ring-border backdrop-blur-md"
+      >
         <div className="flex items-center gap-1.5 border-b border-border px-4 py-3">
           <span className="size-3 rounded-full bg-destructive/60" />
           <span className="size-3 rounded-full bg-amber-500/60" />
@@ -215,7 +237,7 @@ export function LandingPreview() {
           </span>
         </div>
 
-        {/* 對話區（固定高度、內容靠底、過長上方裁切如真實捲動） */}
+        {/* 對話區(固定高度、內容靠底、過長上方裁切如真實捲動) */}
         <div className="flex h-112 flex-col bg-card p-4">
           <div className="flex flex-1 flex-col justify-end gap-4 overflow-hidden">
             <AnimatePresence mode="popLayout" initial={false}>
@@ -273,7 +295,7 @@ export function LandingPreview() {
             </AnimatePresence>
           </div>
 
-          {/* 輸入列：打字機效果 */}
+          {/* 輸入列:打字機效果 */}
           <div className="mt-3 flex items-end gap-2">
             <div
               className={cn(
@@ -299,11 +321,11 @@ export function LandingPreview() {
               {processing ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
             </div>
           </div>
-          <p className="mt-1.5 text-center text-[10px] text-muted-foreground/50">
-            AI 可能會出錯，重要事項請自行確認
+          <p className="mt-1.5 text-center text-xs text-muted-foreground/70">
+            AI 可能會出錯,重要事項請自行確認
           </p>
         </div>
-      </div>
+      </motion.div>
     </section>
   )
 }
@@ -366,7 +388,7 @@ function DoneTools({ tools }: { tools: Tool[] }) {
   return (
     <div className="text-xs">
       <div className="flex items-center gap-1.5 text-muted-foreground">
-        <ChevronDown className="size-3 rotate-0" />
+        <ChevronDown className="size-3" />
         已使用 {tools.length} 個工具
       </div>
       <div className="mt-1 space-y-1 border-l border-border pl-4">
@@ -398,7 +420,7 @@ function ResultTable({ table }: { table: Table }) {
           {table.rows.map((row) => (
             <tr key={row.join()}>
               {row.map((cell, i) => (
-                <td key={i} className="border-b border-border px-3 py-1.5 text-foreground last:text-right">
+                <td key={i} className="border-b border-border px-3 py-1.5 text-foreground">
                   {cell}
                 </td>
               ))}
@@ -410,7 +432,7 @@ function ResultTable({ table }: { table: Table }) {
   )
 }
 
-/** 極簡 **粗體** 渲染（對齊 ChatView 的 markdown 粗體）。 */
+/** 極簡 **粗體** 渲染(對齊 ChatView 的 markdown 粗體)。 */
 function RichText({ text }: { text: string }) {
   const parts = text.split(/(\*\*[^*]+\*\*)/g)
   return (

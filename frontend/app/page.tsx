@@ -1,11 +1,10 @@
 import type { Metadata } from 'next'
-import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
-import { TOKEN_COOKIE } from '@/constants'
+import { LandingNav } from '@/components/landing/LandingNav'
 import { LandingHero } from '@/components/landing/LandingHero'
 import { LandingFeatures } from '@/components/landing/LandingFeatures'
 import { LandingPreview } from '@/components/landing/LandingPreview'
 import { LandingFaq } from '@/components/landing/LandingFaq'
+import { LandingFooter } from '@/components/landing/LandingFooter'
 
 export const metadata: Metadata = {
   title: 'Agora AI — 更好用的校務系統體驗',
@@ -14,15 +13,12 @@ export const metadata: Metadata = {
 }
 
 /**
- * 根路由：已登入者直接帶進 app（沿用舊行為），未登入者看品牌落地頁。
- * token 存在 cookie，server 端用 cookies() 即可判斷，無需 client JS。
+ * 根路由：品牌落地頁。登入與否都可瀏覽(middleware 已將 / 列為公開);
+ * 登入狀態相關的導覽由 LandingNav 在 client 端處理。
  */
-export default async function HomePage() {
-  const token = (await cookies()).get(TOKEN_COOKIE)?.value
-  if (token) redirect('/schedule')
-
+export default function HomePage() {
   return (
-    <main className="relative flex flex-col overflow-hidden">
+    <>
       {/* 全頁共用的環境光暈：fixed → 捲動時整頁一致，避免 Hero 之後突然變全黑。
           各區塊背景透明 / 半透玻璃，光暈會透出來。 */}
       <div aria-hidden className="pointer-events-none fixed inset-0 -z-10">
@@ -31,10 +27,14 @@ export default async function HomePage() {
         <div className="animate-float-slow absolute right-0 bottom-0 size-128 rounded-full bg-primary/8 blur-[160px] [animation-delay:-14s]" />
       </div>
 
-      <LandingHero />
-      <LandingFeatures />
-      <LandingPreview />
-      <LandingFaq />
-    </main>
+      <LandingNav />
+      <main className="relative flex flex-1 flex-col overflow-x-hidden">
+        <LandingHero />
+        <LandingFeatures />
+        <LandingPreview />
+        <LandingFaq />
+      </main>
+      <LandingFooter />
+    </>
   )
 }

@@ -1,5 +1,9 @@
+'use client'
+
+import { motion } from 'framer-motion'
 import { Calendar, Bot, Bell, Smartphone, type LucideIcon } from 'lucide-react'
 import { Card } from '@/components/ui/card'
+import { fadeUp, staggerContainer, staggerItem } from '@/lib/motion'
 
 interface Feature {
   icon: LucideIcon
@@ -31,30 +35,43 @@ const FEATURES: Feature[] = [
   },
 ]
 
+const viewport = { once: true, amount: 0.3 }
+
 export function LandingFeatures() {
   return (
     <section id="features" className="mx-auto w-full max-w-5xl scroll-mt-16 px-6 py-24">
-      <div className="mb-12 text-center">
+      <motion.div
+        variants={fadeUp}
+        initial="hidden"
+        whileInView="show"
+        viewport={viewport}
+        className="mb-12 text-center"
+      >
         <h2 className="font-heading text-3xl font-semibold tracking-wide text-foreground sm:text-4xl">
           把每天都要做的事，做得更順手
         </h2>
         <p className="mt-3 text-muted-foreground">同一份校務資料，換一種更好用的方式呈現。</p>
-      </div>
+      </motion.div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <motion.div
+        variants={staggerContainer}
+        initial="hidden"
+        whileInView="show"
+        viewport={viewport}
+        className="grid gap-4 sm:grid-cols-2"
+      >
         {FEATURES.map(({ icon: Icon, title, desc }) => (
-          <Card
-            key={title}
-            className="gap-3 bg-card/60 p-6 backdrop-blur-md ring-border transition-colors hover:ring-primary/40"
-          >
-            <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Icon className="size-5" />
-            </div>
-            <h3 className="text-lg font-medium text-foreground">{title}</h3>
-            <p className="text-sm leading-relaxed text-muted-foreground">{desc}</p>
-          </Card>
+          <motion.div key={title} variants={staggerItem} whileHover={{ y: -4 }}>
+            <Card className="h-full gap-3 bg-card/60 p-6 backdrop-blur-md ring-border transition-colors hover:ring-primary/40">
+              <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Icon className="size-5" />
+              </div>
+              <h3 className="text-lg font-medium text-foreground">{title}</h3>
+              <p className="text-sm leading-relaxed text-muted-foreground">{desc}</p>
+            </Card>
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
     </section>
   )
 }

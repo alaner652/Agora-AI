@@ -1,6 +1,10 @@
+'use client'
+
 import Link from 'next/link'
+import { motion } from 'framer-motion'
 import { ShieldCheck, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { fadeUp, staggerContainer, staggerItem } from '@/lib/motion'
 
 interface Qa {
   q: string
@@ -27,11 +31,19 @@ const FAQS: Qa[] = [
   },
 ]
 
+const viewport = { once: true, amount: 0.3 }
+
 export function LandingFaq() {
   return (
-    <section className="mx-auto w-full max-w-3xl px-6 py-24">
+    <section id="faq" className="mx-auto w-full max-w-3xl scroll-mt-16 px-6 py-24">
       {/* 安全摘要：對應「機密不落地」的實際做法，這是真賣點 */}
-      <div className="mb-12 flex flex-col items-center gap-3 rounded-2xl bg-card/60 p-8 text-center ring-1 ring-border backdrop-blur-md">
+      <motion.div
+        variants={fadeUp}
+        initial="hidden"
+        whileInView="show"
+        viewport={viewport}
+        className="mb-12 flex flex-col items-center gap-3 rounded-2xl bg-card/60 p-8 text-center ring-1 ring-border backdrop-blur-md"
+      >
         <span className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
           <ShieldCheck className="size-6" />
         </span>
@@ -41,16 +53,23 @@ export function LandingFaq() {
         <p className="max-w-md text-sm leading-relaxed text-muted-foreground">
           密碼不入庫、連線憑證只留記憶體、設定全程加密。能少碰的就不碰，是這個工具的底線。
         </p>
-      </div>
+      </motion.div>
 
       <h3 className="mb-6 text-center font-heading text-xl font-semibold tracking-wide text-foreground">
         常見問題
       </h3>
 
-      <div className="space-y-3">
+      <motion.div
+        variants={staggerContainer}
+        initial="hidden"
+        whileInView="show"
+        viewport={viewport}
+        className="space-y-3"
+      >
         {FAQS.map(({ q, a }) => (
-          <details
+          <motion.details
             key={q}
+            variants={staggerItem}
             name="faq"
             className="group rounded-xl bg-card/60 ring-1 ring-border backdrop-blur-md transition-colors hover:ring-primary/40 has-[summary:focus-visible]:ring-primary/40 open:ring-primary/30 [&_summary]:list-none"
           >
@@ -59,17 +78,23 @@ export function LandingFaq() {
               <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180 group-hover:text-primary" />
             </summary>
             <p className="px-5 pb-4 text-sm leading-relaxed text-muted-foreground">{a}</p>
-          </details>
+          </motion.details>
         ))}
-      </div>
+      </motion.div>
 
       {/* 收尾 CTA */}
-      <div className="mt-16 flex flex-col items-center gap-4 text-center">
+      <motion.div
+        variants={fadeUp}
+        initial="hidden"
+        whileInView="show"
+        viewport={viewport}
+        className="mt-16 flex flex-col items-center gap-4 text-center"
+      >
         <h3 className="font-heading text-2xl font-semibold tracking-wide text-foreground">
           準備好了嗎？
         </h3>
         <Button
-          render={<Link href="/login" />}
+          render={<Link href="/schedule" />}
           nativeButton={false}
           size="lg"
           className="h-11 px-8 text-base shadow-lg shadow-primary/20 transition-transform hover:-translate-y-0.5"
@@ -77,7 +102,7 @@ export function LandingFaq() {
           用校務帳號開始使用
         </Button>
         <p className="text-xs text-muted-foreground">免註冊・密碼不入庫</p>
-      </div>
+      </motion.div>
     </section>
   )
 }
