@@ -10,9 +10,9 @@ api/  →  agent/  →  actions/  →  parsers/
                               →  client.py
 ```
 
-對外只有 Caddy `:80`，依 path + method 同源分流：`/api/*`、POST `/login` `/chat` `/answer` → backend；其餘頁面 → frontend。前端走相對路徑、後端免 CORS。完整設計見下方 @public/system-design.md。
+對外只有 Caddy `:80`，依 path + method 同源分流：`/api/*`、POST `/login` `/chat` `/answer` → backend；其餘頁面 → frontend。前端走相對路徑、後端免 CORS。完整設計見下方 @docs/system-design.md。
 
-## 開發鐵則（細節見 @public/CONTRIBUTING.md）
+## 開發鐵則（細節見 @docs/CONTRIBUTING.md）
 
 - **依賴方向嚴格單向**：`parsers/` 不能 import `client`/`actions`；`client.py` 零業務邏輯。
 - **action 回傳型別**：查詢類 `list[dict]`、動作類 `{"success": bool|None, "message": str}`；一律加 return type annotation。
@@ -22,7 +22,7 @@ api/  →  agent/  →  actions/  →  parsers/
 
 ## AI 對話行為
 
-`ChatAgent`（`backend/src/agent/`）如何把自然語言對應到工具、解讀結果、用中文回答，見 @public/AI_GUIDE.md（含工具清單、假別代碼、節次順序等領域參考）。
+`ChatAgent`（`backend/src/agent/`）如何把自然語言對應到工具、解讀結果、用中文回答，見 @docs/AI_GUIDE.md（含工具清單、假別代碼、節次順序等領域參考）。
 
 ## 常用指令
 
