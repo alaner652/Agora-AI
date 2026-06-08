@@ -31,6 +31,7 @@ from agent import (
 )
 from session import refresh_api as _fresh_login
 from log import get_logger, bind_request, bind_uid, clear_request
+import summary
 
 from .models import AnswerRequest, ChatRequest, LoginRequest, LoginResponse
 from .routes import router as data_router
@@ -49,9 +50,31 @@ _SERVER_LLM_AVAILABLE = bool(_LLM_API_KEY)
 _FREE_DAILY_PER_USER  = int(os.getenv("FREE_DAILY_PER_USER", "20"))
 _FREE_DAILY_GLOBAL    = int(os.getenv("FREE_DAILY_GLOBAL", "500"))
 
+# 每日摘要排程：到點由跑著的後端自己彙整推 webhook（取代外部 cron）。
+# DAILY_SUMMARY_AT 為 Asia/Taipei 的 HH:MM；留空關閉。需設好 webhook 才會啟用。
+_DAILY_SUMMARY_AT = os.getenv("DAILY_SUMMARY_AT", "00:10")
+
 _registry: AgentRegistry | None = None
 
 _log = get_logger("api")
+
+
+async def _daily_summary_loop(hh: int, mm: int) -> None:
+    """每日於 Asia/Taipei HH:MM 彙整前一日指標推 webhook。
+
+    在 lifespan 內、與請求共用同一 event loop —— 專案跑著就會自己送，不靠 cron。
+    彙整是阻塞 IO（讀檔/SQLite），丟到執行緒避免卡住事件迴圈。
+    """
+    while True:
+        await asyncio.sleep(summary.seconds_until(hh, mm))
+        try:
+            day = summary.day_to_summarize()
+            text, posted = await asyncio.to_thread(summary.send, day)
+            _log.info("daily_summary", day=day, posted=posted)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:  # noqa: BLE001
+            _log.warning("daily_summary_failed", error=str(e))
 
 
 @asynccontextmanager
@@ -67,7 +90,21 @@ async def lifespan(app: FastAPI):
     llm = OpenAI(api_key=_LLM_API_KEY, base_url=_LLM_BASE_URL)
     _registry = AgentRegistry(llm=llm, model=_LLM_MODEL)
     app.state.registry = _registry
-    yield
+
+    # 每日摘要排程：設了時間且有 webhook 才啟用。
+    summary_task = None
+    hhmm = summary.parse_hhmm(_DAILY_SUMMARY_AT) if _DAILY_SUMMARY_AT else None
+    if hhmm and summary.webhook_url():
+        summary_task = asyncio.create_task(_daily_summary_loop(*hhmm))
+        _log.info("daily_summary_scheduled", at=_DAILY_SUMMARY_AT)
+    elif _DAILY_SUMMARY_AT and not summary.webhook_url():
+        _log.info("daily_summary_disabled", reason="no webhook url")
+
+    try:
+        yield
+    finally:
+        if summary_task:
+            summary_task.cancel()
 
 
 limiter = Limiter(key_func=get_remote_address)

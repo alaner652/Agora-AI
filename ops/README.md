@@ -53,22 +53,18 @@ backend/logs/*.jsonl ──tail──> promtail ──push──> loki <──qu
 {job="agora-backend", level=~"error|critical"}
 ```
 
-## 不想跑 Grafana？每日摘要腳本
+## 不想跑 Grafana？每日摘要（內建排程，免 cron）
 
-對單機/低流量，常駐 Loki+Grafana 偏重。[backend/scripts/daily_summary.py](../backend/scripts/daily_summary.py) 是輕量替代：純標準庫，讀 `logs/*.jsonl` + SQLite，彙整當日**活躍人數、對話/LLM 呼叫、token 用量、共用 AI 用量、免費額度命中、錯誤數**，推到 webhook。
+對單機/低流量，常駐 Loki+Grafana 偏重。後端**自己**會排程每日摘要——讀 `logs/*.jsonl` + SQLite，彙整**活躍人數、對話/LLM 呼叫、token 用量、共用 AI 用量、免費額度命中、錯誤數**推到 webhook。核心在 [backend/src/summary.py](../backend/src/summary.py)，排程掛在 FastAPI lifespan（[app.py](../backend/src/api/app.py) `_daily_summary_loop`）。
+
+啟用條件：設好 webhook（`SUMMARY_WEBHOOK_URL`，沒設則 fallback `ALERT_WEBHOOK_URL`）+ `DAILY_SUMMARY_AT`（Asia/Taipei `HH:MM`，預設 `00:10`，留空關閉）。專案只要跑著，到點就送前一日摘要，**不需 cron、不需 exec**。
+
+手動檢視 / 補跑用 CLI（[scripts/daily_summary.py](../backend/scripts/daily_summary.py)，與排程共用 `summary.py`）：
 
 ```bash
-# 先看內容（不推送）
-docker compose exec backend python scripts/daily_summary.py --dry-run
-
-# 在 host 直接跑也行（logs/ data/ 都是掛出來的 volume）
-cd backend && python3 scripts/daily_summary.py --yesterday
-```
-
-webhook 取自 `SUMMARY_WEBHOOK_URL`，沒設則 fallback `ALERT_WEBHOOK_URL`。排程（每天 00:10 推前一天）：
-
-```cron
-10 0 * * * cd /path/to/Agora-AI && docker compose exec -T backend python scripts/daily_summary.py --yesterday
+docker compose exec backend python scripts/daily_summary.py --dry-run     # 今天，只印不推
+docker compose exec backend python scripts/daily_summary.py --date 2026-06-08
+cd backend && python3 scripts/daily_summary.py --yesterday                # host 直接跑亦可
 ```
 
 > 日界用 Asia/Taipei，對齊額度計算；會自動讀 rotate 過的 `*.jsonl.YYYY-MM-DD`。

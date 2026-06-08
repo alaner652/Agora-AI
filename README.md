@@ -74,7 +74,8 @@ cd frontend && npm install && npm run dev             # :3000
 | `ALERT_WEBHOOK_URL` | | 設了才啟用：WARNING+ 即時推到 Discord / Slack webhook（內容已遮蔽機密）|
 | `ALERT_COOLDOWN` | | 同一告警的冷卻秒數，預設 `60`，避免洗版 |
 | `GRAFANA_USER` / `GRAFANA_PASSWORD` | | 觀測性 stack 的 Grafana 登入帳密，預設 `admin`/`admin`（見下方「觀測性」）|
-| `SUMMARY_WEBHOOK_URL` | | 每日摘要腳本推送目標；未設則 fallback `ALERT_WEBHOOK_URL`（見下方「觀測性」）|
+| `SUMMARY_WEBHOOK_URL` | | 每日摘要推送目標；未設則 fallback `ALERT_WEBHOOK_URL`（見下方「觀測性」）|
+| `DAILY_SUMMARY_AT` | | 後端內建每日摘要排程時間（Asia/Taipei `HH:MM`，預設 `00:10`，留空關閉）|
 
 **LLM** 走 OpenAI 相容 API，支援 Gemini / OpenAI / Ollama。登入後也可在前端 **Settings** 即時切換，優先於 `.env`、免重啟。
 
@@ -129,7 +130,7 @@ docker compose --profile observability up -d
 
 Promtail tail log 檔推進 Loki，**不需改後端**；與既有的 `ALERT_WEBHOOK_URL` 即時告警互補（一個看歷史趨勢、一個即時通知）。詳見 [ops/README.md](ops/README.md)。
 
-**輕量替代**：單機/低流量不想常駐 Grafana，可改用 [backend/scripts/daily_summary.py](backend/scripts/daily_summary.py)——讀 log + SQLite 產**每日摘要**（活躍人數、token 用量、額度命中、錯誤數）推到 webhook，純標準庫、cron 一行搞定。
+**輕量替代**：單機/低流量不想常駐 Grafana，後端**內建每日摘要排程**（[src/summary.py](backend/src/summary.py) + lifespan）——到 `DAILY_SUMMARY_AT` 自己讀 log + SQLite 產摘要（活躍人數、token 用量、額度命中、錯誤數）推 webhook，**免 cron**；手動補跑用 [scripts/daily_summary.py](backend/scripts/daily_summary.py)。
 
 ---
 
