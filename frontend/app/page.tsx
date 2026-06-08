@@ -7,9 +7,10 @@ import { LandingFaq } from '@/components/landing/LandingFaq'
 import { LandingFooter } from '@/components/landing/LandingFooter'
 
 export const metadata: Metadata = {
-  title: 'Agora AI — 更好用的校務系統體驗',
+  title: 'Agora AI — 你的校務，一句話就好',
   description:
-    '學生自製的 TPCU 校務助理：課表、缺曠、成績、假單一站查詢，還能用對話操作。用校務帳號登入，密碼不入庫。',
+    '學生自製的 TPCU 校務助理：課表、缺曠、成績、假單一站看完，還能用對話查詢與操作，會改動的動作先確認。用校務帳號登入，密碼不入庫。',
+  authors: [{ name: 'small R' }],
 }
 
 /**

@@ -33,16 +33,16 @@ export function LandingHero() {
 
         {/* LCP 元素:立即渲染,不靠 opacity 進場以免延後 LCP */}
         <h1 className="font-heading text-4xl font-semibold leading-tight tracking-wide text-foreground sm:text-5xl md:text-6xl">
-          重新設計的
-          <span className="text-primary">校務系統</span>
-          體驗
+          你的校務,
+          <span className="text-primary">一句話就好</span>
+          。
         </h1>
 
         <motion.p
           variants={staggerItem}
           className="max-w-xl text-base text-muted-foreground sm:text-lg"
         >
-          課表、缺曠、成績、假單，一個畫面看完，還能直接用對話查詢與操作。
+          課表、缺曠、成績、假單，一個畫面看完，剩下的用講的就行 —— 你說,它替你查、替你辦。
           <br className="hidden sm:block" />
           用你<span className="text-foreground">現有的校務帳號</span>登入，不必另外註冊。
         </motion.p>

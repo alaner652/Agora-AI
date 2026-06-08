@@ -20,6 +20,9 @@ export function LandingFooter() {
             <br />
             密碼不入庫、連線憑證只留記憶體、設定全程加密。
           </p>
+          <p className="text-xs text-muted-foreground/70">
+            由 <span className="font-medium text-foreground">small R</span> 設計與開發
+          </p>
         </div>
 
         <nav aria-label="頁尾導覽" className="flex flex-col gap-2 text-sm">
@@ -41,7 +44,7 @@ export function LandingFooter() {
 
       <div className="border-t border-border/60">
         <p className="mx-auto w-full max-w-5xl px-6 py-4 text-center text-xs text-muted-foreground/70">
-          © {year} Agora AI · 學生自製專案
+          © {year} Agora AI · 由 small R 打造
         </p>
       </div>
     </footer>

@@ -212,7 +212,7 @@ export function LandingPreview() {
         className="mb-12 text-center"
       >
         <h2 className="font-heading text-3xl font-semibold tracking-wide text-foreground sm:text-4xl">
-          用講的,它就幫你做
+          你說,它就替你做。
         </h2>
         <p className="mt-3 text-muted-foreground">
           查課表、看缺曠、送假單 —— 一句話的事;會改動資料的動作一定先問過你。
