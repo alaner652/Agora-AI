@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 _MAX_MESSAGES = 40
 
 
@@ -39,9 +38,8 @@ class ChatMemory:
             role = trimmed[start].get("role")
             if role == "user":
                 break
-            if role == "assistant":
-                if start == 0 or trimmed[start - 1].get("role") != "tool":
-                    break
+            if role == "assistant" and (start == 0 or trimmed[start - 1].get("role") != "tool"):
+                break
             start += 1
 
         if start >= len(trimmed):

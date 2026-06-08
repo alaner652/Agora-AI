@@ -9,6 +9,7 @@ instead of rewriting the full conversation JSON (O(n²)).
 
 from __future__ import annotations
 
+import contextlib
 import sqlite3
 import time
 
@@ -46,10 +47,8 @@ def init_sessions_db() -> None:
         cols = {row[1] for row in conn.execute("PRAGMA table_info(chat_sessions)")}
         for old_col in ("turns_json", "messages_json"):
             if old_col in cols:
-                try:
+                with contextlib.suppress(Exception):  # SQLite < 3.35
                     conn.execute(f"ALTER TABLE chat_sessions DROP COLUMN {old_col}")
-                except Exception:
-                    pass  # SQLite < 3.35
         for new_col, definition in [
             ("turn_count", "INTEGER NOT NULL DEFAULT 0"),
             ("title", "TEXT NOT NULL DEFAULT ''"),
@@ -169,9 +168,7 @@ def delete_all_sessions(uid: str) -> int:
             return 0
         ph = ",".join("?" * len(ids))
         conn.execute(f"DELETE FROM chat_session_turns WHERE session_id IN ({ph})", ids)
-        try:
+        with contextlib.suppress(sqlite3.OperationalError):
             conn.execute(f"DELETE FROM conversation_messages WHERE session_id IN ({ph})", ids)
-        except sqlite3.OperationalError:
-            pass
         conn.execute("DELETE FROM chat_sessions WHERE uid = ?", (uid,))
         return len(ids)

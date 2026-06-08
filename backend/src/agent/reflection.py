@@ -30,14 +30,13 @@ def reflect(tool_name: str, result_json: str) -> str:
     if tool_name in _FETCH_TOOLS and isinstance(data, list) and len(data) == 0:
         return json.dumps({"results": [], "note": "查無資料"}, ensure_ascii=False)
 
-    if tool_name == "get_leave_form" and isinstance(data, dict):
-        if not data.get("scheduled"):
-            data["note"] = (
-                "請假表單顯示今日無排課節次，但此資料來自請假表單頁，"
-                "可能因系統延遲或資料來源不同而不準確。"
-                "請務必呼叫 fetch_schedule 交叉確認今日實際課表，"
-                "確認後再告知使用者是否有課。"
-            )
-            return json.dumps(data, ensure_ascii=False)
+    if tool_name == "get_leave_form" and isinstance(data, dict) and not data.get("scheduled"):
+        data["note"] = (
+            "請假表單顯示今日無排課節次，但此資料來自請假表單頁，"
+            "可能因系統延遲或資料來源不同而不準確。"
+            "請務必呼叫 fetch_schedule 交叉確認今日實際課表，"
+            "確認後再告知使用者是否有課。"
+        )
+        return json.dumps(data, ensure_ascii=False)
 
     return result_json

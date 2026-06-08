@@ -25,11 +25,11 @@ class ScheduleEntry:
 
 
 def _parse_period(td) -> tuple[str, str]:
-    lines = [l for l in get_text(td, separator="\n").splitlines() if l.strip()]
+    lines = [ln for ln in get_text(td, separator="\n").splitlines() if ln.strip()]
     if len(lines) < 2:
         return "", ""
     period = lines[0].strip()
-    time = next((l for l in lines[1:] if _TIME_RE.search(l)), "-")
+    time = next((ln for ln in lines[1:] if _TIME_RE.search(ln)), "-")
     return period, time.strip()
 
 
@@ -53,7 +53,7 @@ def parse_schedule(html: str) -> list[ScheduleEntry]:
         periods = {c: _parse_period(cols[c]) for c in (0, 6, 8)}
 
         for course_col, time_col in _TIME_COL.items():
-            lines = [l for l in get_text(cols[course_col], separator="\n").splitlines() if l.strip()]
+            lines = [ln for ln in get_text(cols[course_col], separator="\n").splitlines() if ln.strip()]
             if not lines:
                 continue
 

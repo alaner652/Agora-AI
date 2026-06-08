@@ -6,18 +6,17 @@ import asyncio
 import json
 import pathlib
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
-from typing import AsyncIterator
 
-from openai import OpenAI, APITimeoutError, APIConnectionError, APIStatusError
+from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI
 
 from log import get_logger
 
 from .conv_logger import ConversationLogger
+from .errors import ErrorCode
 from .memory import ChatMemory
 from .reflection import reflect
-from .errors import ErrorCode
 from .tool_meta import get_meta
 from .tools import TOOLS, AskUserError, dispatch
 
@@ -246,14 +245,14 @@ class ChatAgent:
                 + self._memory.get_context(max_msgs=context_length * 4)
             )
 
-            create_kwargs: dict = dict(
-                model=self._model,
-                messages=messages,
-                tools=TOOLS,
-                tool_choice="auto",
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
+            create_kwargs: dict = {
+                "model": self._model,
+                "messages": messages,
+                "tools": TOOLS,
+                "tool_choice": "auto",
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            }
 
             _t_llm = time.monotonic()
             try:
