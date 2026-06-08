@@ -6,9 +6,11 @@ import json
 import pathlib
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import Any
+
+from utils.date import TZ
 
 
 @dataclass
@@ -168,11 +170,16 @@ class ConversationLogger:
         hallucination_risk = path_query and len(calls) == 0
 
         score = 1.0
-        if not all_ok:           score -= 0.4
-        if error_codes:          score -= 0.2
-        if has_unconfirmed:      score -= 0.2
-        if used_confirm:         score += 0.1
-        if hallucination_risk:   score -= 0.3
+        if not all_ok:
+            score -= 0.4
+        if error_codes:
+            score -= 0.2
+        if has_unconfirmed:
+            score -= 0.2
+        if used_confirm:
+            score += 0.1
+        if hallucination_risk:
+            score -= 0.3
         score = max(0.0, min(1.0, round(score, 2)))
 
         return {
@@ -201,7 +208,7 @@ class ConversationLogger:
         self._session = self._new_session()
 
     def close(self) -> None:
-        self._session.ended_at = datetime.now().isoformat(timespec="milliseconds")
+        self._session.ended_at = datetime.now(TZ).isoformat(timespec="milliseconds")
         self._flush()
 
     # ------------------------------------------------------------------
@@ -209,7 +216,7 @@ class ConversationLogger:
     # ------------------------------------------------------------------
 
     def _new_session(self) -> SessionLog:
-        now = datetime.now()
+        now = datetime.now(TZ)
         date_str = now.strftime("%Y-%m-%d")
         existing = list(self._dir.glob(f"{date_str}-session-*.json"))
         idx = len(existing) + 1

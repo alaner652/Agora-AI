@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 import json
+
 import httpx
 
-from log import get_logger
-from actions.fetch_schedule.index import get_options as _sched_options, get_schedule
-from actions.fetch_absence.index import get_options as _abs_options, get_absence
+from actions.apply_leave.index import apply_leave as _apply_leave
+from actions.apply_leave.index import get_leave_form
+from actions.delete_leave.index import delete_leave as _delete_leave
+from actions.fetch_absence.index import get_absence
+from actions.fetch_absence.index import get_options as _abs_options
 from actions.fetch_grades.index import get_grades
 from actions.fetch_leaves.index import get_leaves
-from actions.apply_leave.index import apply_leave as _apply_leave, get_leave_form
-from actions.delete_leave.index import delete_leave as _delete_leave
-from utils.date import today_roc, days_ago_roc
+from actions.fetch_schedule.index import get_options as _sched_options
+from actions.fetch_schedule.index import get_schedule
+from log import get_logger
+from utils.date import days_ago_roc, today_roc, today_taipei
 
 from .errors import ErrorCode
 from .memory import ChatMemory
@@ -211,8 +215,7 @@ async def dispatch(name: str, args: dict, jsessionid: str, memory: ChatMemory) -
     """
     try:
         if name == "get_current_date":
-            from datetime import date as _date
-            today = _date.today()
+            today = today_taipei()
             roc = today_roc()
             return json.dumps({
                 "date_ad": today.isoformat(),

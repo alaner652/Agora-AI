@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import time
+import time as _time
 from dataclasses import dataclass, field
 
 from openai import OpenAI
 
 from agent import ChatAgent, ChatMemory, ConversationLogger
-import time as _time
-from storage.sessions import upsert_session_meta, insert_session_turn
 from storage.messages import upsert_conversation_turn
+from storage.sessions import insert_session_turn, upsert_session_meta
 
 _LOG_DIR_BASE = __import__("pathlib").Path(__file__).parent.parent.parent / "logs" / "api"
 _EVICT_AFTER = 2 * 3600  # seconds of inactivity before eviction
@@ -89,10 +89,6 @@ class AgentRegistry:
                 return None
             state.last_active = time.monotonic()
             return state.agent, state.lock
-
-    def get_jsessionid(self, token: str) -> str | None:
-        state = self._store.get(token)
-        return state.agent._session if state else None
 
     def get_uid(self, token: str) -> str | None:
         state = self._store.get(token)
