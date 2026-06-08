@@ -52,7 +52,7 @@ docker compose up --build -d
 
 ```bash
 cd backend && python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt && python3 main.py   # :8000
+pip install -e '.[dev]' && python3 main.py   # :8000（依賴來源：pyproject.toml）
 
 cd frontend && npm install && npm run dev             # :3000
 ```

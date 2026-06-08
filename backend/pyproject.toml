@@ -6,11 +6,26 @@ build-backend = "hatchling.build"
 name = "tpcu-llm"
 version = "0.1.0"
 requires-python = ">=3.11"
+# 唯一依賴來源（Docker 與 CI 皆從此安裝；requirements.txt 已移除）。
 dependencies = [
     "httpx==0.28.1",
     "beautifulsoup4==4.13.4",
     "python-dotenv==1.2.2",
     "Pillow==12.2.0",
+    "cryptography>=42.0.0",
+    "python-multipart>=0.0.9",
+    "openai>=1.0.0",
+    "structlog>=24.1",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "slowapi>=0.1.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.6",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -20,3 +35,18 @@ packages = ["src"]
 asyncio_mode = "auto"
 pythonpath = ["src"]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+# 只選「真規則 + 可自動修」的集合；刻意不選複雜度(C901/PLR)、docstring(D)、
+# 型別標註(ANN)、blind-except(BLE) —— 本輪不重構、不強推那些。
+select = ["F", "E", "W", "I", "B", "UP", "SIM", "DTZ", "PIE", "C4", "RUF022"]
+# RUF001-003：中文全形標點誤判為「易混淆字元」，本專案刻意用中文，全數忽略。
+# E501：行長以 line-length 為準，不額外硬性攔（多為中文字串/註解）。
+ignore = ["RUF001", "RUF002", "RUF003", "E501"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI 的依賴注入慣用法（預設參數呼叫），非 B008 真問題。
+extend-immutable-calls = ["fastapi.Depends", "fastapi.File", "fastapi.Query", "fastapi.Form"]

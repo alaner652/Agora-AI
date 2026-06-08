@@ -6,12 +6,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# 先裝依賴以利 layer cache（所列套件皆有 wheel，slim 不需編譯器）
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# 程式碼
+# 依賴由 pyproject 安裝（唯一來源）。hatchling 建 wheel 需 src 在場，
+# 故先 copy pyproject + src 再裝；所列套件皆有 wheel，slim 不需編譯器。
+COPY pyproject.toml .
 COPY src ./src
+RUN pip install --no-cache-dir .
+
+# 進入點與維運 CLI（非套件內，runtime 由 main.py 以 sys.path 直接載入 src）
 COPY main.py .
 # 每日摘要等維運 CLI（排程本體在 src/，不靠這個）
 COPY scripts ./scripts
