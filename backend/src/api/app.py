@@ -35,13 +35,19 @@ from log import get_logger, bind_request, bind_uid, clear_request
 from .models import AnswerRequest, ChatRequest, LoginRequest, LoginResponse
 from .routes import router as data_router
 from .state import AgentRegistry
-from storage import init_db, init_user_settings_db, init_sessions_db, init_files_db, init_messages_db, init_settings_db, get_file, get_llm_config
+from storage import init_db, init_user_settings_db, init_sessions_db, init_files_db, init_messages_db, init_settings_db, init_usage_db, get_file, get_llm_config, record_and_check
 
 load_dotenv()
 
 _LLM_API_KEY  = os.getenv("LLM_API_KEY", "")
 _LLM_BASE_URL = os.getenv("LLM_BASE_URL")
 _LLM_MODEL    = os.getenv("LLM_MODEL", "")
+
+# 免費伺服器 LLM 額度（只作用在「沒帶自己金鑰」的使用者）。
+# per-user <= 0 等同關閉免費額度 → 一律走 BYOK（並被友善引導，不是 401）。
+_SERVER_LLM_AVAILABLE = bool(_LLM_API_KEY)
+_FREE_DAILY_PER_USER  = int(os.getenv("FREE_DAILY_PER_USER", "20"))
+_FREE_DAILY_GLOBAL    = int(os.getenv("FREE_DAILY_GLOBAL", "500"))
 
 _registry: AgentRegistry | None = None
 
@@ -57,6 +63,7 @@ async def lifespan(app: FastAPI):
     init_files_db()
     init_messages_db()
     init_settings_db()
+    init_usage_db()
     llm = OpenAI(api_key=_LLM_API_KEY, base_url=_LLM_BASE_URL)
     _registry = AgentRegistry(llm=llm, model=_LLM_MODEL)
     app.state.registry = _registry
@@ -181,6 +188,33 @@ async def _get_agent_or_401(token: str):
     return result
 
 
+async def _enforce_llm_quota(token: str, uid: str) -> None:
+    """免費伺服器 LLM 的額度閘門（每則新訊息計一次）。
+
+    BYOK（自帶金鑰）一律放行；用伺服器 LLM 的人若無可用金鑰或超出每日/全站
+    額度，回 402 + error_code，前端據此引導去設定填自己的金鑰，而非 raw 401。
+    """
+    if _get_registry().is_byok(token):
+        return
+    if not _SERVER_LLM_AVAILABLE or _FREE_DAILY_PER_USER <= 0:
+        _log.info("quota_block", error_code="LLM_001")
+        raise HTTPException(status_code=402, detail={
+            "error": "目前未提供共用 AI，請到設定填入自己的 AI 金鑰即可開始使用。",
+            "error_code": "LLM_001",
+        })
+    ok, code = await asyncio.to_thread(
+        record_and_check, uid, _FREE_DAILY_PER_USER, _FREE_DAILY_GLOBAL
+    )
+    if not ok:
+        _log.info("quota_block", error_code=code)
+        msg = (
+            "今日免費額度已用完，明天再來，或到設定填入自己的 AI 金鑰即可無限使用。"
+            if code == "QUOTA_001"
+            else "今日免費體驗名額已滿，到設定填入自己的 AI 金鑰即可繼續使用。"
+        )
+        raise HTTPException(status_code=402, detail={"error": msg, "error_code": code})
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -210,7 +244,7 @@ async def login(request: Request, body: LoginRequest):
         model = None
 
     token = secrets.token_urlsafe(32)
-    await _get_registry().register(token, body.uid, jsessionid, llm=llm, model=model)
+    await _get_registry().register(token, body.uid, jsessionid, llm=llm, model=model, byok=user_cfg is not None)
     return LoginResponse(token=token)
 
 
@@ -242,6 +276,8 @@ async def chat(request: Request, body: ChatRequest):
 
     if lock.locked():
         raise HTTPException(status_code=429, detail="上一個請求仍在處理中")
+
+    await _enforce_llm_quota(body.token, uid)
 
     image_b64, image_mime = await asyncio.to_thread(_load_attachment, body.file_id, uid)
 

@@ -33,6 +33,7 @@ def _make_persist_fn(uid: str):
 class _UserState:
     uid: str
     agent: ChatAgent
+    byok: bool = False  # True = 使用者自帶金鑰，免費額度不計數、不擋
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     last_active: float = field(default_factory=time.monotonic)
 
@@ -51,10 +52,12 @@ class AgentRegistry:
         jsessionid: str,
         llm: OpenAI | None = None,
         model: str | None = None,
+        byok: bool = False,
     ) -> None:
         """Create a new agent for the user (called on successful /login).
 
         Pass llm/model to override the registry default (per-user config).
+        `byok=True` marks the token as using its own key (exempt from quota).
         """
         async with self._meta_lock:
             log_dir = _LOG_DIR_BASE / uid
@@ -70,7 +73,12 @@ class AgentRegistry:
                 logger=logger,
                 refresh_fn=None,  # no password stored — client must re-login
             )
-            self._store[token] = _UserState(uid=uid, agent=agent)
+            self._store[token] = _UserState(uid=uid, agent=agent, byok=byok)
+
+    def is_byok(self, token: str) -> bool:
+        """True if this token authenticated with its own LLM key (quota-exempt)."""
+        state = self._store.get(token)
+        return bool(state and state.byok)
 
     async def get(self, token: str) -> tuple[ChatAgent, asyncio.Lock] | None:
         """Return (agent, lock) for a token, or None if unknown/evicted."""

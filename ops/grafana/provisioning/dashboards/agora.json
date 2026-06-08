@@ -1,0 +1,168 @@
+{
+  "uid": "agora-overview",
+  "title": "Agora 上線總覽",
+  "tags": ["agora"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": { "list": [] },
+  "annotations": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "HTTP 延遲 p50 / p95 (ms)",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+      "options": {},
+      "targets": [
+        {
+          "refId": "p50",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "quantile_over_time(0.50, {job=\"agora-backend\", event=\"http_request\"} | json | unwrap duration_ms [$__interval])",
+          "legendFormat": "p50"
+        },
+        {
+          "refId": "p95",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "quantile_over_time(0.95, {job=\"agora-backend\", event=\"http_request\"} | json | unwrap duration_ms [$__interval])",
+          "legendFormat": "p95"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "警告 / 錯誤數",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {},
+      "targets": [
+        {
+          "refId": "warn",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({job=\"agora-backend\", level=~\"warning|error|critical\"} [$__interval]))",
+          "legendFormat": "warn+error"
+        },
+        {
+          "refId": "slow",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({job=\"agora-backend\", event=\"http_request\", level=\"warning\"} [$__interval]))",
+          "legendFormat": "慢請求 (>2s)"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "工具失敗數（依工具）",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum by (tool) (count_over_time({job=\"agora-backend\", event=\"agent_tool_call\"} | json | ok=\"false\" [$__interval]))",
+          "legendFormat": "{{tool}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "工具成功率",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({job=\"agora-backend\", event=\"agent_tool_call\"} | json | ok=\"true\" [$__range])) / sum(count_over_time({job=\"agora-backend\", event=\"agent_tool_call\"} [$__range]))",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "活躍使用者（範圍內不重複 uid）",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 8 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "count(sum by (uid) (count_over_time({job=\"agora-backend\", event=\"auth_login\"} | json | ok=\"true\", uid!=\"\" [$__range])))",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "LLM token 用量",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {},
+      "targets": [
+        {
+          "refId": "prompt",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(sum_over_time({job=\"agora-backend\", event=\"llm_call\"} | json | unwrap prompt_tokens [$__interval]))",
+          "legendFormat": "prompt"
+        },
+        {
+          "refId": "completion",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(sum_over_time({job=\"agora-backend\", event=\"llm_call\"} | json | unwrap completion_tokens [$__interval]))",
+          "legendFormat": "completion"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "免費額度命中（依 error_code）",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 16 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum by (error_code) (count_over_time({job=\"agora-backend\", event=\"quota_block\"} [$__interval]))",
+          "legendFormat": "{{error_code}}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "登入失敗數",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 16 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({job=\"agora-backend\", event=\"auth_login\"} | json | ok=\"false\" [$__interval]))",
+          "legendFormat": "登入失敗"
+        }
+      ]
+    }
+  ]
+}

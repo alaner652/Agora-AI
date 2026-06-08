@@ -18,6 +18,7 @@ from .sessions import (
 from .files import init_files_db, insert_file, get_file
 from .messages import init_messages_db, upsert_conversation_turn, get_conversation_messages, get_session_display_messages
 from .settings import init_settings_db, get_settings, patch_settings
+from .usage import init_usage_db, record_and_check
 
 __all__ = [
     "init_db", "save_history", "load_history", "clear_history", "get_viewed_session_id",
@@ -28,4 +29,5 @@ __all__ = [
     "init_files_db", "insert_file", "get_file",
     "init_messages_db", "upsert_conversation_turn", "get_conversation_messages", "get_session_display_messages",
     "init_settings_db", "get_settings", "patch_settings",
+    "init_usage_db", "record_and_check",
 ]

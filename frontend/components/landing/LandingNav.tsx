@@ -63,6 +63,7 @@ export function LandingNav() {
         <div className="flex items-center gap-1 sm:gap-2">
           <Link href="#features" className={linkCls}>功能</Link>
           <Link href="#preview" className={linkCls}>展示</Link>
+          <Link href="#pricing" className={linkCls}>定價</Link>
           <Link href="#faq" className={linkCls}>常見問題</Link>
 
           {/* 深淺色切換(系統 → 淺 → 深 循環),mounted 後才渲染 */}

@@ -295,9 +295,15 @@ export function ChatView({ initialMessages, initialSessionId }: ChatViewProps) {
         updateLast({ toolCalls: [...toolCalls], aborted: true })
         return
       }
-      const detail = (err as { detail?: { error_code?: string } }).detail
+      const detail = (err as { detail?: { error_code?: string; error?: string } }).detail
       if (detail?.error_code === 'AUTH_002' || detail?.error_code === 'NET_002') {
         handleSessionExpired(); return
+      }
+      // 免費額度用完 / 未設金鑰：給友善訊息並引導去設定填自己的 AI 金鑰
+      if (detail?.error_code === 'LLM_001' || detail?.error_code === 'QUOTA_001' || detail?.error_code === 'QUOTA_002') {
+        const msg = detail.error || '目前無法使用共用 AI。'
+        updateLast({ content: `${msg}\n\n[前往設定填入金鑰 →](/settings/llm)` })
+        return
       }
       updateLast({ content: assistantText || '發生錯誤，請稍後再試。' })
     } finally {

@@ -33,6 +33,9 @@ export function LandingFooter() {
           <Link href="#preview" className="text-muted-foreground transition-colors hover:text-foreground">
             展示
           </Link>
+          <Link href="#pricing" className="text-muted-foreground transition-colors hover:text-foreground">
+            定價
+          </Link>
           <Link href="#faq" className="text-muted-foreground transition-colors hover:text-foreground">
             常見問題
           </Link>

@@ -3,6 +3,7 @@ import { LandingNav } from '@/components/landing/LandingNav'
 import { LandingHero } from '@/components/landing/LandingHero'
 import { LandingFeatures } from '@/components/landing/LandingFeatures'
 import { LandingPreview } from '@/components/landing/LandingPreview'
+import { LandingPricing } from '@/components/landing/LandingPricing'
 import { LandingFaq } from '@/components/landing/LandingFaq'
 import { LandingFooter } from '@/components/landing/LandingFooter'
 
@@ -33,6 +34,7 @@ export default function HomePage() {
         <LandingHero />
         <LandingFeatures />
         <LandingPreview />
+        <LandingPricing />
         <LandingFaq />
       </main>
       <LandingFooter />

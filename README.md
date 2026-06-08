@@ -66,12 +66,14 @@ cd frontend && npm install && npm run dev             # :3000
 |------|:--:|------|
 | `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` | ✓ | 預設 LLM（OpenAI 相容） |
 | `SETTINGS_ENCRYPT_KEY` | ✓ | 加密使用者設定的金鑰，**長期固定**，更換會使既有設定無法解開 |
+| `FREE_DAILY_PER_USER` / `FREE_DAILY_GLOBAL` | | 免費伺服器 LLM 的每人/全站每日上限（預設 `20`/`500`）；超過引導 BYOK。設 `FREE_DAILY_PER_USER=0` 或不填 `LLM_API_KEY` 即純 BYOK |
 | `CORS_ALLOW_ORIGINS` | | 同源部署不需要；僅跨來源直連時才設 |
 | `NEXT_PUBLIC_API_URL` | | 前端 build-time，瀏覽器端後端 URL；同源留空，本機開發設 `http://localhost:8000` |
 | `API_INTERNAL_URL` | | 前端 runtime，server component 內網 URL；compose 設 `http://backend:8000` |
 | `LOG_LEVEL` | | `tpcu.*` logger 層級，預設 `INFO` |
 | `ALERT_WEBHOOK_URL` | | 設了才啟用：WARNING+ 即時推到 Discord / Slack webhook（內容已遮蔽機密）|
 | `ALERT_COOLDOWN` | | 同一告警的冷卻秒數，預設 `60`，避免洗版 |
+| `GRAFANA_USER` / `GRAFANA_PASSWORD` | | 觀測性 stack 的 Grafana 登入帳密，預設 `admin`/`admin`（見下方「觀測性」）|
 
 **LLM** 走 OpenAI 相容 API，支援 Gemini / OpenAI / Ollama。登入後也可在前端 **Settings** 即時切換，優先於 `.env`、免重啟。
 
@@ -80,6 +82,8 @@ cd frontend && npm install && npm run dev             # :3000
 | Gemini | `https://generativelanguage.googleapis.com/v1beta/openai/` | `gemini-3.1-flash-lite` |
 | OpenAI | （留空） | `gpt-4o-mini` |
 | Ollama | `http://localhost:11434/v1/` | `llama3` |
+
+**免費額度與自備金鑰（BYOK）**：沒在設定填自己金鑰的使用者，走伺服器共用 LLM，受 `FREE_DAILY_PER_USER` / `FREE_DAILY_GLOBAL` 每日上限約束；額度用完或未提供共用金鑰時，`/chat` 回 **402** 並引導使用者去設定填自己的金鑰（友善提示，非 raw 401）。填了自己金鑰即不受額度限制。設 `FREE_DAILY_PER_USER=0` 或不填 `LLM_API_KEY` 即**純 BYOK 模式**。
 
 ---
 
@@ -112,6 +116,20 @@ docker compose -f docker-compose.deploy.yml up -d
 
 ---
 
+## 觀測性（選用）
+
+結構化 log 已落在 `backend/logs/`（`system.jsonl` / `errors.jsonl`，JSON Lines、每日 rotate 保留 30 天）。需要儀表板時，多帶 `observability` profile 起一套 Loki + Grafana（**平時不啟動**，不影響正式服務）：
+
+```bash
+docker compose --profile observability up -d
+```
+
+開 **http://127.0.0.1:3001**（Grafana，僅綁本機；帳密 `admin`/`admin` 或 `GRAFANA_USER` / `GRAFANA_PASSWORD`），Dashboards → **「Agora 上線總覽」**：HTTP 延遲 p50/p95、錯誤 / 慢請求、工具成敗、LLM token、活躍人數、免費額度命中、登入失敗。
+
+Promtail tail log 檔推進 Loki，**不需改後端**；與既有的 `ALERT_WEBHOOK_URL` 即時告警互補（一個看歷史趨勢、一個即時通知）。詳見 [ops/README.md](ops/README.md)。
+
+---
+
 ## 功能一覽
 
 | 功能 | 說明 |
@@ -120,7 +138,7 @@ docker compose -f docker-compose.deploy.yml up -d
 | 課表 / 成績 | 依學期查詢，可產生圖表 |
 | 缺曠 | 依學期 + 日期範圍 |
 | 假單 | 查詢 / 申請（支援圖片）/ 刪除 |
-| 自訂 LLM | 設定自己的 base_url / api_key / model |
+| 自訂 LLM（BYOK） | 設定自己的 base_url / api_key / model，填了即不受免費額度限制 |
 
 ---
 
@@ -146,6 +164,7 @@ Agora-AI/
 ├── docker-compose.yml          # 本機 build 部署
 ├── docker-compose.deploy.yml   # 拉 registry image 部署
 ├── Caddyfile                   # 反向代理路由
+├── ops/                        # 觀測性 stack：Loki / Promtail / Grafana 設定與儀表板
 ├── backend/                    # FastAPI（src/: agent / api / actions / parsers）
 └── frontend/                   # Next.js（app/(app)/: chat / schedule / grades / absence / leaves / settings）
 ```
