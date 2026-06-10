@@ -332,9 +332,40 @@ async def post_history(body: SaveHistoryBody, uid: str = Depends(_resolve_uid)):
     return {"ok": True}
 
 
-@router.delete("/history")
-async def delete_history(uid: str = Depends(_resolve_uid)):
+async def _clear_current_conversation(reg, token: str, uid: str) -> None:
+    """Wipe the user's *current* conversation everywhere it lives.
+
+    GET /history reconstructs the live conversation from the in-memory agent's
+    current session, so clearing the SQLite stores alone is not enough — the
+    agent session must be rotated too, otherwise the "deleted" conversation
+    reappears. Order matters: rotate first (flushes the old session to the DB),
+    then delete that session's rows, then clear the live snapshot.
+    """
+    sid = reg.get_current_session_id(token)
+    await reg.new_session(token)
+    if sid:
+        await asyncio.to_thread(delete_session, sid, uid)
     await asyncio.to_thread(clear_history, uid)
+
+
+async def _clear_all_conversations(reg, token: str, uid: str) -> int:
+    """Wipe every conversation: rotate the live agent, then nuke all stores."""
+    await reg.new_session(token)
+    deleted = await asyncio.to_thread(delete_all_sessions, uid)
+    await asyncio.to_thread(clear_history, uid)
+    return deleted
+
+
+@router.delete("/history")
+async def delete_history(
+    creds: HTTPAuthorizationCredentials = Depends(_bearer),
+    request: Request = None,
+):
+    reg = _get_registry(request)
+    uid = await reg.get_uid_checked(creds.credentials)
+    if uid is None:
+        raise HTTPException(status_code=401, detail={"error": "Token 無效或已過期", "error_code": "AUTH_002"})
+    await _clear_current_conversation(reg, creds.credentials, uid)
     return {"ok": True}
 
 
@@ -454,14 +485,28 @@ async def patch_user_settings(body: SettingsPatch, uid: str = Depends(_resolve_u
 
 
 @router.delete("/settings/history")
-async def delete_history_settings(uid: str = Depends(_resolve_uid)):
-    await asyncio.to_thread(clear_history, uid)
+async def delete_history_settings(
+    creds: HTTPAuthorizationCredentials = Depends(_bearer),
+    request: Request = None,
+):
+    reg = _get_registry(request)
+    uid = await reg.get_uid_checked(creds.credentials)
+    if uid is None:
+        raise HTTPException(status_code=401, detail={"error": "Token 無效或已過期", "error_code": "AUTH_002"})
+    await _clear_current_conversation(reg, creds.credentials, uid)
     return {"ok": True}
 
 
 @router.delete("/settings/sessions")
-async def delete_all_sessions_settings(uid: str = Depends(_resolve_uid)):
-    deleted = await asyncio.to_thread(delete_all_sessions, uid)
+async def delete_all_sessions_settings(
+    creds: HTTPAuthorizationCredentials = Depends(_bearer),
+    request: Request = None,
+):
+    reg = _get_registry(request)
+    uid = await reg.get_uid_checked(creds.credentials)
+    if uid is None:
+        raise HTTPException(status_code=401, detail={"error": "Token 無效或已過期", "error_code": "AUTH_002"})
+    deleted = await _clear_all_conversations(reg, creds.credentials, uid)
     return {"deleted": deleted}
 
 

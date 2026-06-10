@@ -154,6 +154,14 @@ def delete_session(session_id: str, uid: str) -> bool:
                 "DELETE FROM chat_session_turns WHERE session_id = ?",
                 (session_id,),
             )
+            # 也清掉重建顯示用的 rich 訊息，否則 get_session_display_messages
+            # 仍可能撈到孤兒列。conversation_messages 由 storage.messages 建立，
+            # 此處可能尚未建表，故吞掉 OperationalError。
+            with contextlib.suppress(sqlite3.OperationalError):
+                conn.execute(
+                    "DELETE FROM conversation_messages WHERE session_id = ?",
+                    (session_id,),
+                )
             return True
     return False
 

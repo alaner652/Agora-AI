@@ -17,6 +17,7 @@ export interface TextMessage {
   aborted?: boolean
   attachments?: Attachment[]
   attachmentPreview?: string  // blob URL for local preview only, not persisted
+  selectedOption?: string     // set when this user message is an ask_user 選項回覆 (chip)
 }
 
 export interface SessionMeta {

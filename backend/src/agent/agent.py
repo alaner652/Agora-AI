@@ -16,9 +16,8 @@ from log import get_logger
 from .conv_logger import ConversationLogger
 from .errors import ErrorCode
 from .memory import ChatMemory
-from .reflection import reflect
-from .tool_meta import get_meta
-from .tools import TOOLS, AskUserError, dispatch
+from .reflection import reflect, reflect_repeated_failure
+from .tools import TOOLS, AskUserError, dispatch, get_meta
 
 _log = get_logger("agent")
 
@@ -58,6 +57,23 @@ class DoneEvent:
 
 
 AgentEvent = ToolCallEvent | ToolResultEvent | TextDeltaEvent | AskUserEvent | DoneEvent
+
+
+def _args_signature(args: dict) -> str:
+    """Stable string signature of tool args, for repeated-failure detection."""
+    try:
+        return json.dumps(args, sort_keys=True, ensure_ascii=False)
+    except (TypeError, ValueError):
+        return repr(sorted(args.items()))
+
+
+def _extract_error(parsed: object) -> tuple[str, str]:
+    """Pull (error_code, message) out of a parsed tool-result dict."""
+    if isinstance(parsed, dict):
+        code = str(parsed.get("error_code", ErrorCode.UNKNOWN))
+        msg = str(parsed.get("error") or parsed.get("message") or "（未知錯誤）")
+        return code, msg
+    return str(ErrorCode.UNKNOWN), "（未知錯誤）"
 
 
 def _load_ai_guide() -> str:
@@ -142,6 +158,10 @@ class ChatAgent:
         self._turn_llm_calls: int = 0
         self._turn_llm_ms: float = 0.0
         self._turn_tokens: dict[str, int] = {}
+        # Self-healing state (reset in step()): the last tool error seen this turn,
+        # and a count of repeated (tool, args, error) signatures for retry control.
+        self._turn_last_error: dict | None = None
+        self._turn_fail_counts: dict[tuple, int] = {}
 
     # ------------------------------------------------------------------
     # Public interface
@@ -168,6 +188,8 @@ class ChatAgent:
         self._turn_llm_calls = 0
         self._turn_llm_ms = 0.0
         self._turn_tokens = {}
+        self._turn_last_error = None
+        self._turn_fail_counts = {}
 
         # Load per-user LLM behaviour settings fresh each turn
         uid = self._memory.recall("uid", "")
@@ -181,6 +203,7 @@ class ChatAgent:
         self._cfg_max_tokens = int(_llm.get("max_tokens", 2048))
         self._cfg_system_prompt = str(_llm.get("system_prompt", "") or "")
         self._cfg_context_length = int(_llm.get("context_length", 20))
+        self._cfg_max_iterations = max(1, int(_llm.get("max_iterations", 20)))
 
         if self._logger:
             self._logger.on_user_message(user_message)
@@ -206,21 +229,37 @@ class ChatAgent:
         tool_call_id = self._pending_ask["tool_call_id"]
         self._pending_ask = None
 
+        # Start a fresh logged turn for the answer so the option reply and the
+        # follow-up assistant response are persisted (and reproducible on session
+        # switch). _recent_tool_names is intentionally NOT reset — the prior
+        # ask_user must stay visible to the danger-confirmation gate.
+        self._turn_llm_calls = 0
+        self._turn_llm_ms = 0.0
+        self._turn_tokens = {}
+        self._turn_last_error = None
+        self._turn_fail_counts = {}
+        if self._logger:
+            self._logger.on_user_message(selected, kind="option")
+
         result = json.dumps({"selected": selected}, ensure_ascii=False)
         self._memory.add({
             "role": "tool",
             "tool_call_id": tool_call_id,
             "content": result,
         })
-        async for event in self._run_loop():
-            yield event
+        try:
+            async for event in self._run_loop():
+                yield event
+        finally:
+            if self._logger and self._logger._current_turn is not None:
+                self._logger.flush_on_error()
 
     # ------------------------------------------------------------------
     # Internal loop
     # ------------------------------------------------------------------
 
     async def _run_loop(self) -> AsyncIterator[AgentEvent]:
-        max_llm_calls = 20
+        max_llm_calls = getattr(self, "_cfg_max_iterations", 20)
         llm_call_count = 0
 
         # Per-user behaviour (set in step(); fall back to defaults)
@@ -234,7 +273,26 @@ class ChatAgent:
 
         while True:
             if llm_call_count >= max_llm_calls:
-                yield TextDeltaEvent(text="\n\n（已達最大請求次數）")
+                # Bounded recursion (原則 4): force-stop with an explicit failure
+                # status and reason, not a vague "max requests" phrase.
+                le = self._turn_last_error
+                if le:
+                    text = (
+                        f"\n\n（無法在 {max_llm_calls} 次嘗試內完成此請求；"
+                        f"最後一步在 {le['tool']} 失敗：{le['message']}。"
+                        "請換個說法或稍後再試。）"
+                    )
+                else:
+                    text = (
+                        f"\n\n（已嘗試 {max_llm_calls} 次仍未能完成此請求，"
+                        "請換個說法或稍後再試。）"
+                    )
+                _log.warning(
+                    "agent_max_iterations",
+                    max_calls=max_llm_calls,
+                    last_error=le,
+                )
+                yield TextDeltaEvent(text=text)
                 yield DoneEvent()
                 return
             llm_call_count += 1
@@ -332,19 +390,37 @@ class ChatAgent:
                     continue
 
                 meta = get_meta(tc.function.name)
-                unconfirmed = (
+                # Declarative state gate (原則 2): a tool's preconditions must have
+                # run this turn, and danger_level>=1 tools must be confirmed via
+                # ask_user first. Both are enforced from the registry metadata —
+                # not hand-coded per tool.
+                missing_pre = [
+                    p for p in meta.preconditions
+                    if p not in self._recent_tool_names
+                ]
+                needs_confirm = (
                     meta.danger_level >= 1
                     and "ask_user" not in self._recent_tool_names
                 )
-                if unconfirmed:
-                    _log.warning(
-                        "tool %s (danger_level=%d) executed without prior ask_user",
-                        tc.function.name, meta.danger_level,
+                gate_error: tuple[str, str] | None = None
+                if missing_pre:
+                    gate_error = (
+                        f"必須先呼叫 {missing_pre[0]} 取得必要資料，才能執行此操作",
+                        str(ErrorCode.PRECONDITION_UNMET),
                     )
-                    import json as _json
-                    result = _json.dumps({
-                        "error": "必須先呼叫 ask_user 向使用者確認，才能執行此操作",
-                        "error_code": str(ErrorCode.CONFIRMATION_REQUIRED),
+                elif needs_confirm:
+                    gate_error = (
+                        "必須先呼叫 ask_user 向使用者確認，才能執行此操作",
+                        str(ErrorCode.CONFIRMATION_REQUIRED),
+                    )
+                if gate_error is not None:
+                    _log.warning(
+                        "tool %s blocked by gate (%s)",
+                        tc.function.name, gate_error[1],
+                    )
+                    result = json.dumps({
+                        "error": gate_error[0],
+                        "error_code": gate_error[1],
                         "success": False,
                     }, ensure_ascii=False)
                     yield ToolResultEvent(name=tc.function.name, ok=False, data=result, unconfirmed=True)
@@ -379,16 +455,38 @@ class ChatAgent:
                     parsed = json.loads(result)
                     ok = not ("error" in parsed or parsed.get("success") is False) if isinstance(parsed, dict) else True
                 except (json.JSONDecodeError, AttributeError):
+                    parsed = None
                     ok = True
                 self._recent_tool_names.append(tc.function.name)
-                yield ToolResultEvent(name=tc.function.name, ok=ok, data=result, unconfirmed=unconfirmed)
+
+                # Error self-healing (原則 3): count repeated (tool, args, error)
+                # signatures so the model is nudged to switch strategy, then the
+                # path is aborted instead of burning iterations on the same failure.
+                abort_path = False
+                if not ok:
+                    err_code, err_msg = _extract_error(parsed)
+                    sig = (tc.function.name, _args_signature(args), err_code)
+                    self._turn_fail_counts[sig] = self._turn_fail_counts.get(sig, 0) + 1
+                    attempts = self._turn_fail_counts[sig]
+                    self._turn_last_error = {
+                        "tool": tc.function.name,
+                        "error_code": err_code,
+                        "message": err_msg,
+                        "attempts": attempts,
+                    }
+                    if attempts == 2:
+                        result = reflect_repeated_failure(tc.function.name, attempts, err_msg, result)
+                    elif attempts >= 3:
+                        abort_path = True
+
+                yield ToolResultEvent(name=tc.function.name, ok=ok, data=result, unconfirmed=False)
                 self._memory.add({
                     "role": "tool",
                     "tool_call_id": tc.id,
                     "content": result,
                 })
                 if self._logger:
-                    self._logger.on_tool_call(tc.function.name, args, result, latency_ms, unconfirmed=unconfirmed)
+                    self._logger.on_tool_call(tc.function.name, args, result, latency_ms, unconfirmed=False)
                 _log.info(
                     "agent_tool_call",
                     tool=tc.function.name,
@@ -396,7 +494,32 @@ class ChatAgent:
                     latency_ms=round(latency_ms, 1),
                 )
 
+                if abort_path:
+                    le = self._turn_last_error
+                    _log.warning(
+                        "agent_repeated_failure",
+                        tool=le["tool"],
+                        error_code=le["error_code"],
+                        attempts=le["attempts"],
+                    )
+                    yield TextDeltaEvent(text=(
+                        f"\n\n（多次嘗試 {le['tool']} 都失敗：{le['message']}。"
+                        "已停止重試，請換個說法或稍後再試。）"
+                    ))
+                    yield DoneEvent()
+                    return
+
             if ask_event is not None:
+                # Finalize this turn with the question as the assistant text, so a
+                # switched-to session shows what was asked instead of an empty
+                # bubble. answer_ask_user() then opens the next turn for the reply.
+                if self._logger and self._logger._current_turn is not None:
+                    self._logger.on_assistant_response(
+                        ask_event.question,
+                        llm_calls=self._turn_llm_calls,
+                        llm_ms=self._turn_llm_ms,
+                        token_usage=self._turn_tokens or None,
+                    )
                 yield ask_event
                 return  # Caller must call answer_ask_user() to continue
 

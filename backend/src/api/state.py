@@ -18,13 +18,14 @@ _EVICT_AFTER = 2 * 3600  # seconds of inactivity before eviction
 
 
 def _make_persist_fn(uid: str):
-    def _persist(sid, _uid, started, ended, count, title, turn_id, user, assistant, tool_calls=None):
+    def _persist(sid, _uid, started, ended, count, title, turn_id, user, assistant, tool_calls=None, user_kind="text"):
         upsert_session_meta(sid, uid, started, ended, count, title)
         insert_session_turn(sid, turn_id, user, assistant)
         upsert_conversation_turn(
             sid, turn_id, user, assistant,
             tool_calls or [],
             _time.time(),
+            user_kind=user_kind,
         )
     return _persist
 
