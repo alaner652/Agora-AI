@@ -345,6 +345,15 @@ async def get_history(
         display = await asyncio.to_thread(get_session_display_messages, session_id, uid)
         if display:
             return {"messages": display, "viewed_session_id": session_id}
+        # session_id 在記憶體存在但 display 為空 — 分兩種情況：
+        # 1. 此 session 已有輪次但只有 slim 格式（較舊資料）→ 用 slim 格式回傳
+        # 2. 此 session 完全是新的、尚未寫入 DB → 回傳空，不能用 SQLite snapshot
+        #    （snapshot 是上個 session 的舊資料，拿來顯示會造成「新對話但顯示舊訊息」）
+        slim = await asyncio.to_thread(get_session_messages_slim, session_id, uid)
+        if slim is not None:
+            return {"messages": slim, "viewed_session_id": session_id}
+        return {"messages": [], "viewed_session_id": None}
+    # 記憶體無 session（例如後端重啟）— 才使用 SQLite snapshot 作為回退
     messages = await asyncio.to_thread(load_history, uid)
     viewed_session_id = await asyncio.to_thread(get_viewed_session_id, uid)
     return {"messages": messages, "viewed_session_id": viewed_session_id}

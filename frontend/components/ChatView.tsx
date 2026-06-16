@@ -409,6 +409,7 @@ export function ChatView({ initialMessages, initialSessionId }: ChatViewProps) {
   function handleSwitchSession(msgs: TextMessage[], sessionId: string) {
     setMessages(msgs)
     setViewingSessionId(sessionId)
+    setInput('')
     setHistoryPanelOpen(false)
   }
 
@@ -416,6 +417,7 @@ export function ChatView({ initialMessages, initialSessionId }: ChatViewProps) {
     // newSession() API call is already made inside SessionHistoryPanel — don't call it again
     setMessages([])
     setViewingSessionId(null)
+    setInput('')
     setHistoryPanelOpen(false)
     router.refresh()  // invalidate cached /chat RSC so navigate-back stays empty
   }

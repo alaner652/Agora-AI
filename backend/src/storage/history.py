@@ -35,7 +35,7 @@ def save_history(uid: str, messages: list[dict], viewed_session_id: str | None =
             VALUES (?, ?, ?, ?)
             ON CONFLICT(uid) DO UPDATE SET
                 messages_json     = excluded.messages_json,
-                viewed_session_id = excluded.viewed_session_id,
+                viewed_session_id = COALESCE(excluded.viewed_session_id, chat_history.viewed_session_id),
                 updated_at        = excluded.updated_at
             """,
             (uid, json.dumps(slim, ensure_ascii=False), viewed_session_id, time.time()),
