@@ -212,10 +212,10 @@ export function LandingPreview() {
         className="mb-12 text-center"
       >
         <h2 className="font-heading text-3xl font-semibold tracking-wide text-foreground sm:text-4xl">
-          你說,它就替你做。
+          說出來，它就替你做。
         </h2>
         <p className="mt-3 text-muted-foreground">
-          查課表、看缺曠、送假單 —— 一句話的事;會改動資料的動作一定先問過你。
+          查課表、看缺曠、送假單，一句話的事。需要改動資料的操作，一定先確認再執行。
         </p>
       </motion.div>
 

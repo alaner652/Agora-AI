@@ -164,6 +164,20 @@ export interface LLMBehaviourPatch {
   context_length?: number
 }
 
+export interface TokenUsageDay {
+  date: string
+  prompt: number
+  completion: number
+  turns: number
+}
+
+export interface TokenUsageResponse {
+  days: TokenUsageDay[]
+  total_prompt: number
+  total_completion: number
+  total_turns: number
+}
+
 export async function getSemesterOptions(): Promise<SemesterOption[]> {
   const res = await apiClient.get<{ semesters: SemesterOption[] }>('/api/semester-options')
   return res.data.semesters ?? []

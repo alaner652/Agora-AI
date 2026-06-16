@@ -40,9 +40,7 @@ from storage import (
     init_messages_db,
     init_sessions_db,
     init_settings_db,
-    init_usage_db,
     init_user_settings_db,
-    record_and_check,
 )
 
 from .models import AnswerRequest, ChatRequest, LoginRequest, LoginResponse
@@ -54,12 +52,6 @@ load_dotenv()
 _LLM_API_KEY  = os.getenv("LLM_API_KEY", "")
 _LLM_BASE_URL = os.getenv("LLM_BASE_URL")
 _LLM_MODEL    = os.getenv("LLM_MODEL", "")
-
-# 免費伺服器 LLM 額度（只作用在「沒帶自己金鑰」的使用者）。
-# per-user <= 0 等同關閉免費額度 → 一律走 BYOK（並被友善引導，不是 401）。
-_SERVER_LLM_AVAILABLE = bool(_LLM_API_KEY)
-_FREE_DAILY_PER_USER  = int(os.getenv("FREE_DAILY_PER_USER", "20"))
-_FREE_DAILY_GLOBAL    = int(os.getenv("FREE_DAILY_GLOBAL", "500"))
 
 # 每日摘要排程：到點由跑著的後端自己彙整推 webhook（取代外部 cron）。
 # DAILY_SUMMARY_AT 為 Asia/Taipei 的 HH:MM；留空關閉。需設好 webhook 才會啟用。
@@ -101,7 +93,6 @@ async def lifespan(app: FastAPI):
     init_files_db()
     init_messages_db()
     init_settings_db()
-    init_usage_db()
     llm = OpenAI(api_key=_LLM_API_KEY, base_url=_LLM_BASE_URL)
     _registry = AgentRegistry(llm=llm, model=_LLM_MODEL)
     app.state.registry = _registry
@@ -245,30 +236,12 @@ async def _get_agent_or_401(token: str):
 
 
 async def _enforce_llm_quota(token: str, uid: str) -> None:
-    """免費伺服器 LLM 的額度閘門（每則新訊息計一次）。
-
-    BYOK（自帶金鑰）一律放行；用伺服器 LLM 的人若無可用金鑰或超出每日/全站
-    額度，回 402 + error_code，前端據此引導去設定填自己的金鑰，而非 raw 401。
-    """
-    if _get_registry().is_byok(token):
-        return
-    if not _SERVER_LLM_AVAILABLE or _FREE_DAILY_PER_USER <= 0:
-        _log.info("quota_block", error_code="LLM_001")
+    if not _get_registry().is_byok(token):
+        _log.info("quota_block", uid=uid, error_code="LLM_001")
         raise HTTPException(status_code=402, detail={
-            "error": "目前未提供共用 AI，請到設定填入自己的 AI 金鑰即可開始使用。",
+            "error": "AI 對話功能需要自備 API 金鑰，請到設定頁填入後即可使用。",
             "error_code": "LLM_001",
         })
-    ok, code = await asyncio.to_thread(
-        record_and_check, uid, _FREE_DAILY_PER_USER, _FREE_DAILY_GLOBAL
-    )
-    if not ok:
-        _log.info("quota_block", error_code=code)
-        msg = (
-            "今日免費額度已用完，明天再來，或到設定填入自己的 AI 金鑰即可無限使用。"
-            if code == "QUOTA_001"
-            else "今日免費體驗名額已滿，到設定填入自己的 AI 金鑰即可繼續使用。"
-        )
-        raise HTTPException(status_code=402, detail={"error": msg, "error_code": code})
 
 
 # ---------------------------------------------------------------------------

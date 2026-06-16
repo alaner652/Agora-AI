@@ -30,9 +30,9 @@ export function FieldLabel({ children }: { children: ReactNode }) {
 
 // ── Slider (label left, value right, range below) ─────────────────────────────
 
-export function Slider({ label, value, min, max, step, format, onChange }: {
+export function Slider({ label, value, min, max, step, format, hint, onChange }: {
   label: string; value: number; min: number; max: number; step: number
-  format: (v: number) => string; onChange: (v: number) => void
+  format: (v: number) => string; hint?: string; onChange: (v: number) => void
 }) {
   return (
     <div>
@@ -43,6 +43,7 @@ export function Slider({ label, value, min, max, step, format, onChange }: {
       <input type="range" min={min} max={max} step={step} value={value}
         onChange={e => onChange(parseFloat(e.target.value))}
         className="w-full h-1 rounded-full appearance-none bg-border cursor-pointer accent-primary" />
+      {hint && <p className="text-[11px] text-muted-foreground/50 mt-1">{hint}</p>}
     </div>
   )
 }

@@ -16,22 +16,22 @@ const FEATURES: Feature[] = [
   {
     icon: Calendar,
     title: '一眼就懂的課表',
-    desc: '一週課表清楚攤開,節次、地點、老師排得明明白白,不必再從密密麻麻的表格裡撈。',
+    desc: '週課表一目了然，節次、地點、授課教師整齊排列，不必再從密密麻麻的系統介面裡翻找。',
   },
   {
     icon: Bot,
-    title: '用講的就好',
-    desc: '「我這週缺幾節課?」「幫我查上學期成績」—— 你說,它就替你查。會改動資料的動作,一定先問過你才送出。',
+    title: 'AI 幫你查，也幫你辦',
+    desc: '直接問：「我這週缺幾節？」「幫我看上學期成績」—— AI 替你查，需要改動資料的動作一定先問過你再執行。',
   },
   {
     icon: Bell,
-    title: '全部,集中在一處',
-    desc: '課表、缺曠、成績、假單收在同一個畫面,而且每次都即時向校務系統取最新資料,不是舊快取。',
+    title: '所有校務，集中一處',
+    desc: '課表、缺曠、成績、假單整合在同一個畫面。每次查詢都即時向校務系統取最新資料，不是舊快取。',
   },
   {
     icon: Smartphone,
-    title: '為手機而生',
-    desc: '為小螢幕重新排版,走在路上也能隨手查課表、送假單。',
+    title: '行動裝置優先',
+    desc: '針對小螢幕重新設計排版，走在路上也能隨手查課表、送假單，操作流暢如原生 app。',
   },
 ]
 
@@ -48,10 +48,10 @@ export function LandingFeatures() {
         className="mb-12 text-center"
       >
         <h2 className="font-heading text-3xl font-semibold tracking-wide text-foreground sm:text-4xl">
-          把日常,重新設計過。
+          把校務日常，重新設計。
         </h2>
         <p className="mt-3 text-muted-foreground">
-          原本的系統堪用,但互動和介面停在上個世代。我們用現代的方式,把同一份校務資料重做了一遍 —— 更快、更順、更放心。
+          原有系統堪用，但互動體驗停在上個世代。Agora AI 用現代介面呈現同一份校務資料 —— 更快、更清晰、更好用。
         </p>
       </motion.div>
 

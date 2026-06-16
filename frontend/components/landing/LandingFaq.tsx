@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { ShieldCheck, ChevronDown } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { fadeUp, staggerContainer, staggerItem } from '@/lib/motion'
 
@@ -11,27 +11,22 @@ interface Qa {
   a: string
 }
 
-// 兩題就是整頁的信任轉換點，老實回答最有說服力。
 const FAQS: Qa[] = [
   {
-    q: '這是學校官方系統嗎？',
-    a: '不是。這是學生自製的工具，不隸屬校方。它只是用你的校務帳號，幫你把「同一份」校務資料整理成更好用的樣子——查到的內容跟你直接登入官方系統一致。',
+    q: '查到的資料是即時的嗎？',
+    a: '是。每次查詢都直接向校務系統取最新資料，缺曠、成績一有更新就能立刻看到，不是快取的舊資料。',
   },
   {
-    q: '我的帳號密碼安全嗎？',
-    a: '帳號密碼只用來代你登入校務系統，不會被存進資料庫；登入後的連線憑證只留在伺服器記憶體中。任何設定都經過加密保存，密碼與連線憑證也絕不會出現在紀錄裡。',
+    q: 'AI 可以幫我送假單嗎？',
+    a: '可以。直接告訴 AI 你要請什麼假、哪幾節，它會幫你整理好細節，並在送出前先讓你確認，確認後才執行。',
   },
   {
-    q: '查到的資料會即時更新嗎？',
-    a: '會。每次查詢都是即時向校務系統取最新資料，不是快取的舊資料，所以缺曠、成績一更新就看得到。',
+    q: 'AI 對話功能需要自己準備金鑰嗎？',
+    a: '需要。AI 對話需要自備 API 金鑰（支援 OpenAI、Anthropic 等主流服務），費用由你的帳戶直接計算，Agora AI 不從中收取任何費用。課表、缺曠、成績、假單等校務功能則完全不需要金鑰。',
   },
   {
-    q: '它會幫我送出假單之類的操作嗎？',
-    a: '可以，但任何會「改動」資料的動作（例如送出或刪除假單）都會先跟你確認過才執行，不會自作主張。',
-  },
-  {
-    q: '使用 AI 對話需要自己準備金鑰嗎？',
-    a: '不用，預設就能直接對話、直接用。若你是進階使用者，也可以填入自己的 AI 金鑰，讓用量與成本完全由你自己掌握。',
+    q: '支援哪些 AI 模型？',
+    a: '目前支援 OpenAI（GPT-4o、GPT-4.1 等）與 Anthropic（Claude 系列）的模型，可在設定頁自由切換，速度與成本自己掌握。',
   },
 ]
 
@@ -40,28 +35,17 @@ const viewport = { once: true, amount: 0.3 }
 export function LandingFaq() {
   return (
     <section id="faq" className="mx-auto w-full max-w-3xl scroll-mt-16 px-6 py-24">
-      {/* 安全摘要：對應「機密不落地」的實際做法，這是真賣點 */}
       <motion.div
         variants={fadeUp}
         initial="hidden"
         whileInView="show"
         viewport={viewport}
-        className="mb-12 flex flex-col items-center gap-3 rounded-2xl bg-card/60 p-8 text-center ring-1 ring-border backdrop-blur-md"
+        className="mb-12 text-center"
       >
-        <span className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-          <ShieldCheck className="size-6" />
-        </span>
-        <h2 className="font-heading text-2xl font-semibold tracking-wide text-foreground">
-          你的資料，我們很在意
+        <h2 className="font-heading text-3xl font-semibold tracking-wide text-foreground sm:text-4xl">
+          常見問題
         </h2>
-        <p className="max-w-md text-sm leading-relaxed text-muted-foreground">
-          密碼不入庫、連線憑證只留記憶體、設定全程加密。能少碰的就不碰，是這個工具的底線。
-        </p>
       </motion.div>
-
-      <h3 className="mb-6 text-center font-heading text-xl font-semibold tracking-wide text-foreground">
-        常見問題
-      </h3>
 
       <motion.div
         variants={staggerContainer}
@@ -86,7 +70,6 @@ export function LandingFaq() {
         ))}
       </motion.div>
 
-      {/* 收尾 CTA */}
       <motion.div
         variants={fadeUp}
         initial="hidden"
@@ -105,7 +88,7 @@ export function LandingFaq() {
         >
           用校務帳號開始使用
         </Button>
-        <p className="text-xs text-muted-foreground">免註冊・密碼不入庫</p>
+        <p className="text-xs text-muted-foreground">免另外註冊，直接用現有帳號登入</p>
       </motion.div>
     </section>
   )
