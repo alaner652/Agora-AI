@@ -22,7 +22,6 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
-import summary
 from agent import (
     AskUserEvent,
     DoneEvent,
@@ -31,7 +30,7 @@ from agent import (
     ToolResultEvent,
 )
 from log import bind_request, bind_uid, clear_request, get_logger
-from session import refresh_api as _fresh_login
+from session import login_with_profile as _fresh_login
 from storage import (
     get_file,
     get_llm_config,
@@ -40,9 +39,7 @@ from storage import (
     init_messages_db,
     init_sessions_db,
     init_settings_db,
-    init_usage_db,
     init_user_settings_db,
-    record_and_check,
 )
 
 from .models import AnswerRequest, ChatRequest, LoginRequest, LoginResponse
@@ -55,16 +52,6 @@ _LLM_API_KEY  = os.getenv("LLM_API_KEY", "")
 _LLM_BASE_URL = os.getenv("LLM_BASE_URL")
 _LLM_MODEL    = os.getenv("LLM_MODEL", "")
 
-# 免費伺服器 LLM 額度（只作用在「沒帶自己金鑰」的使用者）。
-# per-user <= 0 等同關閉免費額度 → 一律走 BYOK（並被友善引導，不是 401）。
-_SERVER_LLM_AVAILABLE = bool(_LLM_API_KEY)
-_FREE_DAILY_PER_USER  = int(os.getenv("FREE_DAILY_PER_USER", "20"))
-_FREE_DAILY_GLOBAL    = int(os.getenv("FREE_DAILY_GLOBAL", "500"))
-
-# 每日摘要排程：到點由跑著的後端自己彙整推 webhook（取代外部 cron）。
-# DAILY_SUMMARY_AT 為 Asia/Taipei 的 HH:MM；留空關閉。需設好 webhook 才會啟用。
-_DAILY_SUMMARY_AT = os.getenv("DAILY_SUMMARY_AT", "00:10")
-
 # 慢請求門檻（毫秒）：超過則在 http_request log 標 slow=true —— 仍是 INFO，不是錯誤。
 # TPCU 上游查詢常態 2~3s，門檻設高於此，避免正常查詢被當異常洗版告警。
 _SLOW_REQUEST_MS = float(os.getenv("SLOW_REQUEST_MS", "4000"))
@@ -72,24 +59,6 @@ _SLOW_REQUEST_MS = float(os.getenv("SLOW_REQUEST_MS", "4000"))
 _registry: AgentRegistry | None = None
 
 _log = get_logger("api")
-
-
-async def _daily_summary_loop(hh: int, mm: int) -> None:
-    """每日於 Asia/Taipei HH:MM 彙整前一日指標推 webhook。
-
-    在 lifespan 內、與請求共用同一 event loop —— 專案跑著就會自己送，不靠 cron。
-    彙整是阻塞 IO（讀檔/SQLite），丟到執行緒避免卡住事件迴圈。
-    """
-    while True:
-        await asyncio.sleep(summary.seconds_until(hh, mm))
-        try:
-            day = summary.day_to_summarize()
-            text, posted = await asyncio.to_thread(summary.send, day)
-            _log.info("daily_summary", day=day, posted=posted)
-        except asyncio.CancelledError:
-            raise
-        except Exception as e:  # noqa: BLE001
-            _log.warning("daily_summary_failed", error=str(e))
 
 
 @asynccontextmanager
@@ -101,25 +70,10 @@ async def lifespan(app: FastAPI):
     init_files_db()
     init_messages_db()
     init_settings_db()
-    init_usage_db()
     llm = OpenAI(api_key=_LLM_API_KEY, base_url=_LLM_BASE_URL)
     _registry = AgentRegistry(llm=llm, model=_LLM_MODEL)
     app.state.registry = _registry
-
-    # 每日摘要排程：設了時間且有 webhook 才啟用。
-    summary_task = None
-    hhmm = summary.parse_hhmm(_DAILY_SUMMARY_AT) if _DAILY_SUMMARY_AT else None
-    if hhmm and summary.webhook_url():
-        summary_task = asyncio.create_task(_daily_summary_loop(*hhmm))
-        _log.info("daily_summary_scheduled", at=_DAILY_SUMMARY_AT)
-    elif _DAILY_SUMMARY_AT and not summary.webhook_url():
-        _log.info("daily_summary_disabled", reason="no webhook url")
-
-    try:
-        yield
-    finally:
-        if summary_task:
-            summary_task.cancel()
+    yield
 
 
 limiter = Limiter(key_func=get_remote_address)
@@ -245,30 +199,12 @@ async def _get_agent_or_401(token: str):
 
 
 async def _enforce_llm_quota(token: str, uid: str) -> None:
-    """免費伺服器 LLM 的額度閘門（每則新訊息計一次）。
-
-    BYOK（自帶金鑰）一律放行；用伺服器 LLM 的人若無可用金鑰或超出每日/全站
-    額度，回 402 + error_code，前端據此引導去設定填自己的金鑰，而非 raw 401。
-    """
-    if _get_registry().is_byok(token):
-        return
-    if not _SERVER_LLM_AVAILABLE or _FREE_DAILY_PER_USER <= 0:
-        _log.info("quota_block", error_code="LLM_001")
+    if not _get_registry().is_byok(token):
+        _log.info("quota_block", uid=uid, error_code="LLM_001")
         raise HTTPException(status_code=402, detail={
-            "error": "目前未提供共用 AI，請到設定填入自己的 AI 金鑰即可開始使用。",
+            "error": "AI 對話功能需要自備 API 金鑰，請到設定頁填入後即可使用。",
             "error_code": "LLM_001",
         })
-    ok, code = await asyncio.to_thread(
-        record_and_check, uid, _FREE_DAILY_PER_USER, _FREE_DAILY_GLOBAL
-    )
-    if not ok:
-        _log.info("quota_block", error_code=code)
-        msg = (
-            "今日免費額度已用完，明天再來，或到設定填入自己的 AI 金鑰即可無限使用。"
-            if code == "QUOTA_001"
-            else "今日免費體驗名額已滿，到設定填入自己的 AI 金鑰即可繼續使用。"
-        )
-        raise HTTPException(status_code=402, detail={"error": msg, "error_code": code})
 
 
 # ---------------------------------------------------------------------------
@@ -285,11 +221,12 @@ async def health():
 async def login(request: Request, body: LoginRequest):
     client_ip = request.client.host if request.client else ""
     try:
-        jsessionid = await _fresh_login(body.uid, body.pwd)
+        jsessionid, profile = await _fresh_login(body.uid, body.pwd)
     except Exception as e:
         _log.warning("auth_login", uid=body.uid, ok=False, client_ip=client_ip, reason=str(e))
         raise HTTPException(status_code=401, detail={"error": f"登入失敗：{e}", "error_code": "AUTH_001"}) from e
-    _log.info("auth_login", uid=body.uid, ok=True, client_ip=client_ip)
+    _log.info("auth_login", uid=body.uid, ok=True, client_ip=client_ip,
+              has_profile=bool(profile))
 
     user_cfg = await asyncio.to_thread(get_llm_config, body.uid)
     if user_cfg:
@@ -300,8 +237,54 @@ async def login(request: Request, body: LoginRequest):
         model = None
 
     token = secrets.token_urlsafe(32)
-    await _get_registry().register(token, body.uid, jsessionid, llm=llm, model=model, byok=user_cfg is not None)
-    return LoginResponse(token=token)
+    reg = _get_registry()
+    await reg.register(token, body.uid, jsessionid, llm=llm, model=model,
+                       byok=user_cfg is not None, profile=profile)
+
+    # perchk.jsp 回傳的是導覽選單 frame，不含學生資料；
+    # 改從課表 activate 頁面的 HTML 同時取學年學期與姓名。
+    if not profile.semester_value or not profile.name:
+        try:
+            import re as _re
+            from actions.fetch_schedule.index import FNCID as _FNC, SPATH as _SPATH
+            from client import activate_feature as _activate
+            from parsers.select import parse_select as _parse_select
+            html = await _activate(jsessionid, _FNC, _SPATH)
+
+            if not profile.semester_value:
+                selected = next(
+                    (o for o in _parse_select(html, "yms") if o.get("selected")), None
+                )
+                if selected and "," in selected["value"]:
+                    year, sem = selected["value"].split(",", 1)
+                    profile.year = year.strip()
+                    profile.semester = sem.strip()
+
+            if not profile.name:
+                for pat in [
+                    r'(?:姓名|學生姓名)[：:]\s*([^\s<&（\(]+)',
+                    r'<td[^>]*>\s*(?:姓名|學生)\s*</td>\s*<td[^>]*>\s*([^<\s]+)',
+                    r'var\s+(?:ls_|gs_)?stuname\s*=\s*["\']([^"\']+)["\']',
+                ]:
+                    m = _re.search(pat, html, _re.IGNORECASE)
+                    if m and m.group(1).strip():
+                        profile.name = m.group(1).strip()
+                        break
+        except Exception:
+            pass
+
+    # 把當前學年學期存入 agent memory，讓需要學期參數的工具可以直接套用，
+    # 不必每次都先呼叫 get_semester_options。
+    if profile.semester_value:
+        state = reg._store.get(token)
+        if state:
+            state.agent._memory.remember("last_semester", profile.semester_value)
+
+    return LoginResponse(
+        token=token,
+        name=profile.name,
+        semester_value=profile.semester_value,
+    )
 
 
 def _load_attachment(file_id: str | None, uid: str) -> tuple[str | None, str]:

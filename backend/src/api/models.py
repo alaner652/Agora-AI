@@ -10,6 +10,8 @@ class LoginRequest(BaseModel):
 
 class LoginResponse(BaseModel):
     token: str
+    name: str = ""             # 學生姓名（解析到才有值）
+    semester_value: str = ""   # 當前學年學期，例如 "114,2"
 
 
 class ChatRequest(BaseModel):
@@ -66,3 +68,17 @@ class FullSettingsResponse(BaseModel):
     uid: str
     settings: UserSettings
     llm_status: LLMConfigResponse
+
+
+class UsageDayStat(BaseModel):
+    date: str
+    prompt: int
+    completion: int
+    turns: int
+
+
+class UsageResponse(BaseModel):
+    days: list[UsageDayStat]
+    total_prompt: int
+    total_completion: int
+    total_turns: int

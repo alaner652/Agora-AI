@@ -24,7 +24,7 @@ type AssistantMsg = {
   table?: Table
   bullets?: string[]
 }
-type UserMsg = { id: number; role: 'user'; text: string }
+type UserMsg = { id: number; role: 'user'; text: string; option?: boolean }
 type Msg = AssistantMsg | UserMsg
 
 type Step =
@@ -164,7 +164,7 @@ export function LandingPreview() {
         await sleep(850)
         if (guard()) return true
         setCard(null)
-        setMessages((prev) => [...prev, { id: nextId(), role: 'user', text: `▶ ${step.pick}` }])
+        setMessages((prev) => [...prev, { id: nextId(), role: 'user', text: step.pick, option: true }])
         await sleep(450)
         return guard()
       }
@@ -212,10 +212,10 @@ export function LandingPreview() {
         className="mb-12 text-center"
       >
         <h2 className="font-heading text-3xl font-semibold tracking-wide text-foreground sm:text-4xl">
-          你說,它就替你做。
+          說出來，它就替你做。
         </h2>
         <p className="mt-3 text-muted-foreground">
-          查課表、看缺曠、送假單 —— 一句話的事;會改動資料的動作一定先問過你。
+          查課表、看缺曠、送假單，一句話的事。需要改動資料的操作，一定先確認再執行。
         </p>
       </motion.div>
 
@@ -250,7 +250,7 @@ export function LandingPreview() {
                   exit={{ opacity: 0, transition: { duration: 0.2 } }}
                   transition={{ type: 'spring', stiffness: 320, damping: 30 }}
                 >
-                  {m.role === 'user' ? <UserBubble>{m.text}</UserBubble> : <AssistantMessage msg={m} />}
+                  {m.role === 'user' ? (m.option ? <OptionChip>{m.text}</OptionChip> : <UserBubble>{m.text}</UserBubble>) : <AssistantMessage msg={m} />}
                 </motion.div>
               ))}
 
@@ -342,6 +342,20 @@ function UserBubble({ children }: { children: React.ReactNode }) {
   return (
     <div className="ml-auto w-fit max-w-[78%] rounded-2xl rounded-tr-sm bg-primary px-4 py-2.5 text-sm leading-relaxed text-primary-foreground">
       {children}
+    </div>
+  )
+}
+
+function OptionChip({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex justify-end">
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-accent/60 px-3 py-1.5 text-xs text-muted-foreground">
+        <svg className="h-3 w-3 shrink-0 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+        </svg>
+        <span className="text-muted-foreground/70">已選擇</span>
+        <span className="font-medium text-foreground">{children}</span>
+      </span>
     </div>
   )
 }

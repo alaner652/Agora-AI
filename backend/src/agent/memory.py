@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-_MAX_MESSAGES = 40
+_CONTEXT_WINDOW = 40
 
 
 class ChatMemory:
@@ -14,7 +14,7 @@ class ChatMemory:
     def add(self, msg: dict) -> None:
         self.history.append(msg)
 
-    def get_context(self, max_msgs: int = _MAX_MESSAGES) -> list[dict]:
+    def get_context(self, max_msgs: int = _CONTEXT_WINDOW) -> list[dict]:
         """Return trimmed history safe for the next LLM call.
 
         Three-phase validation prevents the API from receiving broken context:

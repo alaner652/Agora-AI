@@ -1,4 +1,10 @@
-"""Tool definitions and executor for the TPCU chat agent."""
+"""Tool definitions and executor for the TPCU chat agent.
+
+The `REGISTRY` below is the single source of truth: each `ToolSpec` bundles the
+JSON schema, the capability metadata (danger level / preconditions), and the
+async handler. The OpenAI tool list (`TOOLS`) and `get_meta` are both derived
+from it, and `dispatch` is a registry lookup — no if/elif routing.
+"""
 
 from __future__ import annotations
 
@@ -20,8 +26,10 @@ from utils.date import days_ago_roc, today_roc, today_taipei
 
 from .errors import ErrorCode
 from .memory import ChatMemory
+from .tool_meta import ToolContext, ToolSpec, validate_args
 
 _log = get_logger("agent.tools")
+
 
 class AskUserError(Exception):
     """Raised when the agent needs a structured answer from the user."""
@@ -49,260 +57,303 @@ def _classify_action_error(msg: str) -> str:
     return ErrorCode.UNKNOWN
 
 
-TOOLS: list[dict] = [
-    {
-        "type": "function",
-        "function": {
-            "name": "get_current_date",
-            "description": (
-                "取得今天的實際日期（西元與民國格式）。"
-                "當使用者提到「今天」「本月」「本週」「最近」等相對時間，"
-                "或需要填寫日期範圍時，必須先呼叫此工具確認正確日期，"
-                "不得自行推算民國年份。"
-            ),
-            "parameters": {"type": "object", "properties": {}, "required": []},
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_semester_options",
-            "description": "取得系統可用的學期清單。查詢課表或缺曠前若不知道學期代碼，先呼叫此工具。",
-            "parameters": {"type": "object", "properties": {}, "required": []},
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "fetch_schedule",
-            "description": "查詢指定學期的完整課表，回傳每堂課的星期、節次、時間、課名、教師、教室。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "semester_value": {
-                        "type": "string",
-                        "description": "學期代碼，例如 '114,2'。從 get_semester_options 取得。",
-                    }
-                },
-                "required": ["semester_value"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "fetch_absence",
-            "description": "查詢指定學期和日期範圍的缺曠記錄。若未明確指定日期，或涉及相對時間（本月/本週/今天），必須先呼叫 get_current_date 取得正確日期。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "semester_value": {"type": "string", "description": "學期代碼"},
-                    "start": {"type": "string", "description": "起始日，民國 YYYMMDD，例如 1150421"},
-                    "end":   {"type": "string", "description": "結束日，民國 YYYMMDD"},
-                },
-                "required": ["semester_value"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "fetch_grades",
-            "description": "查詢歷年所有成績（含全部學期），回傳每科的成績、學分、是否及格。",
-            "parameters": {"type": "object", "properties": {}, "required": []},
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_leaves",
-            "description": "查詢指定日期範圍內的假單列表，包含審核狀態。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "start": {"type": "string", "description": "起始日 YYYMMDD"},
-                    "end":   {"type": "string", "description": "結束日 YYYMMDD"},
-                },
-                "required": ["start", "end"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "apply_leave",
-            "description": (
-                "送出請假申請。"
-                "公假（leave_id=23）reason 只能是：兵役、法院傳訴、國家考試、系科公假。"
-                "公假需提供 image_path（JPEG 或 PDF）。"
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "date":       {"type": "string", "description": "請假日期 YYYMMDD"},
-                    "periods":    {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "節次列表，例如 ['1','2']。可用標籤：朝會、早自習、1-9、K、A-E",
-                    },
-                    "leave_id":   {"type": "string", "description": "假別代碼：21=事假 22=病假 23=公假 24=喪假 25=婚假"},
-                    "leave_name": {"type": "string", "description": "假別名稱"},
-                    "reason":     {"type": "string", "description": "請假原因"},
-                    "image_path": {"type": "string", "description": "附件路徑（公假必填）"},
-                },
-                "required": ["date", "periods", "leave_id", "leave_name", "reason"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "delete_leave",
-            "description": "刪除待審假單。需先呼叫 get_leaves 取得 stdkey 與 barcode，且 can_delete 為 true 才可執行。刪除前必須向使用者確認。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "stdkey":  {"type": "string", "description": "假單 stdkey，從 get_leaves 取得"},
-                    "barcode": {"type": "string", "description": "假單編號，從 get_leaves 取得"},
-                    "sdate":   {"type": "string", "description": "假單起始日 YYYMMDD"},
-                    "edate":   {"type": "string", "description": "假單結束日 YYYMMDD"},
-                },
-                "required": ["stdkey", "barcode", "sdate", "edate"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_leave_form",
-            "description": "取得指定日期的請假表單，回傳該日的節次順序與有課節次（藍色格）。申請請假前必須先呼叫此工具確認節次標籤，不可自行猜測。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "date": {"type": "string", "description": "民國 YYYMMDD，省略表示今天"},
-                },
-                "required": [],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "ask_user",
-            "description": "向使用者呈現問題與選項，取得結構化回覆。用於需要明確確認或多選一的情境，例如確認請假申請、選擇假別。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "question": {"type": "string", "description": "問題內容"},
-                    "options": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "選項列表，最多 4 項",
-                    },
-                },
-                "required": ["question", "options"],
-            },
-        },
-    },
+# ---------------------------------------------------------------------------
+# Enum constants — domain knowledge made machine-checkable (see validate_args).
+# ---------------------------------------------------------------------------
+
+_LEAVE_IDS = ["21", "22", "23", "24", "25", "26", "27", "28", "29", "31"]
+_PERIOD_LABELS = [
+    "朝會", "早自習",
+    "1", "2", "3", "4", "5", "6", "7", "8", "9",
+    "K", "A", "B", "C", "D", "E",
 ]
+
+
+# ---------------------------------------------------------------------------
+# Handlers — one atomic function per tool. Each receives validated args plus a
+# ToolContext (jsessionid + memory) and returns a JSON result string.
+# ---------------------------------------------------------------------------
+
+async def _h_get_current_date(args: dict, ctx: ToolContext) -> str:
+    today = today_taipei()
+    roc = today_roc()
+    return json.dumps({
+        "date_ad": today.isoformat(),
+        "date_roc": roc,
+        "roc_year": int(roc[:3]),
+        "roc_month": int(roc[3:5]),
+        "roc_day": int(roc[5:7]),
+    }, ensure_ascii=False)
+
+
+async def _h_get_semester_options(args: dict, ctx: ToolContext) -> str:
+    result = await _sched_options(ctx.jsessionid)
+    if not result.get("semesters"):
+        abs_result = await _abs_options(ctx.jsessionid)
+        result = {"semesters": abs_result.get("semesters", [])}
+    if not result.get("semesters"):
+        # Both gateways returned empty — the cached session likely lacks the
+        # state needed by sys001_00.jsp.  Force a fresh login.
+        raise ValueError("Session 過期")
+    return json.dumps(result, ensure_ascii=False)
+
+
+async def _h_fetch_schedule(args: dict, ctx: ToolContext) -> str:
+    entries = await get_schedule(ctx.jsessionid, args["semester_value"])
+    ctx.memory.cache["schedule"] = {"entries": entries, "title": args["semester_value"]}
+    ctx.memory.remember("last_semester", args["semester_value"])
+    return json.dumps(entries, ensure_ascii=False)
+
+
+async def _h_fetch_absence(args: dict, ctx: ToolContext) -> str:
+    entries = await get_absence(
+        ctx.jsessionid, args["semester_value"],
+        start=args.get("start", days_ago_roc(30)),
+        end=args.get("end", today_roc()),
+    )
+    ctx.memory.cache["absence"] = {
+        "entries": entries,
+        "title": f"{args['semester_value']} 缺曠記錄",
+    }
+    ctx.memory.remember("last_semester", args["semester_value"])
+    return json.dumps(entries, ensure_ascii=False)
+
+
+async def _h_fetch_grades(args: dict, ctx: ToolContext) -> str:
+    entries = await get_grades(ctx.jsessionid)
+    ctx.memory.cache["grades"] = {"entries": entries, "title": "歷年成績"}
+    return json.dumps(entries, ensure_ascii=False)
+
+
+async def _h_get_leaves(args: dict, ctx: ToolContext) -> str:
+    return json.dumps(
+        await get_leaves(ctx.jsessionid, args["start"], args["end"]),
+        ensure_ascii=False,
+    )
+
+
+async def _h_get_leave_form(args: dict, ctx: ToolContext) -> str:
+    return json.dumps(
+        await get_leave_form(ctx.jsessionid, args.get("date")),
+        ensure_ascii=False,
+    )
+
+
+async def _h_apply_leave(args: dict, ctx: ToolContext) -> str:
+    result = await _apply_leave(
+        jsessionid=ctx.jsessionid,
+        date=args["date"],
+        periods=args["periods"],
+        leave_id=args["leave_id"],
+        reason=args["reason"],
+        image_path=args.get("image_path"),
+    )
+    if result.get("success") is False:
+        result["error_code"] = _classify_action_error(result.get("message", ""))
+    return json.dumps(result, ensure_ascii=False)
+
+
+async def _h_delete_leave(args: dict, ctx: ToolContext) -> str:
+    result = await _delete_leave(
+        jsessionid=ctx.jsessionid,
+        stdkey=args["stdkey"],
+        barcode=args["barcode"],
+        sdate=args["sdate"],
+        edate=args["edate"],
+    )
+    if result.get("success") is False:
+        result["error_code"] = _classify_action_error(result.get("message", ""))
+    return json.dumps(result, ensure_ascii=False)
+
+
+async def _h_ask_user(args: dict, ctx: ToolContext) -> str:
+    raise AskUserError(question=args["question"], options=args["options"])
+
+
+# ---------------------------------------------------------------------------
+# Tool Registry — single source of truth: schema + metadata + handler.
+# `TOOLS` (the OpenAI tool list) and `get_meta` are both derived from this.
+# ---------------------------------------------------------------------------
+
+REGISTRY: dict[str, ToolSpec] = {
+    "get_current_date": ToolSpec(
+        name="get_current_date",
+        description=(
+            "取得今天的實際日期（西元與民國格式）。"
+            "當使用者提到「今天」「本月」「本週」「最近」等相對時間，"
+            "或需要填寫日期範圍時，必須先呼叫此工具確認正確日期，"
+            "不得自行推算民國年份。"
+        ),
+        parameters={"type": "object", "properties": {}, "required": []},
+        handler=_h_get_current_date,
+        requires_session=False,
+    ),
+    "get_semester_options": ToolSpec(
+        name="get_semester_options",
+        description="取得系統可用的學期清單。查詢課表或缺曠前若不知道學期代碼，先呼叫此工具。",
+        parameters={"type": "object", "properties": {}, "required": []},
+        handler=_h_get_semester_options,
+    ),
+    "fetch_schedule": ToolSpec(
+        name="fetch_schedule",
+        description="查詢指定學期的完整課表，回傳每堂課的星期、節次、時間、課名、教師、教室。",
+        parameters={
+            "type": "object",
+            "properties": {
+                "semester_value": {
+                    "type": "string",
+                    "description": "學期代碼，例如 '114,2'。從 get_semester_options 取得。",
+                }
+            },
+            "required": ["semester_value"],
+        },
+        handler=_h_fetch_schedule,
+    ),
+    "fetch_absence": ToolSpec(
+        name="fetch_absence",
+        description="查詢指定學期和日期範圍的缺曠記錄。若未明確指定日期，或涉及相對時間（本月/本週/今天），必須先呼叫 get_current_date 取得正確日期。",
+        parameters={
+            "type": "object",
+            "properties": {
+                "semester_value": {"type": "string", "description": "學期代碼"},
+                "start": {"type": "string", "description": "起始日，民國 YYYMMDD，例如 1150421"},
+                "end":   {"type": "string", "description": "結束日，民國 YYYMMDD"},
+            },
+            "required": ["semester_value"],
+        },
+        handler=_h_fetch_absence,
+    ),
+    "fetch_grades": ToolSpec(
+        name="fetch_grades",
+        description="查詢歷年所有成績（含全部學期），回傳每科的成績、學分、是否及格。",
+        parameters={"type": "object", "properties": {}, "required": []},
+        handler=_h_fetch_grades,
+    ),
+    "get_leaves": ToolSpec(
+        name="get_leaves",
+        description="查詢指定日期範圍內的假單列表，包含審核狀態。",
+        parameters={
+            "type": "object",
+            "properties": {
+                "start": {"type": "string", "description": "起始日 YYYMMDD"},
+                "end":   {"type": "string", "description": "結束日 YYYMMDD"},
+            },
+            "required": ["start", "end"],
+        },
+        handler=_h_get_leaves,
+    ),
+    "get_leave_form": ToolSpec(
+        name="get_leave_form",
+        description="取得指定日期的請假表單，回傳該日的節次順序與有課節次（藍色格）。申請請假前必須先呼叫此工具確認節次標籤，不可自行猜測。",
+        parameters={
+            "type": "object",
+            "properties": {
+                "date": {"type": "string", "description": "民國 YYYMMDD，省略表示今天"},
+            },
+            "required": [],
+        },
+        handler=_h_get_leave_form,
+    ),
+    "apply_leave": ToolSpec(
+        name="apply_leave",
+        description=(
+            "送出請假申請。"
+            "公假（leave_id=23）reason 只能是：兵役、法院傳訴、國家考試、系科公假。"
+            "公假需提供 image_path（JPEG 或 PDF）。"
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "date":       {"type": "string", "description": "請假日期 YYYMMDD"},
+                "periods":    {
+                    "type": "array",
+                    "items": {"type": "string", "enum": _PERIOD_LABELS},
+                    "description": "節次列表，例如 ['1','2']。可用標籤：朝會、早自習、1-9、K、A-E",
+                },
+                "leave_id":   {
+                    "type": "string",
+                    "enum": _LEAVE_IDS,
+                    "description": "假別代碼：21=事假 22=病假 23=公假 24=喪假 25=婚假 26=孕產假 27=哺育假 28=防疫假 29=生理假 31=原住民假",
+                },
+                "reason":     {"type": "string", "description": "請假原因"},
+                "image_path": {"type": "string", "description": "附件路徑（公假必填）"},
+            },
+            "required": ["date", "periods", "leave_id", "reason"],
+        },
+        handler=_h_apply_leave,
+        danger_level=1,
+        preconditions=["get_leave_form"],
+        side_effects=["modifies_leave_records"],
+    ),
+    "delete_leave": ToolSpec(
+        name="delete_leave",
+        description="刪除待審假單。需先呼叫 get_leaves 取得 stdkey 與 barcode，且 can_delete 為 true 才可執行。刪除前必須向使用者確認。",
+        parameters={
+            "type": "object",
+            "properties": {
+                "stdkey":  {"type": "string", "description": "假單 stdkey，從 get_leaves 取得"},
+                "barcode": {"type": "string", "description": "假單編號，從 get_leaves 取得"},
+                "sdate":   {"type": "string", "description": "假單起始日 YYYMMDD"},
+                "edate":   {"type": "string", "description": "假單結束日 YYYMMDD"},
+            },
+            "required": ["stdkey", "barcode", "sdate", "edate"],
+        },
+        handler=_h_delete_leave,
+        danger_level=2,
+        preconditions=["get_leaves"],
+        side_effects=["modifies_leave_records"],
+    ),
+    "ask_user": ToolSpec(
+        name="ask_user",
+        description="向使用者呈現問題與選項，取得結構化回覆。用於需要明確確認或多選一的情境，例如確認請假申請、選擇假別。",
+        parameters={
+            "type": "object",
+            "properties": {
+                "question": {"type": "string", "description": "問題內容"},
+                "options": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "選項列表，最多 4 項",
+                },
+            },
+            "required": ["question", "options"],
+        },
+        handler=_h_ask_user,
+        requires_session=False,
+    ),
+}
+
+
+# Derived OpenAI tool list — never hand-written twice.
+TOOLS: list[dict] = [spec.openai_schema() for spec in REGISTRY.values()]
+
+# Tools that return a list of data entries; reflection.py uses this to inject a "查無資料" note.
+FETCH_TOOL_NAMES: frozenset[str] = frozenset({"fetch_schedule", "fetch_absence", "fetch_grades", "get_leaves"})
+
+
+def get_meta(name: str) -> ToolSpec:
+    """Return the spec for a tool, or an inert default for unknown names."""
+    return REGISTRY.get(name) or ToolSpec(name=name)
 
 
 async def dispatch(name: str, args: dict, jsessionid: str, memory: ChatMemory) -> str:
     """Execute a tool call and return its JSON result string.
 
-    Raises AskUserError when the tool needs a structured reply from the user.
-    Raises ValueError with "Session 過期" when the session has expired.
+    Looks the tool up in REGISTRY, validates args against its schema, then runs
+    its handler. Raises AskUserError when a tool needs a structured reply from
+    the user, and ValueError("Session 過期") when the session has expired.
     """
+    spec = REGISTRY.get(name)
+    if spec is None or spec.handler is None:
+        return _err(f"未知工具：{name}", ErrorCode.TOOL_UNKNOWN)
+
+    schema_err = validate_args(spec, args)
+    if schema_err:
+        return _err(schema_err, ErrorCode.TOOL_SCHEMA)
+
+    ctx = ToolContext(jsessionid=jsessionid, memory=memory)
     try:
-        if name == "get_current_date":
-            today = today_taipei()
-            roc = today_roc()
-            return json.dumps({
-                "date_ad": today.isoformat(),
-                "date_roc": roc,
-                "roc_year": int(roc[:3]),
-                "roc_month": int(roc[3:5]),
-                "roc_day": int(roc[5:7]),
-            }, ensure_ascii=False)
-
-        elif name == "get_semester_options":
-            result = await _sched_options(jsessionid)
-            if not result.get("semesters"):
-                abs_result = await _abs_options(jsessionid)
-                result = {"semesters": abs_result.get("semesters", [])}
-            if not result.get("semesters"):
-                # Both gateways returned empty — the cached session likely lacks
-                # the state needed by sys001_00.jsp.  Force a fresh login.
-                raise ValueError("Session 過期")
-            return json.dumps(result, ensure_ascii=False)
-
-        elif name == "fetch_schedule":
-            entries = await get_schedule(jsessionid, args["semester_value"])
-            memory.cache["schedule"] = {"entries": entries, "title": args["semester_value"]}
-            memory.remember("last_semester", args["semester_value"])
-            return json.dumps(entries, ensure_ascii=False)
-
-        elif name == "fetch_absence":
-            entries = await get_absence(
-                jsessionid, args["semester_value"],
-                start=args.get("start", days_ago_roc(30)),
-                end=args.get("end", today_roc()),
-            )
-            memory.cache["absence"] = {
-                "entries": entries,
-                "title": f"{args['semester_value']} 缺曠記錄",
-            }
-            memory.remember("last_semester", args["semester_value"])
-            return json.dumps(entries, ensure_ascii=False)
-
-        elif name == "fetch_grades":
-            entries = await get_grades(jsessionid)
-            memory.cache["grades"] = {"entries": entries, "title": "歷年成績"}
-            return json.dumps(entries, ensure_ascii=False)
-
-        elif name == "get_leaves":
-            return json.dumps(
-                await get_leaves(jsessionid, args["start"], args["end"]),
-                ensure_ascii=False,
-            )
-
-        elif name == "get_leave_form":
-            return json.dumps(
-                await get_leave_form(jsessionid, args.get("date")),
-                ensure_ascii=False,
-            )
-
-        elif name == "apply_leave":
-            result = await _apply_leave(
-                jsessionid=jsessionid,
-                date=args["date"],
-                periods=args["periods"],
-                leave_id=args["leave_id"],
-                reason=args["reason"],
-                image_path=args.get("image_path"),
-            )
-            if result.get("success") is False:
-                result["error_code"] = _classify_action_error(result.get("message", ""))
-            return json.dumps(result, ensure_ascii=False)
-
-        elif name == "delete_leave":
-            result = await _delete_leave(
-                jsessionid=jsessionid,
-                stdkey=args["stdkey"],
-                barcode=args["barcode"],
-                sdate=args["sdate"],
-                edate=args["edate"],
-            )
-            if result.get("success") is False:
-                result["error_code"] = _classify_action_error(result.get("message", ""))
-            return json.dumps(result, ensure_ascii=False)
-
-        elif name == "ask_user":
-            raise AskUserError(question=args["question"], options=args["options"])
-
-        else:
-            return _err(f"未知工具：{name}", ErrorCode.TOOL_UNKNOWN)
-
+        return await spec.handler(args, ctx)
     except ValueError as e:
         if "Session 過期" in str(e):
             raise

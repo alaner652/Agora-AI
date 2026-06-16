@@ -46,11 +46,14 @@ def upsert_conversation_turn(
     assistant_text: str,
     tool_calls: list[dict],
     created_at: float,
+    user_kind: str = "text",
 ) -> None:
     """Write all messages for a completed turn.
 
     Replaces any prior rows for (session_id, turn_id) so retries are safe.
     Rows inserted in logical order: user → tool_calls → assistant.
+    `user_kind` is "text" for normal input or "option" for an ask_user answer,
+    so the frontend can reproduce the選項回覆 chip when switching sessions.
     """
     with connect() as conn:
         conn.execute(
@@ -62,7 +65,7 @@ def upsert_conversation_turn(
         # User message
         rows.append((
             str(uuid.uuid4()), session_id, turn_id,
-            "user", "text", user_text,
+            "user", user_kind, user_text,
             None, None, None, None, None, None, created_at,
         ))
 
@@ -130,9 +133,10 @@ def get_session_display_messages(session_id: str, uid: str) -> list[dict] | None
     turns: dict[int, dict] = {}
     for turn_id, role, msg_type, content, tool_name, ok in rows:
         if turn_id not in turns:
-            turns[turn_id] = {"user": None, "assistant": None, "tool_calls": []}
-        if role == "user" and msg_type == "text":
+            turns[turn_id] = {"user": None, "user_kind": "text", "assistant": None, "tool_calls": []}
+        if role == "user" and msg_type in ("text", "option"):
             turns[turn_id]["user"] = content
+            turns[turn_id]["user_kind"] = msg_type
         elif role == "assistant" and msg_type == "text":
             turns[turn_id]["assistant"] = content
         elif role == "tool" and msg_type == "tool_call" and tool_name:
@@ -145,7 +149,11 @@ def get_session_display_messages(session_id: str, uid: str) -> list[dict] | None
     for turn_id in sorted(turns.keys()):
         t = turns[turn_id]
         if t["user"] is not None:
-            result.append({"role": "user", "content": t["user"]})
+            user_msg: dict = {"role": "user", "content": t["user"]}
+            if t["user_kind"] == "option":
+                # ask_user 選項回覆：標記成 chip，前端據此重現「已選擇：…」
+                user_msg["selectedOption"] = t["user"]
+            result.append(user_msg)
         assistant: dict = {"role": "assistant", "content": t["assistant"] or ""}
         if t["tool_calls"]:
             assistant["toolCalls"] = t["tool_calls"]

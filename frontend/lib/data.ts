@@ -17,6 +17,7 @@ export interface TextMessage {
   aborted?: boolean
   attachments?: Attachment[]
   attachmentPreview?: string  // blob URL for local preview only, not persisted
+  selectedOption?: string     // set when this user message is an ask_user 選項回覆 (chip)
 }
 
 export interface SessionMeta {
@@ -161,6 +162,28 @@ export interface LLMBehaviourPatch {
   max_tokens?: number
   system_prompt?: string
   context_length?: number
+}
+
+export interface TokenUsageDay {
+  date: string
+  prompt: number
+  completion: number
+  turns: number
+}
+
+export interface TokenUsageResponse {
+  days: TokenUsageDay[]
+  total_prompt: number
+  total_completion: number
+  total_turns: number
+}
+
+export interface StudentInfo {
+  name: string
+  student_id: string
+  year: string
+  semester: string
+  semester_value: string
 }
 
 export async function getSemesterOptions(): Promise<SemesterOption[]> {

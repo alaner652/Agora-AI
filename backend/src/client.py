@@ -54,8 +54,8 @@ async def _send(method: str, url: str, **kwargs) -> httpx.Response:
     return resp
 
 
-async def login(uid: str, pwd: str) -> str:
-    """登入學校系統，回傳 JSESSIONID。"""
+async def login(uid: str, pwd: str) -> tuple[str, str]:
+    """登入學校系統，回傳 (JSESSIONID, perchk HTML)。"""
     resp = await _send(
         "POST", "/tsint/perchk.jsp",
         data={"hid_type": "S", "uid": uid, "pwd": pwd,
@@ -69,7 +69,7 @@ async def login(uid: str, pwd: str) -> str:
     if not jsessionid:
         raise ValueError("登入失敗：未取得 JSESSIONID")
 
-    return jsessionid
+    return jsessionid, resp.text
 
 
 async def activate_feature(jsessionid: str, fncid: str, spath: str) -> str:

@@ -16,9 +16,8 @@ export function LandingFooter() {
             <span className="font-heading text-base font-semibold text-primary">Agora AI</span>
           </Link>
           <p className="text-xs leading-relaxed text-muted-foreground">
-            學生自製的 TPCU 校務助理,非校方官方系統。
-            <br />
-            密碼不入庫、連線憑證只留記憶體、設定全程加密。
+            TPCU 校務 AI 助理，整合課表、缺曠、成績與假單管理，
+            並支援 AI 對話操作。
           </p>
           <p className="text-xs text-muted-foreground/70">
             由 <span className="font-medium text-foreground">small R</span> 設計與開發
@@ -34,7 +33,7 @@ export function LandingFooter() {
             展示
           </Link>
           <Link href="#pricing" className="text-muted-foreground transition-colors hover:text-foreground">
-            定價
+            方案
           </Link>
           <Link href="#faq" className="text-muted-foreground transition-colors hover:text-foreground">
             常見問題

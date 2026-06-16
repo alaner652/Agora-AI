@@ -383,10 +383,19 @@ export function ChatView({ initialMessages, initialSessionId }: ChatViewProps) {
   async function handleAnswer(selected: string) {
     const token = getCookie(TOKEN_COOKIE)
     if (!token) { router.push('/login'); return }
-    const answerMsg: TextMessage = { role: 'user', content: `▶ ${selected}` }
+    // Keep the transcript complete: the question only lived in the interactive
+    // prompt, so once it's dismissed fold it into the (otherwise empty) assistant
+    // bubble that asked it. Otherwise that turn renders as an empty bubble.
+    const question = askUser?.question ?? ''
+    const withQuestion = messages.map((m, i) =>
+      i === messages.length - 1 && m.role === 'assistant' && !m.content && question
+        ? { ...m, content: question }
+        : m
+    )
+    const answerMsg: TextMessage = { role: 'user', content: selected, selectedOption: selected }
     setAskUser(null)
-    setMessages(prev => [...prev, answerMsg])
-    const contextMessages = [...messages, answerMsg]
+    setMessages([...withQuestion, answerMsg])
+    const contextMessages = [...withQuestion, answerMsg]
     await runStream(`${BASE}/answer`, { token, selected }, contextMessages)
   }
 
@@ -394,11 +403,13 @@ export function ChatView({ initialMessages, initialSessionId }: ChatViewProps) {
     const token = getCookie(TOKEN_COOKIE)
     if (token) await clearHistoryOnServer(token)
     setMessages([])
+    router.refresh()  // invalidate cached /chat RSC so navigate-back stays cleared
   }
 
   function handleSwitchSession(msgs: TextMessage[], sessionId: string) {
     setMessages(msgs)
     setViewingSessionId(sessionId)
+    setInput('')
     setHistoryPanelOpen(false)
   }
 
@@ -406,7 +417,9 @@ export function ChatView({ initialMessages, initialSessionId }: ChatViewProps) {
     // newSession() API call is already made inside SessionHistoryPanel — don't call it again
     setMessages([])
     setViewingSessionId(null)
+    setInput('')
     setHistoryPanelOpen(false)
+    router.refresh()  // invalidate cached /chat RSC so navigate-back stays empty
   }
 
   function startEdit(index: number) {
@@ -488,7 +501,17 @@ export function ChatView({ initialMessages, initialSessionId }: ChatViewProps) {
                 )}
                 <div className={`${m.role === 'user' ? 'max-w-[75%]' : 'flex-1 min-w-0'}`}>
                   {m.role === 'user' ? (
-                    editingIndex === i ? (
+                    m.selectedOption !== undefined ? (
+                      <div className="flex justify-end">
+                        <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground bg-accent/60 border border-border rounded-full px-3 py-1.5">
+                          <svg className="w-3 h-3 text-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                          </svg>
+                          <span className="text-muted-foreground/70">已選擇</span>
+                          <span className="text-foreground font-medium">{m.selectedOption}</span>
+                        </span>
+                      </div>
+                    ) : editingIndex === i ? (
                       <div className="flex flex-col gap-2">
                         <textarea ref={editRef} value={editText} onChange={e => setEditText(e.target.value)}
                           onKeyDown={e => {

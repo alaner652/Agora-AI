@@ -7,7 +7,7 @@ import time
 
 from ._db import connect
 
-_MAX_MESSAGES = 200
+_HISTORY_CAP = 200
 
 
 def init_db() -> None:
@@ -27,7 +27,7 @@ def init_db() -> None:
 
 
 def save_history(uid: str, messages: list[dict], viewed_session_id: str | None = None) -> None:
-    slim = messages[-_MAX_MESSAGES:]
+    slim = messages[-_HISTORY_CAP:]
     with connect() as conn:
         conn.execute(
             """
@@ -35,7 +35,7 @@ def save_history(uid: str, messages: list[dict], viewed_session_id: str | None =
             VALUES (?, ?, ?, ?)
             ON CONFLICT(uid) DO UPDATE SET
                 messages_json     = excluded.messages_json,
-                viewed_session_id = excluded.viewed_session_id,
+                viewed_session_id = COALESCE(excluded.viewed_session_id, chat_history.viewed_session_id),
                 updated_at        = excluded.updated_at
             """,
             (uid, json.dumps(slim, ensure_ascii=False), viewed_session_id, time.time()),

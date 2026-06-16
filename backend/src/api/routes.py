@@ -53,6 +53,7 @@ from .models import (
     LLMConfigResponse,
     LLMModelsRequest,
     SettingsPatch,
+    UsageResponse,
     UserSettings,
 )
 from .state import AgentRegistry
@@ -105,6 +106,29 @@ async def _handle_exc(e: Exception, jsessionid: str | None = None) -> HTTPExcept
     if isinstance(e, httpx.NetworkError):
         return HTTPException(status_code=502, detail={"error": "學校系統連線失敗", "error_code": "NET_003"})
     return HTTPException(status_code=500, detail={"error": msg, "error_code": "UNKNOWN"})
+
+
+# ---------------------------------------------------------------------------
+# Student profile info
+# ---------------------------------------------------------------------------
+
+@router.get("/info")
+async def student_info(
+    creds: HTTPAuthorizationCredentials = Depends(_bearer),
+    request: Request = None,
+):
+    """回傳登入時從 perchk 解析的學生個人資訊與當前學年學期。"""
+    reg = _get_registry(request)
+    profile = reg.get_profile(creds.credentials)
+    if profile is None:
+        raise HTTPException(status_code=401, detail={"error": "Token 無效或已過期", "error_code": "AUTH_002"})
+    return {
+        "name": profile.name,
+        "student_id": profile.student_id,
+        "year": profile.year,
+        "semester": profile.semester,
+        "semester_value": profile.semester_value,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -321,6 +345,15 @@ async def get_history(
         display = await asyncio.to_thread(get_session_display_messages, session_id, uid)
         if display:
             return {"messages": display, "viewed_session_id": session_id}
+        # session_id 在記憶體存在但 display 為空 — 分兩種情況：
+        # 1. 此 session 已有輪次但只有 slim 格式（較舊資料）→ 用 slim 格式回傳
+        # 2. 此 session 完全是新的、尚未寫入 DB → 回傳空，不能用 SQLite snapshot
+        #    （snapshot 是上個 session 的舊資料，拿來顯示會造成「新對話但顯示舊訊息」）
+        slim = await asyncio.to_thread(get_session_messages_slim, session_id, uid)
+        if slim is not None:
+            return {"messages": slim, "viewed_session_id": session_id}
+        return {"messages": [], "viewed_session_id": None}
+    # 記憶體無 session（例如後端重啟）— 才使用 SQLite snapshot 作為回退
     messages = await asyncio.to_thread(load_history, uid)
     viewed_session_id = await asyncio.to_thread(get_viewed_session_id, uid)
     return {"messages": messages, "viewed_session_id": viewed_session_id}
@@ -332,9 +365,40 @@ async def post_history(body: SaveHistoryBody, uid: str = Depends(_resolve_uid)):
     return {"ok": True}
 
 
-@router.delete("/history")
-async def delete_history(uid: str = Depends(_resolve_uid)):
+async def _clear_current_conversation(reg, token: str, uid: str) -> None:
+    """Wipe the user's *current* conversation everywhere it lives.
+
+    GET /history reconstructs the live conversation from the in-memory agent's
+    current session, so clearing the SQLite stores alone is not enough — the
+    agent session must be rotated too, otherwise the "deleted" conversation
+    reappears. Order matters: rotate first (flushes the old session to the DB),
+    then delete that session's rows, then clear the live snapshot.
+    """
+    sid = reg.get_current_session_id(token)
+    await reg.new_session(token)
+    if sid:
+        await asyncio.to_thread(delete_session, sid, uid)
     await asyncio.to_thread(clear_history, uid)
+
+
+async def _clear_all_conversations(reg, token: str, uid: str) -> int:
+    """Wipe every conversation: rotate the live agent, then nuke all stores."""
+    await reg.new_session(token)
+    deleted = await asyncio.to_thread(delete_all_sessions, uid)
+    await asyncio.to_thread(clear_history, uid)
+    return deleted
+
+
+@router.delete("/history")
+async def delete_history(
+    creds: HTTPAuthorizationCredentials = Depends(_bearer),
+    request: Request = None,
+):
+    reg = _get_registry(request)
+    uid = await reg.get_uid_checked(creds.credentials)
+    if uid is None:
+        raise HTTPException(status_code=401, detail={"error": "Token 無效或已過期", "error_code": "AUTH_002"})
+    await _clear_current_conversation(reg, creds.credentials, uid)
     return {"ok": True}
 
 
@@ -454,14 +518,28 @@ async def patch_user_settings(body: SettingsPatch, uid: str = Depends(_resolve_u
 
 
 @router.delete("/settings/history")
-async def delete_history_settings(uid: str = Depends(_resolve_uid)):
-    await asyncio.to_thread(clear_history, uid)
+async def delete_history_settings(
+    creds: HTTPAuthorizationCredentials = Depends(_bearer),
+    request: Request = None,
+):
+    reg = _get_registry(request)
+    uid = await reg.get_uid_checked(creds.credentials)
+    if uid is None:
+        raise HTTPException(status_code=401, detail={"error": "Token 無效或已過期", "error_code": "AUTH_002"})
+    await _clear_current_conversation(reg, creds.credentials, uid)
     return {"ok": True}
 
 
 @router.delete("/settings/sessions")
-async def delete_all_sessions_settings(uid: str = Depends(_resolve_uid)):
-    deleted = await asyncio.to_thread(delete_all_sessions, uid)
+async def delete_all_sessions_settings(
+    creds: HTTPAuthorizationCredentials = Depends(_bearer),
+    request: Request = None,
+):
+    reg = _get_registry(request)
+    uid = await reg.get_uid_checked(creds.credentials)
+    if uid is None:
+        raise HTTPException(status_code=401, detail={"error": "Token 無效或已過期", "error_code": "AUTH_002"})
+    deleted = await _clear_all_conversations(reg, creds.credentials, uid)
     return {"deleted": deleted}
 
 
@@ -502,6 +580,44 @@ async def test_llm_settings(body: LLMConfigRequest, uid: str = Depends(_resolve_
         return {"ok": True, "reply": reply}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+_USAGE_LOG_DIR = pathlib.Path(__file__).parent.parent.parent / "logs" / "api"
+
+
+def _aggregate_token_usage(uid: str) -> UsageResponse:
+    log_dir = _USAGE_LOG_DIR / uid
+    day_stats: dict[str, dict[str, int]] = {}
+
+    if log_dir.exists():
+        for f in log_dir.glob("*.json"):
+            try:
+                data = json.loads(f.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            date = (data.get("session_id") or "")[:10]
+            if len(date) != 10:
+                continue
+            stats = day_stats.setdefault(date, {"prompt": 0, "completion": 0, "turns": 0})
+            for turn in data.get("turns", []):
+                tokens = ((turn.get("_meta") or {}).get("tokens")) or {}
+                stats["prompt"] += int(tokens.get("prompt") or 0)
+                stats["completion"] += int(tokens.get("completion") or 0)
+                stats["turns"] += 1
+
+    sorted_days = sorted(day_stats.items(), reverse=True)[:7]
+    days = [{"date": d, **s} for d, s in sorted_days]
+    return UsageResponse(
+        days=days,
+        total_prompt=sum(d["prompt"] for d in days),
+        total_completion=sum(d["completion"] for d in days),
+        total_turns=sum(d["turns"] for d in days),
+    )
+
+
+@router.get("/settings/usage", response_model=UsageResponse)
+async def get_token_usage(uid: str = Depends(_resolve_uid)):
+    return await asyncio.to_thread(_aggregate_token_usage, uid)
 
 
 @router.post("/settings/llm/models")

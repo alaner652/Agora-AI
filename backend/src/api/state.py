@@ -4,27 +4,29 @@ from __future__ import annotations
 
 import asyncio
 import time
-import time as _time
 from dataclasses import dataclass, field
 
 from openai import OpenAI
 
 from agent import ChatAgent, ChatMemory, ConversationLogger
+from parsers.perchk import StudentProfile
 from storage.messages import upsert_conversation_turn
 from storage.sessions import insert_session_turn, upsert_session_meta
+from storage.settings import get_settings
 
 _LOG_DIR_BASE = __import__("pathlib").Path(__file__).parent.parent.parent / "logs" / "api"
 _EVICT_AFTER = 2 * 3600  # seconds of inactivity before eviction
 
 
 def _make_persist_fn(uid: str):
-    def _persist(sid, _uid, started, ended, count, title, turn_id, user, assistant, tool_calls=None):
+    def _persist(sid, _uid, started, ended, count, title, turn_id, user, assistant, tool_calls=None, user_kind="text"):
         upsert_session_meta(sid, uid, started, ended, count, title)
         insert_session_turn(sid, turn_id, user, assistant)
         upsert_conversation_turn(
             sid, turn_id, user, assistant,
             tool_calls or [],
-            _time.time(),
+            time.time(),
+            user_kind=user_kind,
         )
     return _persist
 
@@ -34,6 +36,7 @@ class _UserState:
     uid: str
     agent: ChatAgent
     byok: bool = False  # True = 使用者自帶金鑰，免費額度不計數、不擋
+    profile: StudentProfile = field(default_factory=StudentProfile)
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     last_active: float = field(default_factory=time.monotonic)
 
@@ -53,6 +56,7 @@ class AgentRegistry:
         llm: OpenAI | None = None,
         model: str | None = None,
         byok: bool = False,
+        profile: StudentProfile | None = None,
     ) -> None:
         """Create a new agent for the user (called on successful /login).
 
@@ -72,8 +76,14 @@ class AgentRegistry:
                 memory=memory,
                 logger=logger,
                 refresh_fn=None,  # no password stored — client must re-login
+                settings_fn=get_settings,
             )
-            self._store[token] = _UserState(uid=uid, agent=agent, byok=byok)
+            self._store[token] = _UserState(
+                uid=uid,
+                agent=agent,
+                byok=byok,
+                profile=profile if profile is not None else StudentProfile(),
+            )
 
     def is_byok(self, token: str) -> bool:
         """True if this token authenticated with its own LLM key (quota-exempt)."""
@@ -93,6 +103,10 @@ class AgentRegistry:
     def get_uid(self, token: str) -> str | None:
         state = self._store.get(token)
         return state.uid if state else None
+
+    def get_profile(self, token: str) -> StudentProfile | None:
+        state = self._store.get(token)
+        return state.profile if state else None
 
     async def get_jsessionid_checked(self, token: str) -> str | None:
         """Eviction-aware variant — triggers _evict() and updates last_active."""

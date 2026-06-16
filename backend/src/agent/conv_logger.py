@@ -30,6 +30,7 @@ class TurnLog:
     user: str
     tool_calls: list[ToolCallLog] = field(default_factory=list)
     assistant: str = ""
+    user_kind: str = "text"   # "text" = 一般輸入；"option" = ask_user 的選項回覆
     _meta: dict | None = None
 
 
@@ -78,11 +79,11 @@ class ConversationLogger:
     # Hooks
     # ------------------------------------------------------------------
 
-    def on_user_message(self, text: str) -> None:
+    def on_user_message(self, text: str, kind: str = "text") -> None:
         turn_id = len(self._session.turns) + 1
-        self._current_turn = TurnLog(turn_id=turn_id, user=text)
+        self._current_turn = TurnLog(turn_id=turn_id, user=text, user_kind=kind)
         self._turn_start = time.monotonic()
-        if not self._title:
+        if not self._title and kind == "text":
             self._title = text[:30]
 
     def on_tool_call(
@@ -262,4 +263,5 @@ class ConversationLogger:
                 t.user,
                 t.assistant,
                 tool_calls_data,
+                t.user_kind,
             )

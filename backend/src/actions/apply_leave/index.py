@@ -40,7 +40,6 @@ async def get_leave_form(jsessionid: str, date: str | None = None) -> dict:
     """GET 請假表單頁，回傳節次順序、當日有課節次、日期。
 
     date: 民國 compact YYYMMDD（None = 今天）
-    實作備注：日期切換的 query param 名稱需實際測試確認，目前先用 ls_date1。
     """
     params = {"ls_date1": date} if date else None
     html = await get_page(jsessionid, FORM_URL, params=params)
