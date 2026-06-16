@@ -137,6 +137,7 @@ class ChatAgent:
         memory: ChatMemory,
         logger: ConversationLogger | None = None,
         refresh_fn: Callable[[str], Awaitable[str]] | None = None,
+        settings_fn: Callable[[str], dict] | None = None,
     ) -> None:
         self._session = jsessionid
         self._llm = llm
@@ -148,6 +149,7 @@ class ChatAgent:
         # Called when session expires: async (uid) -> new_jsessionid.
         # None in API mode — callers must re-login via /login instead.
         self._refresh_fn = refresh_fn
+        self._settings_fn = settings_fn
         # When AskUserEvent is yielded, we park the pending tool call here
         # until answer_ask_user() is called.
         self._pending_ask: dict | None = None
@@ -194,10 +196,10 @@ class ChatAgent:
         # Load per-user LLM behaviour settings fresh each turn
         uid = self._memory.recall("uid", "")
         try:
-            from storage.settings import get_settings as _get_settings
-            _settings = await asyncio.to_thread(_get_settings, uid) if uid else {}
+            _settings = await asyncio.to_thread(self._settings_fn, uid) if (uid and self._settings_fn) else {}
             _llm = _settings.get("llm", {})
-        except Exception:
+        except Exception as e:
+            _log.warning("settings_load_error", error=type(e).__name__, msg=str(e))
             _llm = {}
         self._cfg_temperature = float(_llm.get("temperature", 0.7))
         self._cfg_max_tokens = int(_llm.get("max_tokens", 2048))
@@ -259,17 +261,15 @@ class ChatAgent:
     # ------------------------------------------------------------------
 
     async def _run_loop(self) -> AsyncIterator[AgentEvent]:
-        max_llm_calls = getattr(self, "_cfg_max_iterations", 20)
+        max_llm_calls = self._cfg_max_iterations
         llm_call_count = 0
 
-        # Per-user behaviour (set in step(); fall back to defaults)
         sys_content = SYSTEM_PROMPT
-        user_sys = getattr(self, "_cfg_system_prompt", "")
-        if user_sys:
-            sys_content = f"{sys_content}\n\n{user_sys}"
-        temperature = getattr(self, "_cfg_temperature", 0.7)
-        max_tokens = getattr(self, "_cfg_max_tokens", 2048)
-        context_length = getattr(self, "_cfg_context_length", 20)
+        if self._cfg_system_prompt:
+            sys_content = f"{sys_content}\n\n{self._cfg_system_prompt}"
+        temperature = self._cfg_temperature
+        max_tokens = self._cfg_max_tokens
+        context_length = self._cfg_context_length
 
         while True:
             if llm_call_count >= max_llm_calls:

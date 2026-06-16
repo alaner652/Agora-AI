@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import time
-import time as _time
 from dataclasses import dataclass, field
 
 from openai import OpenAI
@@ -12,6 +11,7 @@ from openai import OpenAI
 from agent import ChatAgent, ChatMemory, ConversationLogger
 from storage.messages import upsert_conversation_turn
 from storage.sessions import insert_session_turn, upsert_session_meta
+from storage.settings import get_settings
 
 _LOG_DIR_BASE = __import__("pathlib").Path(__file__).parent.parent.parent / "logs" / "api"
 _EVICT_AFTER = 2 * 3600  # seconds of inactivity before eviction
@@ -24,7 +24,7 @@ def _make_persist_fn(uid: str):
         upsert_conversation_turn(
             sid, turn_id, user, assistant,
             tool_calls or [],
-            _time.time(),
+            time.time(),
             user_kind=user_kind,
         )
     return _persist
@@ -73,6 +73,7 @@ class AgentRegistry:
                 memory=memory,
                 logger=logger,
                 refresh_fn=None,  # no password stored — client must re-login
+                settings_fn=get_settings,
             )
             self._store[token] = _UserState(uid=uid, agent=agent, byok=byok)
 

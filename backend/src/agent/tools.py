@@ -275,11 +275,10 @@ REGISTRY: dict[str, ToolSpec] = {
                     "enum": _LEAVE_IDS,
                     "description": "假別代碼：21=事假 22=病假 23=公假 24=喪假 25=婚假 26=孕產假 27=哺育假 28=防疫假 29=生理假 31=原住民假",
                 },
-                "leave_name": {"type": "string", "description": "假別名稱"},
                 "reason":     {"type": "string", "description": "請假原因"},
                 "image_path": {"type": "string", "description": "附件路徑（公假必填）"},
             },
-            "required": ["date", "periods", "leave_id", "leave_name", "reason"],
+            "required": ["date", "periods", "leave_id", "reason"],
         },
         handler=_h_apply_leave,
         danger_level=1,
@@ -327,6 +326,9 @@ REGISTRY: dict[str, ToolSpec] = {
 
 # Derived OpenAI tool list — never hand-written twice.
 TOOLS: list[dict] = [spec.openai_schema() for spec in REGISTRY.values()]
+
+# Tools that return a list of data entries; reflection.py uses this to inject a "查無資料" note.
+FETCH_TOOL_NAMES: frozenset[str] = frozenset({"fetch_schedule", "fetch_absence", "fetch_grades", "get_leaves"})
 
 
 def get_meta(name: str) -> ToolSpec:

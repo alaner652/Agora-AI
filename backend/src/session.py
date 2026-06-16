@@ -6,16 +6,16 @@ import pathlib
 import stat
 from datetime import datetime
 
+from actions.apply_leave.index import FORM_URL
 from client import get_page, login
 from utils.date import TZ
 
 _API_CACHE_DIR = pathlib.Path(".cache/sessions")
-_VALIDATE_URL = "/tsint/ck_pro/ck001_02.jsp"
 
 
 async def _validate(jsessionid: str) -> bool:
     try:
-        html = await get_page(jsessionid, _VALIDATE_URL)
+        html = await get_page(jsessionid, FORM_URL)
         return "重新登入" not in html
     except Exception:
         return False

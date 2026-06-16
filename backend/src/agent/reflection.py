@@ -4,9 +4,9 @@ import json
 
 from log import get_logger
 
-_log = get_logger("agent.reflection")
+from .tools import FETCH_TOOL_NAMES
 
-_FETCH_TOOLS = {"fetch_schedule", "fetch_absence", "fetch_grades", "get_leaves"}
+_log = get_logger("agent.reflection")
 
 
 def reflect(tool_name: str, result_json: str) -> str:
@@ -27,7 +27,7 @@ def reflect(tool_name: str, result_json: str) -> str:
         _log.warning("tool %s returned error: %s", tool_name, data["error"])
         return result_json
 
-    if tool_name in _FETCH_TOOLS and isinstance(data, list) and len(data) == 0:
+    if tool_name in FETCH_TOOL_NAMES and isinstance(data, list) and len(data) == 0:
         return json.dumps({"results": [], "note": "查無資料"}, ensure_ascii=False)
 
     if tool_name == "get_leave_form" and isinstance(data, dict) and not data.get("scheduled"):
