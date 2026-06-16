@@ -53,6 +53,7 @@ from .models import (
     LLMConfigResponse,
     LLMModelsRequest,
     SettingsPatch,
+    UsageResponse,
     UserSettings,
 )
 from .state import AgentRegistry
@@ -105,6 +106,29 @@ async def _handle_exc(e: Exception, jsessionid: str | None = None) -> HTTPExcept
     if isinstance(e, httpx.NetworkError):
         return HTTPException(status_code=502, detail={"error": "學校系統連線失敗", "error_code": "NET_003"})
     return HTTPException(status_code=500, detail={"error": msg, "error_code": "UNKNOWN"})
+
+
+# ---------------------------------------------------------------------------
+# Student profile info
+# ---------------------------------------------------------------------------
+
+@router.get("/info")
+async def student_info(
+    creds: HTTPAuthorizationCredentials = Depends(_bearer),
+    request: Request = None,
+):
+    """回傳登入時從 perchk 解析的學生個人資訊與當前學年學期。"""
+    reg = _get_registry(request)
+    profile = reg.get_profile(creds.credentials)
+    if profile is None:
+        raise HTTPException(status_code=401, detail={"error": "Token 無效或已過期", "error_code": "AUTH_002"})
+    return {
+        "name": profile.name,
+        "student_id": profile.student_id,
+        "year": profile.year,
+        "semester": profile.semester,
+        "semester_value": profile.semester_value,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -547,6 +571,44 @@ async def test_llm_settings(body: LLMConfigRequest, uid: str = Depends(_resolve_
         return {"ok": True, "reply": reply}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+_USAGE_LOG_DIR = pathlib.Path(__file__).parent.parent.parent / "logs" / "api"
+
+
+def _aggregate_token_usage(uid: str) -> UsageResponse:
+    log_dir = _USAGE_LOG_DIR / uid
+    day_stats: dict[str, dict[str, int]] = {}
+
+    if log_dir.exists():
+        for f in log_dir.glob("*.json"):
+            try:
+                data = json.loads(f.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            date = (data.get("session_id") or "")[:10]
+            if len(date) != 10:
+                continue
+            stats = day_stats.setdefault(date, {"prompt": 0, "completion": 0, "turns": 0})
+            for turn in data.get("turns", []):
+                tokens = ((turn.get("_meta") or {}).get("tokens")) or {}
+                stats["prompt"] += int(tokens.get("prompt") or 0)
+                stats["completion"] += int(tokens.get("completion") or 0)
+                stats["turns"] += 1
+
+    sorted_days = sorted(day_stats.items(), reverse=True)[:7]
+    days = [{"date": d, **s} for d, s in sorted_days]
+    return UsageResponse(
+        days=days,
+        total_prompt=sum(d["prompt"] for d in days),
+        total_completion=sum(d["completion"] for d in days),
+        total_turns=sum(d["turns"] for d in days),
+    )
+
+
+@router.get("/settings/usage", response_model=UsageResponse)
+async def get_token_usage(uid: str = Depends(_resolve_uid)):
+    return await asyncio.to_thread(_aggregate_token_usage, uid)
 
 
 @router.post("/settings/llm/models")

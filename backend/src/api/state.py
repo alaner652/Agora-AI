@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from openai import OpenAI
 
 from agent import ChatAgent, ChatMemory, ConversationLogger
+from parsers.perchk import StudentProfile
 from storage.messages import upsert_conversation_turn
 from storage.sessions import insert_session_turn, upsert_session_meta
 from storage.settings import get_settings
@@ -35,6 +36,7 @@ class _UserState:
     uid: str
     agent: ChatAgent
     byok: bool = False  # True = 使用者自帶金鑰，免費額度不計數、不擋
+    profile: StudentProfile = field(default_factory=StudentProfile)
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     last_active: float = field(default_factory=time.monotonic)
 
@@ -54,6 +56,7 @@ class AgentRegistry:
         llm: OpenAI | None = None,
         model: str | None = None,
         byok: bool = False,
+        profile: StudentProfile | None = None,
     ) -> None:
         """Create a new agent for the user (called on successful /login).
 
@@ -75,7 +78,12 @@ class AgentRegistry:
                 refresh_fn=None,  # no password stored — client must re-login
                 settings_fn=get_settings,
             )
-            self._store[token] = _UserState(uid=uid, agent=agent, byok=byok)
+            self._store[token] = _UserState(
+                uid=uid,
+                agent=agent,
+                byok=byok,
+                profile=profile or StudentProfile(),
+            )
 
     def is_byok(self, token: str) -> bool:
         """True if this token authenticated with its own LLM key (quota-exempt)."""
@@ -95,6 +103,10 @@ class AgentRegistry:
     def get_uid(self, token: str) -> str | None:
         state = self._store.get(token)
         return state.uid if state else None
+
+    def get_profile(self, token: str) -> StudentProfile | None:
+        state = self._store.get(token)
+        return state.profile if state else None
 
     async def get_jsessionid_checked(self, token: str) -> str | None:
         """Eviction-aware variant — triggers _evict() and updates last_active."""

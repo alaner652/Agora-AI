@@ -31,7 +31,7 @@ from agent import (
     ToolResultEvent,
 )
 from log import bind_request, bind_uid, clear_request, get_logger
-from session import refresh_api as _fresh_login
+from session import login_with_profile as _fresh_login
 from storage import (
     get_file,
     get_llm_config,
@@ -285,11 +285,12 @@ async def health():
 async def login(request: Request, body: LoginRequest):
     client_ip = request.client.host if request.client else ""
     try:
-        jsessionid = await _fresh_login(body.uid, body.pwd)
+        jsessionid, profile = await _fresh_login(body.uid, body.pwd)
     except Exception as e:
         _log.warning("auth_login", uid=body.uid, ok=False, client_ip=client_ip, reason=str(e))
         raise HTTPException(status_code=401, detail={"error": f"登入失敗：{e}", "error_code": "AUTH_001"}) from e
-    _log.info("auth_login", uid=body.uid, ok=True, client_ip=client_ip)
+    _log.info("auth_login", uid=body.uid, ok=True, client_ip=client_ip,
+              has_profile=bool(profile))
 
     user_cfg = await asyncio.to_thread(get_llm_config, body.uid)
     if user_cfg:
@@ -300,8 +301,22 @@ async def login(request: Request, body: LoginRequest):
         model = None
 
     token = secrets.token_urlsafe(32)
-    await _get_registry().register(token, body.uid, jsessionid, llm=llm, model=model, byok=user_cfg is not None)
-    return LoginResponse(token=token)
+    reg = _get_registry()
+    await reg.register(token, body.uid, jsessionid, llm=llm, model=model,
+                       byok=user_cfg is not None, profile=profile)
+
+    # 把當前學年學期存入 agent memory，讓需要學期參數的工具可以直接套用，
+    # 不必每次都先呼叫 get_semester_options。
+    if profile.semester_value:
+        state = reg._store.get(token)
+        if state:
+            state.agent._memory.remember("last_semester", profile.semester_value)
+
+    return LoginResponse(
+        token=token,
+        name=profile.name,
+        semester_value=profile.semester_value,
+    )
 
 
 def _load_attachment(file_id: str | None, uid: str) -> tuple[str | None, str]:
