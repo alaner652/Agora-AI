@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import httpx
 
+import storage.settings as _storage_settings
 import agent.tools as tools_mod
 from agent.agent import (
     ChatAgent,
@@ -63,7 +64,8 @@ class _FakeLLM:
 def _make_agent(llm, uid: str = "u1", logger=None) -> ChatAgent:
     mem = ChatMemory()
     mem.remember("uid", uid)
-    return ChatAgent(jsessionid="sess", llm=llm, model="fake", memory=mem, logger=logger)
+    return ChatAgent(jsessionid="sess", llm=llm, model="fake", memory=mem, logger=logger,
+                     settings_fn=_storage_settings.get_settings)
 
 
 def _settings(monkeypatch, **llm_cfg) -> None:

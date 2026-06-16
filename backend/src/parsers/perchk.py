@@ -90,7 +90,7 @@ def parse_perchk(html: str) -> StudentProfile:
     profile.semester = found.get("semester", "")
 
     if not profile:
-        _log.warning("perchk_profile_not_found",
-                     hint="個人資訊與學年未能從 perchk HTML 解析，請確認 _JS_VARS 模式是否符合")
+        _log.debug("perchk_profile_not_found",
+                   hint="perchk.jsp 為導覽選單 frame，不含學生資料，由登入後 fallback 補足")
 
     return profile

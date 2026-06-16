@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { serverFetch } from '@/lib/api-server'
 import { SettingCard, InfoRow, CopyButton } from '@/components/settings/primitives'
 import { LoadError } from '@/components/LoadError'
-import type { FullSettingsResponse, TokenUsageResponse } from '@/lib/data'
+import type { FullSettingsResponse, TokenUsageResponse, StudentInfo, SemesterOption } from '@/lib/data'
 
 function fmt(n: number) {
   return n.toLocaleString('zh-TW')
@@ -12,10 +12,14 @@ function fmt(n: number) {
 export default async function GeneralSettingsPage() {
   let data: FullSettingsResponse
   let usage: TokenUsageResponse
+  let info: StudentInfo | null = null
+  let semOpts: SemesterOption[] = []
   try {
-    ;[data, usage] = await Promise.all([
+    ;[data, usage, info, { semesters: semOpts }] = await Promise.all([
       serverFetch<FullSettingsResponse>('/api/settings'),
       serverFetch<TokenUsageResponse>('/api/settings/usage'),
+      serverFetch<StudentInfo>('/api/info').catch(() => null),
+      serverFetch<{ semesters: SemesterOption[] }>('/api/semester-options').catch(() => ({ semesters: [] })),
     ])
   } catch (e) {
     unstable_rethrow(e)
@@ -23,6 +27,13 @@ export default async function GeneralSettingsPage() {
   }
 
   const { uid, llm_status } = data
+  const selectedSem = semOpts.find(s => s.selected)
+  const semesterLabel = selectedSem
+    ? (() => {
+        const [year, sem] = selectedSem.value.split(',')
+        return `${year} 學年第 ${sem} 學期`
+      })()
+    : null
 
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date())
   const todayData = usage.days.find(d => d.date === today)
@@ -35,7 +46,9 @@ export default async function GeneralSettingsPage() {
       <SettingCard>
         <p className="font-heading text-sm font-semibold text-foreground">帳號</p>
         <div className="-mt-2">
-          <InfoRow label="學號" value={uid} mono action={<CopyButton value={uid} />} />
+          {(info?.name || null) && <InfoRow label="姓名" value={info!.name} />}
+          <InfoRow label="學號" value={info?.student_id || uid} mono action={<CopyButton value={info?.student_id || uid} />} />
+          {semesterLabel && <InfoRow label="學期" value={semesterLabel} />}
         </div>
       </SettingCard>
 

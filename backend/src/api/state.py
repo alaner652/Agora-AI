@@ -82,7 +82,7 @@ class AgentRegistry:
                 uid=uid,
                 agent=agent,
                 byok=byok,
-                profile=profile or StudentProfile(),
+                profile=profile if profile is not None else StudentProfile(),
             )
 
     def is_byok(self, token: str) -> bool:

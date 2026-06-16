@@ -24,7 +24,7 @@ export default async function SchedulePage({
     fetchError = true
   }
 
-  const semester = params.semester ?? opts[0]?.value ?? ''
+  const semester = params.semester ?? opts.find(s => s.selected)?.value ?? opts[0]?.value ?? ''
 
   if (semester && !fetchError) {
     try {

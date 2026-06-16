@@ -178,6 +178,14 @@ export interface TokenUsageResponse {
   total_turns: number
 }
 
+export interface StudentInfo {
+  name: string
+  student_id: string
+  year: string
+  semester: string
+  semester_value: string
+}
+
 export async function getSemesterOptions(): Promise<SemesterOption[]> {
   const res = await apiClient.get<{ semesters: SemesterOption[] }>('/api/semester-options')
   return res.data.semesters ?? []
