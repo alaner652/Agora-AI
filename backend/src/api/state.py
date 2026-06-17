@@ -128,6 +128,14 @@ class AgentRegistry:
             state.last_active = time.monotonic()
             return state.uid
 
+    def update_llm(self, token: str, llm: OpenAI | None, model: str | None, *, byok: bool) -> None:
+        """Update agent LLM client and byok flag in-place (called after PUT/DELETE /settings/llm)."""
+        state = self._store.get(token)
+        if state:
+            state.byok = byok
+            state.agent._llm = llm if llm is not None else self._llm
+            state.agent._model = model if model is not None else self._model
+
     def update_session(self, token: str, jsessionid: str) -> None:
         state = self._store.get(token)
         if state:

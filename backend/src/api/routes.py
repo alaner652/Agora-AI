@@ -556,14 +556,28 @@ async def get_llm_settings(uid: str = Depends(_resolve_uid)):
 
 
 @router.put("/settings/llm", response_model=LLMConfigResponse)
-async def put_llm_settings(body: LLMConfigRequest, uid: str = Depends(_resolve_uid)):
+async def put_llm_settings(
+    body: LLMConfigRequest,
+    request: Request,
+    creds: HTTPAuthorizationCredentials = Depends(_bearer),
+    uid: str = Depends(_resolve_uid),
+):
+    if body.api_key and not body.api_key.isascii():
+        raise HTTPException(status_code=422, detail={"error": "API 金鑰只能包含 ASCII 字元，請確認金鑰格式正確", "error_code": "INVALID_KEY"})
     await asyncio.to_thread(set_llm_config, uid, base_url=body.base_url, api_key=body.api_key, model=body.model)
+    new_llm = OpenAI(api_key=body.api_key or "EMPTY", base_url=body.base_url)
+    _get_registry(request).update_llm(creds.credentials, new_llm, body.model, byok=True)
     return LLMConfigResponse(has_custom_config=True, base_url=body.base_url, model=body.model)
 
 
 @router.delete("/settings/llm")
-async def delete_llm_settings(uid: str = Depends(_resolve_uid)):
+async def delete_llm_settings(
+    request: Request,
+    creds: HTTPAuthorizationCredentials = Depends(_bearer),
+    uid: str = Depends(_resolve_uid),
+):
     await asyncio.to_thread(delete_llm_config, uid)
+    _get_registry(request).update_llm(creds.credentials, None, None, byok=False)
     return {"ok": True}
 
 

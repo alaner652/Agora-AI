@@ -315,6 +315,12 @@ class ChatAgent:
             _t_llm = time.monotonic()
             try:
                 response = self._llm.chat.completions.create(**create_kwargs)
+            except UnicodeEncodeError:
+                # api_key 含非 ASCII 字元，無法放進 HTTP Authorization header
+                _log.warning("llm_config_error", reason="api_key_non_ascii")
+                yield TextDeltaEvent(text="API 金鑰格式無效（含有非 ASCII 字元），請至設定頁重新填入正確的金鑰。")
+                yield DoneEvent()
+                return
             except (APITimeoutError, APIConnectionError, APIStatusError) as e:
                 # 上游 LLM 暫時性故障（逾時 / 連線中斷 / 5xx / 429）就地降級成串流內的
                 # 友善訊息，而非讓例外冒到 ASGI 變成中途斷掉的 500。
