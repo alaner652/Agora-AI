@@ -1,7 +1,7 @@
 # Agora AI — TPCU 學生 AI 助理
 
 TPCU 校務系統的 AI 助理：課表、缺曠、成績、假單查詢與管理，並能用對話操作這些功能。
-後端 FastAPI（`backend/`）、前端 Next.js 16（`frontend/`）、Caddy 同源反向代理部署。
+後端 FastAPI（`backend/`）、前端 Next.js 16（`frontend/`），透過 Next.js rewrites 同源反代部署。
 
 ## 架構速覽
 
@@ -10,7 +10,7 @@ api/  →  agent/  →  actions/  →  parsers/
                               →  client.py
 ```
 
-對外只有 Caddy `:80`，依 path + method 同源分流：`/api/*`、POST `/login` `/chat` `/answer` → backend；其餘頁面 → frontend。前端走相對路徑、後端免 CORS。完整設計見下方 @docs/system-design.md。
+對外只有 Next.js `:80`，`/api/**` 透過 rewrites 透傳到 backend:8000；其餘頁面由 Next.js 直接處理。前端走相對路徑、後端免 CORS。完整設計見 @docs/system-design.md。
 
 ## 開發鐵則（細節見 @docs/CONTRIBUTING.md）
 
@@ -27,7 +27,7 @@ api/  →  agent/  →  actions/  →  parsers/
 ## 常用指令
 
 ```bash
-# 全端（Caddy 統一入口 :80）—— 開 http://localhost
+# 全端（:80）—— 開 http://localhost
 docker compose up --build -d
 
 # 後端單獨開發（需在 backend/ 下）
@@ -42,4 +42,4 @@ cd frontend && npm run dev               # :3000
 
 - **前端 Next.js 16 與你訓練資料中的不同** —— 動手改前端前先讀 `frontend/AGENTS.md` 的指示。
 - 環境變數見 [README.md](README.md)；`SETTINGS_ENCRYPT_KEY` 必須長期固定，更換會使既有加密設定無法解開。
-- 改動完成、要驗證時走 Docker（`http://localhost`），SSE 串流是否逐字冒出是 `/chat` 路由正確的指標。
+- 改動完成、要驗證時走 Docker（`http://localhost`），SSE 串流是否逐字冒出是 `/api/chat` 路由正確的指標。
