@@ -3,7 +3,6 @@
 import { useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import axios from 'axios'
 import { toast } from 'sonner'
 import { Eye, EyeOff, GraduationCap, ShieldCheck } from 'lucide-react'
 import { useAuthStore } from '@/lib/stores/auth'
@@ -23,11 +22,17 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     try {
-      const res = await axios.post<{ token: string }>(`${BASE}/login`, { uid, pwd })
-      useAuthStore.getState().setToken(res.data.token)
+      const res = await fetch(`${BASE}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid, pwd }),
+      })
+      if (!res.ok) throw Object.assign(new Error(res.statusText), { response: { data: await res.json().catch(() => null) } })
+      const { token } = await res.json() as { token: string }
+      useAuthStore.getState().setToken(token)
       router.push('/schedule')
     } catch (err: unknown) {
-      // 連不到後端（沒有 response）給專屬提示，其餘交給統一解析；
+      // 連不到後端（TypeError，無 response）給專屬提示，其餘交給統一解析；
       // 去掉後端訊息可能殘留的結尾冒號（例："登入失敗："）。
       const msg = !(err as { response?: unknown }).response
         ? `無法連線到伺服器${BASE ? `（${BASE}）` : ''}，請確認後端是否運行`
