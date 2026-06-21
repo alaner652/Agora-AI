@@ -19,6 +19,9 @@ __pycache__/
 # 開發暫存
 schedule_debug.html
 
+# Cloudflare Tunnel 憑證（含私鑰，不可上傳）
+cloudflared/credentials.json
+
 # ── 後端 runtime 產物（含使用者資料 / JSESSIONID，不可上傳）──────────────
 # Session 暫存（含 JSESSIONID）
 backend/.cache/

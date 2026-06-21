@@ -42,6 +42,16 @@ services:
       - backend
     restart: unless-stopped
 
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --config /etc/cloudflared/config.yml run
+    volumes:
+      - ./cloudflared/config.yml:/etc/cloudflared/config.yml:ro
+      - ./cloudflared/credentials.json:/etc/cloudflared/credentials.json:ro
+    depends_on:
+      - caddy
+    restart: unless-stopped
+
   # ── 觀測性 stack（選用）──────────────────────────────────────
   # 平時不啟動；需要時：docker compose --profile observability up -d
   # Grafana 只綁 127.0.0.1:3001（不公開），Loki/Promtail 走 compose 內網。
