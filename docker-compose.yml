@@ -4,7 +4,6 @@
 services:
   backend:
     build: ./backend
-    image: ${REGISTRY:-tpcu}/tpcu-backend:${TAG:-latest}   # 供 docker compose build / push 用
     env_file: ./backend/.env          # LLM_API_KEY / SETTINGS_ENCRYPT_KEY 等機密（runtime 注入，不烘進 image）
     volumes:
       - ./backend/data:/app/data       # SQLite（含使用者資料）
@@ -18,7 +17,6 @@ services:
       context: ./frontend
       args:
         NEXT_PUBLIC_API_URL: ""         # 同源：留空 → client 走相對路徑，image 完全通用
-    image: ${REGISTRY:-tpcu}/tpcu-frontend:${TAG:-latest}
     ports:
       - "80:3000"
     environment:
@@ -35,46 +33,3 @@ services:
     depends_on:
       - frontend
     restart: unless-stopped
-
-  # ── 觀測性 stack（選用）──────────────────────────────────────
-  # 平時不啟動；需要時：docker compose --profile observability up -d
-  # Grafana 只綁 127.0.0.1:3001（不公開），Loki/Promtail 走 compose 內網。
-  loki:
-    image: grafana/loki:3.1.1
-    profiles: [observability]
-    command: -config.file=/etc/loki/loki-config.yml
-    volumes:
-      - ./ops/loki/loki-config.yml:/etc/loki/loki-config.yml:ro
-      - loki_data:/loki
-    restart: unless-stopped
-
-  promtail:
-    image: grafana/promtail:3.1.1
-    profiles: [observability]
-    command: -config.file=/etc/promtail/promtail-config.yml
-    volumes:
-      - ./ops/promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
-      - ./backend/logs:/logs:ro        # tail 後端寫出的 system/errors.jsonl
-    depends_on:
-      - loki
-    restart: unless-stopped
-
-  grafana:
-    image: grafana/grafana:11.2.0
-    profiles: [observability]
-    ports:
-      - "127.0.0.1:3001:3000"          # 僅本機；要遠端請走 Caddy + basic_auth
-    environment:
-      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
-      - GF_USERS_ALLOW_SIGN_UP=false
-    volumes:
-      - ./ops/grafana/provisioning:/etc/grafana/provisioning:ro
-      - grafana_data:/var/lib/grafana
-    depends_on:
-      - loki
-    restart: unless-stopped
-
-volumes:
-  loki_data:
-  grafana_data:

@@ -16,7 +16,6 @@ from .sessions import (
     upsert_session_meta,
 )
 from .settings import get_settings, init_settings_db, patch_settings
-from .usage import init_usage_db, record_and_check
 from .user_settings import (
     LLMConfig,
     delete_llm_config,
@@ -43,14 +42,12 @@ __all__ = [
     "init_messages_db",
     "init_sessions_db",
     "init_settings_db",
-    "init_usage_db",
     "init_user_settings_db",
     "insert_file",
     "insert_session_turn",
     "list_sessions",
     "load_history",
     "patch_settings",
-    "record_and_check",
     "save_history",
     "set_llm_config",
     "upsert_conversation_turn",
