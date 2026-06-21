@@ -282,7 +282,7 @@ REGISTRY: dict[str, ToolSpec] = {
         },
         handler=_h_apply_leave,
         danger_level=1,
-        preconditions=["get_leave_form"],
+        preconditions=[],
         side_effects=["modifies_leave_records"],
     ),
     "delete_leave": ToolSpec(

@@ -211,12 +211,12 @@ async def _enforce_llm_quota(token: str, uid: str) -> None:
 # Routes
 # ---------------------------------------------------------------------------
 
-@app.get("/health")
+@app.get("/api/health")
 async def health():
     return {"status": "ok", "model": _LLM_MODEL}
 
 
-@app.post("/login", response_model=LoginResponse)
+@app.post("/api/login", response_model=LoginResponse)
 @limiter.limit("10/minute")
 async def login(request: Request, body: LoginRequest):
     client_ip = request.client.host if request.client else ""
@@ -306,7 +306,7 @@ def _load_attachment(file_id: str | None, uid: str) -> tuple[str | None, str]:
     return base64.b64encode(p.read_bytes()).decode(), mime
 
 
-@app.post("/chat")
+@app.post("/api/chat")
 @limiter.limit("20/minute")
 async def chat(request: Request, body: ChatRequest):
     agent, lock = await _get_agent_or_401(body.token)
@@ -330,7 +330,7 @@ async def chat(request: Request, body: ChatRequest):
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 
-@app.post("/answer")
+@app.post("/api/answer")
 @limiter.limit("20/minute")
 async def answer(request: Request, body: AnswerRequest):
     agent, lock = await _get_agent_or_401(body.token)

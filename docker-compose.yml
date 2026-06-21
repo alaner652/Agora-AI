@@ -1,8 +1,5 @@
-# 單機部署（本機 build）：Caddy 反代統一入口（:80）→ frontend + backend 同源。
+# 單機部署（本機 build）：Next.js 前端直接對外（:80），透過 rewrites 透傳 /api/** 到後端。
 # 啟動：docker compose up --build -d  →  瀏覽器開 http://localhost
-#
-# 同源架構下，前端不烘後端 URL、後端不需 CORS、兩者都不對外開 port，
-# 對外只有 Caddy 的 :80。要上 HTTPS / 換網域只改 Caddyfile，程式碼不動。
 
 services:
   backend:
@@ -22,23 +19,11 @@ services:
       args:
         NEXT_PUBLIC_API_URL: ""         # 同源：留空 → client 走相對路徑，image 完全通用
     image: ${REGISTRY:-tpcu}/tpcu-frontend:${TAG:-latest}
-    environment:
-      - API_INTERNAL_URL=http://backend:8000   # server component 走容器內網
-    depends_on:
-      - backend
-    restart: unless-stopped
-
-  caddy:
-    image: caddy:2-alpine
     ports:
-      - "80:80"
-      # - "443:443"                     # 上 HTTPS 時開啟
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data                # 憑證等持久資料
-      - caddy_config:/config
+      - "80:3000"
+    environment:
+      - API_INTERNAL_URL=http://backend:8000   # rewrites + server component 走容器內網
     depends_on:
-      - frontend
       - backend
     restart: unless-stopped
 
@@ -48,7 +33,7 @@ services:
     entrypoint: ["sh", "-c"]
     command: ["cloudflared tunnel run --token $CLOUDFLARE_TUNNEL_TOKEN"]
     depends_on:
-      - caddy
+      - frontend
     restart: unless-stopped
 
   # ── 觀測性 stack（選用）──────────────────────────────────────
@@ -91,7 +76,5 @@ services:
     restart: unless-stopped
 
 volumes:
-  caddy_data:
-  caddy_config:
   loki_data:
   grafana_data:

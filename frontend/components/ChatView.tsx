@@ -372,7 +372,7 @@ export function ChatView({ initialMessages, initialSessionId }: ChatViewProps) {
     }
     setMessages(prev => [...prev, userMsgObj])
     const contextMessages = [...messages, userMsgObj]
-    await runStream(`${BASE}/chat`, { token, message: userMsg, file_id: pendingFile?.fileId ?? null }, contextMessages)
+    await runStream(`${BASE}/api/chat`, { token, message: userMsg, file_id: pendingFile?.fileId ?? null }, contextMessages)
   }
 
   function sendSuggestion(text: string) {
@@ -396,7 +396,7 @@ export function ChatView({ initialMessages, initialSessionId }: ChatViewProps) {
     setAskUser(null)
     setMessages([...withQuestion, answerMsg])
     const contextMessages = [...withQuestion, answerMsg]
-    await runStream(`${BASE}/answer`, { token, selected }, contextMessages)
+    await runStream(`${BASE}/api/answer`, { token, selected }, contextMessages)
   }
 
   async function handleClearHistory() {
@@ -440,7 +440,7 @@ export function ChatView({ initialMessages, initialSessionId }: ChatViewProps) {
     const contextMessages = [...messages.slice(0, editingIndex!), editedMsg]
     setEditingIndex(null)
     setEditText('')
-    await runStream(`${BASE}/chat`, { token, message: newMsg }, contextMessages)
+    await runStream(`${BASE}/api/chat`, { token, message: newMsg }, contextMessages)
   }
 
   const lastIdx = messages.length - 1
