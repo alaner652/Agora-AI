@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 import { useTheme } from 'next-themes'
 import {
   CalendarDays, GraduationCap, Clock, FileText,
-  Bot, Settings, LogOut, Sun, Moon, Monitor,
+  Briefcase, Bot, Settings, LogOut, Sun, Moon, Monitor,
 } from 'lucide-react'
 import { getCookie } from '@/lib/cookie'
 import { useAuthStore } from '@/lib/stores/auth'
@@ -76,8 +76,9 @@ const navGroups = [
   {
     label: '出勤',
     items: [
-      { href: '/absence',  label: '缺曠',    icon: Clock,     badge: 'truancy' as const },
-      { href: '/leaves',   label: '假單',    icon: FileText },
+      { href: '/absence',   label: '缺曠',    icon: Clock,     badge: 'truancy' as const },
+      { href: '/leaves',    label: '假單',    icon: FileText },
+      { href: '/workstudy', label: '工讀',    icon: Briefcase },
     ],
   },
   {

@@ -25,6 +25,11 @@ from actions.fetch_grades.index import get_grades as _grades
 from actions.fetch_leaves.index import get_leaves as _leaves
 from actions.fetch_schedule.index import get_options as _sched_opts
 from actions.fetch_schedule.index import get_schedule as _sched
+from actions.workstudy.index import free_slots_from_schedule
+from actions.workstudy.index import get_master as _ws_master
+from actions.workstudy.index import get_month as _ws_month
+from actions.workstudy.index import plan_shifts as _ws_plan
+from actions.workstudy.index import save_month as _ws_save
 from session import _validate as _validate_session
 from storage import (
     clear_history,
@@ -319,6 +324,93 @@ async def delete_leave_endpoint(
             edate=body.end_date,
         )
         return result
+    except Exception as e:
+        raise await _handle_exc(e, jsessionid) from e
+
+
+# ---------------------------------------------------------------------------
+# Workstudy（個人學習型之服務考勤 / bk014）
+# ---------------------------------------------------------------------------
+
+@router.get("/workstudy/master")
+async def workstudy_master(
+    year: str,
+    sms: str,
+    jsessionid: str = Depends(_resolve_session),
+):
+    """某學年期的工讀月份主檔列表（各月時數、核銷狀態、unit_id/kind_id）。"""
+    try:
+        return await _ws_master(jsessionid, year, sms)
+    except Exception as e:
+        raise await _handle_exc(e, jsessionid) from e
+
+
+class WorkstudyPlanBody(BaseModel):
+    part_month: str               # 民國 YYYMM，例如 11506
+    pattern: dict[str, list[str]] # {星期: [時段]}，星期 "1"…"7"，時段 "0800"/"1200"
+    skip_dates: list[str] = []
+    month_cap: float = 20.0
+    semester: str = ""            # "114,2"，提供時用課表空堂防呆
+    use_schedule_guard: bool = True
+
+
+@router.post("/workstudy/plan")
+async def workstudy_plan(
+    body: WorkstudyPlanBody,
+    jsessionid: str = Depends(_resolve_session),
+):
+    """依固定班表攤開當月出勤清單（每段 1 小時），供確認後送出。"""
+    try:
+        free = None
+        if body.use_schedule_guard and body.semester:
+            sched = await _sched(jsessionid, body.semester)
+            free = free_slots_from_schedule(sched)
+        pattern = {int(k): v for k, v in body.pattern.items()}
+        entries = _ws_plan(
+            int(body.part_month[:3]), int(body.part_month[3:5]), pattern,
+            free_by_weekday=free, skip_dates=body.skip_dates, month_cap=body.month_cap,
+        )
+        return {
+            "part_month": body.part_month,
+            "count": len(entries),
+            "total_hours": sum(float(e["hours"]) for e in entries),
+            "entries": entries,
+        }
+    except Exception as e:
+        raise await _handle_exc(e, jsessionid) from e
+
+
+class WorkstudyEntry(BaseModel):
+    date: str
+    t_in: str
+    t_out: str
+    hours: str
+    seq: str = ""
+
+
+class WorkstudySaveBody(BaseModel):
+    year: str
+    sms: str
+    part_month: str
+    unit_id: str
+    kind_id: str
+    kind_name: str = ""
+    entries: list[WorkstudyEntry]
+
+
+@router.post("/workstudy/save")
+async def workstudy_save(
+    body: WorkstudySaveBody,
+    jsessionid: str = Depends(_resolve_session),
+):
+    """整月覆蓋送出。重新抓當月主檔取得最新 pay_seqid 後存檔。"""
+    try:
+        month = await _ws_month(
+            jsessionid, body.year, body.sms, body.part_month,
+            body.unit_id, body.kind_id,
+        )
+        entries = [e.model_dump() for e in body.entries]
+        return await _ws_save(jsessionid, month["meta"], entries, body.kind_name)
     except Exception as e:
         raise await _handle_exc(e, jsessionid) from e
 

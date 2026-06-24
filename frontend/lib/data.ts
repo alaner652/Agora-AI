@@ -116,6 +116,77 @@ export interface DeleteLeaveRequest {
   end_date: string
 }
 
+// ── Workstudy（工讀考勤 / bk014）──────────────────────────────────────────────
+
+export interface WorkstudyRecord {
+  year: string
+  month: string
+  unit: string
+  kind: string
+  hours: string
+  status: string       // 核銷狀態：未送件 / 已送件…
+  unit_id: string
+  kind_id: string
+  editable: boolean    // 已送件不可改
+}
+
+export interface WorkstudyMaster {
+  year: string
+  sms: string
+  months: SemesterOption[]
+  units: SemesterOption[]
+  records: WorkstudyRecord[]
+}
+
+export interface WorkstudyShift {
+  date: string         // 民國 YYYMMDD
+  t_in: string         // HHMM
+  t_out: string        // HHMM
+  hours: string        // "1.0"
+  seq: string
+}
+
+export interface WorkstudyPlan {
+  part_month: string
+  count: number
+  total_hours: number
+  entries: WorkstudyShift[]
+}
+
+export interface PlanWorkstudyRequest {
+  part_month: string
+  pattern: Record<string, string[]>   // { "2": ["1200"], "4": ["0800"] }
+  skip_dates?: string[]
+  month_cap?: number
+  semester?: string                   // "114,2"，給課表空堂防呆
+  use_schedule_guard?: boolean
+}
+
+export interface SaveWorkstudyRequest {
+  year: string
+  sms: string
+  part_month: string
+  unit_id: string
+  kind_id: string
+  kind_name: string
+  entries: WorkstudyShift[]
+}
+
+export async function getWorkstudyMaster(year: string, sms: string): Promise<WorkstudyMaster> {
+  const res = await apiClient.get<WorkstudyMaster>('/api/workstudy/master', { params: { year, sms } })
+  return res.data
+}
+
+export async function planWorkstudy(req: PlanWorkstudyRequest): Promise<WorkstudyPlan> {
+  const res = await apiClient.post<WorkstudyPlan>('/api/workstudy/plan', req)
+  return res.data
+}
+
+export async function saveWorkstudy(req: SaveWorkstudyRequest): Promise<ApplyLeaveResult> {
+  const res = await apiClient.post<ApplyLeaveResult>('/api/workstudy/save', req)
+  return res.data
+}
+
 export interface LLMConfigResponse {
   has_custom_config: boolean
   base_url: string
