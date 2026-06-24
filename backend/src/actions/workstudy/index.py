@@ -26,11 +26,9 @@ MASTER_URL = "/tsint/bk_pro/bk014_00.jsp"
 EDIT_URL   = "/tsint/bk_pro/bk014_01.jsp"
 SUBMIT_URL = "/tsint/bk_pro/bk014_ins.jsp"
 
-# 可選值班時段（各 1 小時）。key 即 plan_shifts 的 pattern 用的 slot 代碼。
-SLOTS: dict[str, tuple[str, str]] = {
-    "0800": ("0800", "0900"),
-    "1200": ("1200", "1300"),
-}
+# 前端帶入新班表前的便利預設（08-09、12-13）。時段本身由使用者自訂，
+# 不在後端寫死——每個人固定值班時段不同。
+DEFAULT_SLOTS: list[tuple[str, str]] = [("0800", "0900"), ("1200", "1300")]
 
 ZH_WEEK = "一二三四五六日"   # 1=Mon … 7=Sun
 DAILY_CAP = 7.5
@@ -78,12 +76,17 @@ async def get_month(jsessionid: str, year: str, sms: str, part_month: str,
 # 排班（純函式，無 IO）
 # ---------------------------------------------------------------------------
 
-def _hhmm(t: str) -> int:
-    return int(t)
+def _to_min(hhmm: str) -> int:
+    return int(hhmm[:2]) * 60 + int(hhmm[2:])
 
 
-def free_slots_from_schedule(schedule_entries: list[dict]) -> dict[int, list[str]]:
-    """由課表算出每個星期（1=一 … 7=日）哪些 SLOT 是空堂（無課重疊）。"""
+def slot_hours(t_in: str, t_out: str) -> float:
+    """時段時數（小時），由起訖自動計算。"""
+    return (_to_min(t_out) - _to_min(t_in)) / 60
+
+
+def busy_by_weekday(schedule_entries: list[dict]) -> dict[int, list[tuple[int, int]]]:
+    """課表 → 每個星期（1=一 … 7=日）的上課時段（分鐘區間），供防呆比對。"""
     busy: dict[int, list[tuple[int, int]]] = {}
     for e in schedule_entries:
         rng = e.get("time_range", "")
@@ -92,53 +95,54 @@ def free_slots_from_schedule(schedule_entries: list[dict]) -> dict[int, list[str
         a, b = rng.split("-", 1)
         if not (a.isdigit() and b.isdigit()):
             continue
-        busy.setdefault(e["weekday"], []).append((_hhmm(a), _hhmm(b)))
-
-    free: dict[int, list[str]] = {}
-    for wd in range(1, 8):
-        slots = []
-        for start, (s_in, s_out) in SLOTS.items():
-            si, so = _hhmm(s_in), _hhmm(s_out)
-            if not any(si < be and ae < so for ae, be in busy.get(wd, [])):
-                slots.append(start)
-        free[wd] = slots
-    return free
+        busy.setdefault(e["weekday"], []).append((_to_min(a), _to_min(b)))
+    return busy
 
 
 def plan_shifts(
-    roc: int, mon: int, pattern: dict[int, list[str]], *,
-    free_by_weekday: dict[int, list[str]] | None = None,
+    roc: int, mon: int, pattern: dict[int, list[tuple[str, str]]], *,
+    schedule_entries: list[dict] | None = None,
     skip_dates: list[str] | None = None,
     month_cap: float = MONTH_CAP,
 ) -> list[dict]:
     """把固定班表 pattern 攤成當月出勤清單。
 
-    pattern: {星期(1=一…7=日): [slot 代碼, ...]} —— 你「實際固定會去」的時段。
-    free_by_weekday: 提供時作防呆，pattern 排到非空堂的時段會被跳過並記 warning。
+    pattern: {星期(1=一…7=日): [(起, 訖), ...]} —— 你「實際固定會去」的時段，
+             起訖為 HHMM；每個人不同，故由使用者自訂、可多段。
+    schedule_entries: 提供時作防呆，與上課時間重疊的時段會被跳過並記 warning。
     skip_dates: 該月你沒去的日子（民國 YYYMMDD），不納入。
+    每日/每週/每月分別套用 7.5 / 8 / month_cap 上限。
     """
     g = roc + 1911
     skip = set(skip_dates or [])
+    busy = busy_by_weekday(schedule_entries) if schedule_entries else None
     entries: list[dict] = []
-    total, weekly = 0.0, {}
+    total: float = 0.0
+    weekly: dict[int, float] = {}
+    daily: dict[str, float] = {}
 
     for day in range(1, calendar.monthrange(g, mon)[1] + 1):
         wd = calendar.weekday(g, mon, day) + 1   # 1=Mon … 7=Sun
         date = f"{roc:03d}{mon:02d}{day:02d}"
-        for start in pattern.get(wd, []):
-            if date in skip or start not in SLOTS:
+        for t_in, t_out in pattern.get(wd, []):
+            hrs = slot_hours(t_in, t_out)
+            if hrs <= 0 or date in skip:
                 continue
-            if free_by_weekday is not None and start not in free_by_weekday.get(wd, []):
-                _log.warning("plan_shifts skip non-free date=%s slot=%s", date, start)
+            if busy is not None and any(
+                _to_min(t_in) < be and ae < _to_min(t_out) for ae, be in busy.get(wd, [])
+            ):
+                _log.warning("plan_shifts skip non-free date=%s slot=%s-%s", date, t_in, t_out)
                 continue
             wk = (day - 1) // 7
-            if weekly.get(wk, 0.0) + 1.0 > WEEK_CAP or total + 1.0 > month_cap:
+            if (daily.get(date, 0.0) + hrs > DAILY_CAP
+                    or weekly.get(wk, 0.0) + hrs > WEEK_CAP
+                    or total + hrs > month_cap):
                 continue
-            t_in, t_out = SLOTS[start]
             entries.append({"date": date, "t_in": t_in, "t_out": t_out,
-                            "hours": "1.0", "seq": ""})
-            total += 1.0
-            weekly[wk] = weekly.get(wk, 0.0) + 1.0
+                            "hours": f"{hrs:.1f}", "seq": ""})
+            total += hrs
+            weekly[wk] = weekly.get(wk, 0.0) + hrs
+            daily[date] = daily.get(date, 0.0) + hrs
     return entries
 
 

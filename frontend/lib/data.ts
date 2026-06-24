@@ -155,7 +155,8 @@ export interface WorkstudyPlan {
 
 export interface PlanWorkstudyRequest {
   part_month: string
-  pattern: Record<string, string[]>   // { "2": ["1200"], "4": ["0800"] }
+  // 自訂時段：{ 星期: [[起,訖], ...] }，起訖為 HHMM。例 { "2": [["1200","1300"]] }
+  pattern: Record<string, [string, string][]>
   skip_dates?: string[]
   month_cap?: number
   semester?: string                   // "114,2"，給課表空堂防呆

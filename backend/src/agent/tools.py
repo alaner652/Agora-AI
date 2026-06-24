@@ -22,14 +22,13 @@ from actions.fetch_leaves.index import get_leaves
 from actions.fetch_schedule.index import get_options as _sched_options
 from actions.fetch_schedule.index import get_schedule
 from actions.workstudy.index import (
-    free_slots_from_schedule,
-    plan_shifts,
-)
-from actions.workstudy.index import (
     get_master as _ws_master,
 )
 from actions.workstudy.index import (
     get_month as _ws_month,
+)
+from actions.workstudy.index import (
+    plan_shifts,
 )
 from actions.workstudy.index import (
     save_month as _ws_save,
@@ -199,16 +198,15 @@ async def _h_get_workstudy_month(args: dict, ctx: ToolContext) -> str:
 
 async def _h_plan_workstudy(args: dict, ctx: ToolContext) -> str:
     part_month = args["part_month"]
-    pattern = {int(k): v for k, v in args["pattern"].items()}
+    pattern = {int(k): [tuple(s) for s in v] for k, v in args["pattern"].items()}
 
-    free = None
     sched = ctx.memory.cache.get("schedule")
-    if sched and args.get("use_schedule_guard", True):
-        free = free_slots_from_schedule(sched["entries"])
+    use_guard = args.get("use_schedule_guard", True)
+    schedule_entries = sched["entries"] if (sched and use_guard) else None
 
     entries = plan_shifts(
         int(part_month[:3]), int(part_month[3:5]), pattern,
-        free_by_weekday=free, skip_dates=args.get("skip_dates"),
+        schedule_entries=schedule_entries, skip_dates=args.get("skip_dates"),
         month_cap=args.get("month_cap", 20.0),
     )
     ctx.memory.cache["workstudy_plan"] = entries
@@ -409,10 +407,10 @@ REGISTRY: dict[str, ToolSpec] = {
     "plan_workstudy": ToolSpec(
         name="plan_workstudy",
         description=(
-            "依『固定班表』把當月出勤攤開成清單（每段 1 小時），供使用者確認後送出。"
-            "pattern 是使用者實際固定值班的時段，不是用來自動湊滿時數。"
-            "若記憶體已有課表，預設用空堂防呆（排到上課時間會自動略過）。"
-            "可用時段：0800（08:00-09:00）、1200（12:00-13:00）。上限預設每月 20、每週 8、每日 7.5 小時。"
+            "依『固定班表』把當月出勤攤開成清單，供使用者確認後送出。"
+            "pattern 是使用者實際固定值班的時段（每人不同、自訂、可多段），不是用來自動湊滿時數。"
+            "若記憶體已有課表，預設用空堂防呆（與上課時間重疊會自動略過）。"
+            "上限預設每月 20、每週 8、每日 7.5 小時；時數由起訖自動計算。"
         ),
         parameters={
             "type": "object",
@@ -420,7 +418,7 @@ REGISTRY: dict[str, ToolSpec] = {
                 "part_month": {"type": "string", "description": "民國 YYYMM，例如 11506"},
                 "pattern": {
                     "type": "object",
-                    "description": "固定班表 {星期: [時段]}，星期 1=一…7=日，時段用 '0800'/'1200'。例如 {\"2\":[\"1200\"],\"4\":[\"0800\"]}",
+                    "description": "固定班表 {星期: [[起,訖], ...]}，星期 1=一…7=日，起訖為 HHMM。例如 {\"2\":[[\"1200\",\"1300\"]],\"4\":[[\"0800\",\"0900\"]]}",
                 },
                 "skip_dates": {
                     "type": "array",

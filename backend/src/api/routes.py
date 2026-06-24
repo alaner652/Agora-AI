@@ -25,7 +25,6 @@ from actions.fetch_grades.index import get_grades as _grades
 from actions.fetch_leaves.index import get_leaves as _leaves
 from actions.fetch_schedule.index import get_options as _sched_opts
 from actions.fetch_schedule.index import get_schedule as _sched
-from actions.workstudy.index import free_slots_from_schedule
 from actions.workstudy.index import get_master as _ws_master
 from actions.workstudy.index import get_month as _ws_month
 from actions.workstudy.index import plan_shifts as _ws_plan
@@ -346,11 +345,11 @@ async def workstudy_master(
 
 
 class WorkstudyPlanBody(BaseModel):
-    part_month: str               # 民國 YYYMM，例如 11506
-    pattern: dict[str, list[str]] # {星期: [時段]}，星期 "1"…"7"，時段 "0800"/"1200"
+    part_month: str                     # 民國 YYYMM，例如 11506
+    pattern: dict[str, list[list[str]]] # {星期: [[起,訖], ...]}，星期 "1"…"7"，起訖 HHMM
     skip_dates: list[str] = []
     month_cap: float = 20.0
-    semester: str = ""            # "114,2"，提供時用課表空堂防呆
+    semester: str = ""                  # "114,2"，提供時用課表空堂防呆
     use_schedule_guard: bool = True
 
 
@@ -359,16 +358,16 @@ async def workstudy_plan(
     body: WorkstudyPlanBody,
     jsessionid: str = Depends(_resolve_session),
 ):
-    """依固定班表攤開當月出勤清單（每段 1 小時），供確認後送出。"""
+    """依固定班表（自訂時段）攤開當月出勤清單，供確認後送出。"""
     try:
-        free = None
+        schedule_entries = None
         if body.use_schedule_guard and body.semester:
-            sched = await _sched(jsessionid, body.semester)
-            free = free_slots_from_schedule(sched)
-        pattern = {int(k): v for k, v in body.pattern.items()}
+            schedule_entries = await _sched(jsessionid, body.semester)
+        pattern = {int(k): [tuple(s) for s in v] for k, v in body.pattern.items()}
         entries = _ws_plan(
             int(body.part_month[:3]), int(body.part_month[3:5]), pattern,
-            free_by_weekday=free, skip_dates=body.skip_dates, month_cap=body.month_cap,
+            schedule_entries=schedule_entries, skip_dates=body.skip_dates,
+            month_cap=body.month_cap,
         )
         return {
             "part_month": body.part_month,

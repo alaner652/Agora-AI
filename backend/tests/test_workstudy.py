@@ -3,8 +3,9 @@
 from actions.workstudy.index import (
     _build_payload,
     _build_svalue,
-    free_slots_from_schedule,
+    busy_by_weekday,
     plan_shifts,
+    slot_hours,
 )
 from parsers.workstudy import parse_workstudy_edit, parse_workstudy_master
 
@@ -81,31 +82,48 @@ def test_parse_edit_meta_and_rows():
     ]
 
 
+def test_slot_hours_variable_length():
+    assert slot_hours("0800", "0900") == 1.0
+    assert slot_hours("0800", "0930") == 1.5
+    assert slot_hours("1200", "1230") == 0.5
+
+
 def test_plan_fixed_pattern_weekday_and_slot():
-    # 115/6 = 2026/06，pattern: 週二中午、週四早上
-    entries = plan_shifts(115, 6, {2: ["1200"], 4: ["0800"]})
+    # 115/6 = 2026/06，自訂時段：週二 12-13、週四 08-09:30(1.5h)
+    entries = plan_shifts(115, 6, {2: [("1200", "1300")], 4: [("0800", "0930")]})
     assert entries, "should produce entries"
     for e in entries:
-        assert e["t_in"] in ("0800", "1200")
-        assert e["hours"] == "1.0"
+        assert (e["t_in"], e["t_out"]) in (("1200", "1300"), ("0800", "0930"))
+        assert e["hours"] in ("1.0", "1.5")
         assert e["seq"] == ""   # 新列尚未配 seq
 
 
+def test_plan_multiple_slots_same_day():
+    # 同一天可勾多段
+    entries = plan_shifts(115, 6, {2: [("0800", "0900"), ("1200", "1300")]})
+    days = {e["date"] for e in entries}
+    for d in days:
+        assert sum(1 for e in entries if e["date"] == d) == 2
+
+
 def test_plan_month_cap_and_skip():
-    full = plan_shifts(115, 6, {2: ["1200"], 4: ["0800"]})
-    capped = plan_shifts(115, 6, {2: ["1200"], 4: ["0800"]}, month_cap=3.0)
-    assert len(capped) == 3
-    skipped = plan_shifts(115, 6, {2: ["1200"], 4: ["0800"]},
+    full = plan_shifts(115, 6, {2: [("1200", "1300")], 4: [("0800", "0900")]})
+    capped = plan_shifts(115, 6, {2: [("1200", "1300")], 4: [("0800", "0900")]},
+                         month_cap=3.0)
+    assert sum(float(e["hours"]) for e in capped) <= 3.0
+    skipped = plan_shifts(115, 6, {2: [("1200", "1300")], 4: [("0800", "0900")]},
                           skip_dates=[full[0]["date"]])
     assert full[0]["date"] not in [e["date"] for e in skipped]
 
 
 def test_plan_schedule_guard_blocks_class_time():
-    # 週二 0820-0910 有課 → 0800 段非空堂，pattern 排了也要被擋
-    free = free_slots_from_schedule([{"weekday": 2, "time_range": "0820-0910"}])
-    assert "0800" not in free[2] and "1200" in free[2]
-    entries = plan_shifts(115, 6, {2: ["0800"]}, free_by_weekday=free)
-    assert entries == []
+    sched = [{"weekday": 2, "time_range": "0820-0910"}]
+    assert busy_by_weekday(sched) == {2: [(500, 550)]}
+    # 週二 08-09 與課重疊 → 擋下；12-13 不重疊 → 保留
+    blocked = plan_shifts(115, 6, {2: [("0800", "0900")]}, schedule_entries=sched)
+    assert blocked == []
+    kept = plan_shifts(115, 6, {2: [("1200", "1300")]}, schedule_entries=sched)
+    assert kept and all(e["t_in"] == "1200" for e in kept)
 
 
 def test_build_svalue_format():

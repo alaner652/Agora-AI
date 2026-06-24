@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { CalendarCheck, X } from 'lucide-react'
+import { CalendarCheck, Plus, X } from 'lucide-react'
 import {
   planWorkstudy, saveWorkstudy,
   type WorkstudyMaster, type WorkstudyRecord, type WorkstudyPlan,
@@ -19,22 +19,30 @@ import {
 } from '@/components/ui/select'
 import type { SemesterOption } from '@/lib/data'
 
-const SLOTS = [
-  { key: '0800', label: '08:00–09:00' },
-  { key: '1200', label: '12:00–13:00' },
-] as const
+interface Slot { t_in: string; t_out: string }   // HHMM
+
+// 便利預設；使用者可自行增刪（每個人固定值班時段不同）
+const DEFAULT_SLOTS: Slot[] = [
+  { t_in: '0800', t_out: '0900' },
+  { t_in: '1200', t_out: '1300' },
+]
 const WEEKDAYS = [1, 2, 3, 4, 5]
 const WD_LABEL = ['', '一', '二', '三', '四', '五', '六', '日']
+
+const hhmmToTime = (s: string) => `${s.slice(0, 2)}:${s.slice(2)}`
+const timeToHhmm = (s: string) => s.replace(':', '')
+const toMin = (s: string) => Number(s.slice(0, 2)) * 60 + Number(s.slice(2))
+const slotKey = (s: Slot) => `${s.t_in}-${s.t_out}`
+const slotHours = (s: Slot) => (toMin(s.t_out) - toMin(s.t_in)) / 60
+const slotLabel = (s: Slot) => `${hhmmToTime(s.t_in)}–${hhmmToTime(s.t_out)}`
 
 function recordKey(r: WorkstudyRecord) { return `${r.year}-${r.month}-${r.unit_id}` }
 function partMonth(r: WorkstudyRecord) {
   return `${r.year.padStart(3, '0')}${r.month.padStart(2, '0')}`
 }
-// 民國 YYYMMDD → M/D
 function fmtMD(d: string) {
   return /^\d{7}$/.test(d) ? `${Number(d.slice(3, 5))}/${Number(d.slice(5, 7))}` : d
 }
-
 function statusCls(s: string) {
   if (s.includes('未送件')) return 'text-amber-400 bg-amber-500/15'
   if (s.includes('已送件')) return 'text-emerald-400 bg-emerald-500/15'
@@ -58,32 +66,64 @@ export function WorkstudyView({ semester, options, master }: Props) {
   })
   const record = records.find(r => recordKey(r) === selKey) ?? null
 
-  // pattern: 星期 → 已選時段
+  // 自訂時段清單 + 班表勾選（星期 → 已選時段 key）
+  const [slots, setSlots] = useState<Slot[]>(DEFAULT_SLOTS)
   const [pattern, setPattern] = useState<Record<number, Set<string>>>({})
+  const [newIn, setNewIn] = useState('08:00')
+  const [newOut, setNewOut] = useState('09:00')
   const [monthCap, setMonthCap] = useState(20)
   const [useGuard, setUseGuard] = useState(true)
   const [skip, setSkip] = useState<string[]>([])
   const [plan, setPlan] = useState<WorkstudyPlan | null>(null)
   const [confirm, setConfirm] = useState(false)
 
-  function patternToObj(): Record<string, string[]> {
-    const out: Record<string, string[]> = {}
+  function reset() { setPlan(null); setConfirm(false) }
+
+  function addSlot() {
+    const t_in = timeToHhmm(newIn), t_out = timeToHhmm(newOut)
+    if (toMin(t_out) <= toMin(t_in)) { toast.error('結束時間需晚於開始時間'); return }
+    const s: Slot = { t_in, t_out }
+    if (slots.some(x => slotKey(x) === slotKey(s))) { toast.error('已有相同時段'); return }
+    setSlots([...slots, s].sort((a, b) => toMin(a.t_in) - toMin(b.t_in)))
+    reset()
+  }
+
+  function removeSlot(key: string) {
+    setSlots(slots.filter(s => slotKey(s) !== key))
+    setPattern(prev => {
+      const next: Record<number, Set<string>> = {}
+      for (const [wd, set] of Object.entries(prev)) {
+        const cleaned = new Set([...set].filter(k => k !== key))
+        if (cleaned.size) next[Number(wd)] = cleaned
+      }
+      return next
+    })
+    reset()
+  }
+
+  function toggle(wd: number, key: string) {
+    reset()
+    setPattern(prev => {
+      const set = new Set(prev[wd] ?? [])
+      set.has(key) ? set.delete(key) : set.add(key)
+      return { ...prev, [wd]: set }
+    })
+  }
+
+  function patternToObj(): Record<string, [string, string][]> {
+    const byKey = new Map(slots.map(s => [slotKey(s), s]))
+    const out: Record<string, [string, string][]> = {}
     for (const wd of WEEKDAYS) {
       const set = pattern[wd]
-      if (set && set.size) out[String(wd)] = [...set]
+      if (!set?.size) continue
+      out[String(wd)] = [...set]
+        .map(k => byKey.get(k))
+        .filter((s): s is Slot => !!s)
+        .map(s => [s.t_in, s.t_out])
     }
     return out
   }
   const patternCount = WEEKDAYS.reduce((n, wd) => n + (pattern[wd]?.size ?? 0), 0)
-
-  function toggle(wd: number, slot: string) {
-    setPlan(null); setConfirm(false)
-    setPattern(prev => {
-      const set = new Set(prev[wd] ?? [])
-      set.has(slot) ? set.delete(slot) : set.add(slot)
-      return { ...prev, [wd]: set }
-    })
-  }
 
   const previewMut = useMutation({
     mutationFn: (skipDates: string[]) => planWorkstudy({
@@ -110,11 +150,8 @@ export function WorkstudyView({ semester, options, master }: Props) {
     onSuccess: data => {
       if (data.success) {
         toast.success('工讀考勤已存檔')
-        setPlan(null); setConfirm(false); router.refresh()
-      } else {
-        toast.error(data.message || '存檔失敗')
-        setConfirm(false)
-      }
+        reset(); router.refresh()
+      } else { toast.error(data.message || '存檔失敗'); setConfirm(false) }
     },
     onError: () => { toast.error('存檔失敗，請稍後再試'); setConfirm(false) },
   })
@@ -146,7 +183,7 @@ export function WorkstudyView({ semester, options, master }: Props) {
         </div>
         <div>
           <label className="block text-xs text-muted-foreground mb-1">月份</label>
-          <Select value={selKey} onValueChange={v => { if (v == null) return; setSelKey(v); setPattern({}); setPlan(null); setConfirm(false) }}>
+          <Select value={selKey} onValueChange={v => { if (v == null) return; setSelKey(v); setPattern({}); reset() }}>
             <SelectTrigger className="min-w-56">
               <SelectValue displayValue={record ? `${record.year}年${record.month}月 · ${record.status}` : '無可登錄月份'} />
             </SelectTrigger>
@@ -178,54 +215,88 @@ export function WorkstudyView({ semester, options, master }: Props) {
           <div>
             <h3 className="text-sm font-medium text-foreground mb-1">固定班表</h3>
             <p className="text-xs text-muted-foreground/70">
-              勾選你<span className="text-primary">實際固定值班</span>的時段，系統依此攤開整月。送出為整月覆蓋。
+              先定義你的<span className="text-primary">值班時段</span>，再勾選每週實際固定會去的格子。送出為整月覆蓋。
             </p>
           </div>
 
-          {/* 班表格 */}
-          <div className="overflow-x-auto">
-            <table className="text-sm">
-              <thead>
-                <tr className="text-muted-foreground">
-                  <th className="px-2 py-1 text-left font-medium">星期</th>
-                  {SLOTS.map(s => <th key={s.key} className="px-2 py-1 font-medium">{s.label}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {WEEKDAYS.map(wd => (
-                  <tr key={wd}>
-                    <td className="px-2 py-1.5 text-muted-foreground">週{WD_LABEL[wd]}</td>
-                    {SLOTS.map(s => {
-                      const on = pattern[wd]?.has(s.key)
-                      return (
-                        <td key={s.key} className="px-2 py-1.5 text-center">
-                          <button type="button" onClick={() => toggle(wd, s.key)}
-                            className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors ${
-                              on ? 'bg-primary text-white border-primary'
-                                 : 'bg-card text-muted-foreground border-border hover:bg-accent/50'}`}>
-                            {on ? '值班' : '—'}
-                          </button>
-                        </td>
-                      )
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {/* 時段定義 */}
+          <div className="space-y-2">
+            <label className="block text-xs font-medium text-muted-foreground">值班時段</label>
+            <div className="flex flex-wrap items-center gap-2">
+              {slots.map(s => (
+                <span key={slotKey(s)} className="inline-flex items-center gap-1 text-xs bg-accent/50 border border-border rounded-lg px-2 py-1 text-foreground/80">
+                  {slotLabel(s)} <span className="text-muted-foreground/60">({slotHours(s)}h)</span>
+                  <button type="button" onClick={() => removeSlot(slotKey(s))}
+                    className="text-muted-foreground/40 hover:text-red-400 transition-colors">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+              <span className="inline-flex items-center gap-1">
+                <input type="time" step={1800} value={newIn} onChange={e => setNewIn(e.target.value)}
+                  className="bg-card border border-border rounded-lg px-2 py-1 text-xs" />
+                <span className="text-muted-foreground/50 text-xs">–</span>
+                <input type="time" step={1800} value={newOut} onChange={e => setNewOut(e.target.value)}
+                  className="bg-card border border-border rounded-lg px-2 py-1 text-xs" />
+                <button type="button" onClick={addSlot}
+                  className="inline-flex items-center gap-0.5 text-xs text-primary hover:underline px-1.5 py-1">
+                  <Plus className="w-3.5 h-3.5" />加入
+                </button>
+              </span>
+            </div>
           </div>
+
+          {/* 班表格 */}
+          {slots.length === 0 ? (
+            <p className="text-xs text-muted-foreground/70">請先加入至少一個值班時段。</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="text-sm">
+                <thead>
+                  <tr className="text-muted-foreground">
+                    <th className="px-2 py-1 text-left font-medium">星期</th>
+                    {slots.map(s => (
+                      <th key={slotKey(s)} className="px-2 py-1 font-medium whitespace-nowrap">{slotLabel(s)}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {WEEKDAYS.map(wd => (
+                    <tr key={wd}>
+                      <td className="px-2 py-1.5 text-muted-foreground">週{WD_LABEL[wd]}</td>
+                      {slots.map(s => {
+                        const key = slotKey(s)
+                        const on = pattern[wd]?.has(key)
+                        return (
+                          <td key={key} className="px-2 py-1.5 text-center">
+                            <button type="button" onClick={() => toggle(wd, key)}
+                              className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                                on ? 'bg-primary text-white border-primary'
+                                   : 'bg-card text-muted-foreground border-border hover:bg-accent/50'}`}>
+                              {on ? '值班' : '—'}
+                            </button>
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {/* 選項 */}
           <div className="flex flex-wrap items-end gap-4">
             <div>
               <label className="block text-xs text-muted-foreground mb-1">每月上限（小時）</label>
               <Input type="number" min={0} max={30} value={monthCap}
-                onChange={e => { setMonthCap(Number(e.target.value)); setPlan(null) }}
+                onChange={e => { setMonthCap(Number(e.target.value)); reset() }}
                 className="w-28" />
             </div>
             <label className="flex items-center gap-2 text-xs text-muted-foreground pb-2.5 cursor-pointer">
               <input type="checkbox" checked={useGuard}
-                onChange={e => { setUseGuard(e.target.checked); setPlan(null) }} />
-              用課表空堂防呆（排到上課時間自動略過）
+                onChange={e => { setUseGuard(e.target.checked); reset() }} />
+              用課表空堂防呆（與上課時間重疊自動略過）
             </label>
             <Button onClick={doPreview} disabled={patternCount === 0 || previewMut.isPending}
               variant="outline" className="ml-auto self-end">
@@ -248,7 +319,7 @@ export function WorkstudyView({ semester, options, master }: Props) {
                   {plan.entries.map(e => (
                     <span key={e.date + e.t_in}
                       className="group inline-flex items-center gap-1 text-xs bg-card border border-border rounded-lg px-2 py-1 text-muted-foreground">
-                      {fmtMD(e.date)} {e.t_in}-{e.t_out}
+                      {fmtMD(e.date)} {hhmmToTime(e.t_in)}-{hhmmToTime(e.t_out)}
                       <button type="button" onClick={() => removeEntry(e.date)}
                         title="這天沒去，移除"
                         className="text-muted-foreground/40 hover:text-red-400 transition-colors">
