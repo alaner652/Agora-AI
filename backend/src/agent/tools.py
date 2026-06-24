@@ -21,6 +21,19 @@ from actions.fetch_grades.index import get_grades
 from actions.fetch_leaves.index import get_leaves
 from actions.fetch_schedule.index import get_options as _sched_options
 from actions.fetch_schedule.index import get_schedule
+from actions.workstudy.index import (
+    free_slots_from_schedule,
+    plan_shifts,
+)
+from actions.workstudy.index import (
+    get_master as _ws_master,
+)
+from actions.workstudy.index import (
+    get_month as _ws_month,
+)
+from actions.workstudy.index import (
+    save_month as _ws_save,
+)
 from log import get_logger
 from utils.date import days_ago_roc, today_roc, today_taipei
 
@@ -166,6 +179,59 @@ async def _h_delete_leave(args: dict, ctx: ToolContext) -> str:
     return json.dumps(result, ensure_ascii=False)
 
 
+async def _h_get_workstudy_master(args: dict, ctx: ToolContext) -> str:
+    result = await _ws_master(ctx.jsessionid, args["year"], args["sms"])
+    return json.dumps(result, ensure_ascii=False)
+
+
+async def _h_get_workstudy_month(args: dict, ctx: ToolContext) -> str:
+    result = await _ws_month(
+        ctx.jsessionid, args["year"], args["sms"], args["part_month"],
+        args["unit_id"], args["kind_id"],
+    )
+    ctx.memory.cache["workstudy"] = {
+        "meta": result["meta"],
+        "rows": result["rows"],
+        "kind_name": args.get("kind_name", ""),
+    }
+    return json.dumps(result, ensure_ascii=False)
+
+
+async def _h_plan_workstudy(args: dict, ctx: ToolContext) -> str:
+    part_month = args["part_month"]
+    pattern = {int(k): v for k, v in args["pattern"].items()}
+
+    free = None
+    sched = ctx.memory.cache.get("schedule")
+    if sched and args.get("use_schedule_guard", True):
+        free = free_slots_from_schedule(sched["entries"])
+
+    entries = plan_shifts(
+        int(part_month[:3]), int(part_month[3:5]), pattern,
+        free_by_weekday=free, skip_dates=args.get("skip_dates"),
+        month_cap=args.get("month_cap", 20.0),
+    )
+    ctx.memory.cache["workstudy_plan"] = entries
+    return json.dumps(
+        {"part_month": part_month, "count": len(entries),
+         "total_hours": sum(float(e["hours"]) for e in entries),
+         "entries": entries},
+        ensure_ascii=False,
+    )
+
+
+async def _h_save_workstudy(args: dict, ctx: ToolContext) -> str:
+    cached = ctx.memory.cache.get("workstudy")
+    entries = ctx.memory.cache.get("workstudy_plan")
+    if not cached or entries is None:
+        return _err("請先 get_workstudy_month 取得當月主檔，再 plan_workstudy 產生班表",
+                    ErrorCode.UNKNOWN)
+    result = await _ws_save(
+        ctx.jsessionid, cached["meta"], entries, cached.get("kind_name", ""),
+    )
+    return json.dumps(result, ensure_ascii=False)
+
+
 async def _h_ask_user(args: dict, ctx: ToolContext) -> str:
     raise AskUserError(question=args["question"], options=args["options"])
 
@@ -302,6 +368,83 @@ REGISTRY: dict[str, ToolSpec] = {
         danger_level=2,
         preconditions=["get_leaves"],
         side_effects=["modifies_leave_records"],
+    ),
+    "get_workstudy_master": ToolSpec(
+        name="get_workstudy_master",
+        description=(
+            "查詢工讀（個人學習型之服務）某學年期的月份主檔列表："
+            "哪幾個月有建檔、各月時數、核銷狀態（未送件才可登錄），"
+            "以及各筆的 unit_id / kind_id（登錄時要用）。"
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "year": {"type": "string", "description": "學年度，例如 114"},
+                "sms":  {"type": "string", "description": "學期，1 或 2"},
+            },
+            "required": ["year", "sms"],
+        },
+        handler=_h_get_workstudy_master,
+    ),
+    "get_workstudy_month": ToolSpec(
+        name="get_workstudy_month",
+        description=(
+            "取得某月工讀考勤的編輯資料：既有出勤列與送出所需 meta（含 pay_seqid）。"
+            "登錄前必須先呼叫，unit_id/kind_id 由 get_workstudy_master 取得。"
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "year":       {"type": "string", "description": "學年度，例如 114"},
+                "sms":        {"type": "string", "description": "學期，1 或 2"},
+                "part_month": {"type": "string", "description": "民國 YYYMM，例如 11506"},
+                "unit_id":    {"type": "string", "description": "單位代碼，例如 A009"},
+                "kind_id":    {"type": "string", "description": "職別代碼，例如 AA"},
+                "kind_name":  {"type": "string", "description": "職別名稱，例如 清寒學習服務生(A)，存檔時帶回"},
+            },
+            "required": ["year", "sms", "part_month", "unit_id", "kind_id"],
+        },
+        handler=_h_get_workstudy_month,
+    ),
+    "plan_workstudy": ToolSpec(
+        name="plan_workstudy",
+        description=(
+            "依『固定班表』把當月出勤攤開成清單（每段 1 小時），供使用者確認後送出。"
+            "pattern 是使用者實際固定值班的時段，不是用來自動湊滿時數。"
+            "若記憶體已有課表，預設用空堂防呆（排到上課時間會自動略過）。"
+            "可用時段：0800（08:00-09:00）、1200（12:00-13:00）。上限預設每月 20、每週 8、每日 7.5 小時。"
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "part_month": {"type": "string", "description": "民國 YYYMM，例如 11506"},
+                "pattern": {
+                    "type": "object",
+                    "description": "固定班表 {星期: [時段]}，星期 1=一…7=日，時段用 '0800'/'1200'。例如 {\"2\":[\"1200\"],\"4\":[\"0800\"]}",
+                },
+                "skip_dates": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "該月沒去的日子（民國 YYYMMDD），不納入",
+                },
+                "month_cap": {"type": "number", "description": "每月時數上限，預設 20"},
+                "use_schedule_guard": {"type": "boolean", "description": "是否用課表空堂防呆，預設 true"},
+            },
+            "required": ["part_month", "pattern"],
+        },
+        handler=_h_plan_workstudy,
+    ),
+    "save_workstudy": ToolSpec(
+        name="save_workstudy",
+        description=(
+            "送出（整月覆蓋）工讀考勤。必須先 get_workstudy_month + plan_workstudy。"
+            "此為整月覆蓋：送出的班表會取代該月原有紀錄。送出前務必向使用者確認清單與總時數。"
+        ),
+        parameters={"type": "object", "properties": {}, "required": []},
+        handler=_h_save_workstudy,
+        danger_level=1,
+        preconditions=["get_workstudy_month", "plan_workstudy"],
+        side_effects=["modifies_workstudy_records"],
     ),
     "ask_user": ToolSpec(
         name="ask_user",
